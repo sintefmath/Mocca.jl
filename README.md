@@ -1,4 +1,4 @@
-# Absorption.jl
+# Mocca.jl
 CO2 capture modules in Julia. Name subject to change.
 
 ## Installing dependencies
