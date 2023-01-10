@@ -3,4 +3,5 @@ uuid = "eb14e3ba-90c8-11ed-0ecf-1dd2ea0d109c"
 
 [deps]
 Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
+JutulDarcy = "82210473-ab04-4dce-b31b-11573c4f8e0a"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
