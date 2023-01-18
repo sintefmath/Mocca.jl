@@ -72,10 +72,11 @@ end
 const CO2COMPONENTINDEX = 1
 const N2COMPONENTINDEX = 2
 
-Jutul.@jutul_secondary function JutulDarcy.update_total_masses!(
+import Jutul: update_secondary_variable!
+Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
-    model::Jutul.SimulationModel{G,AdsorptionFlowSystem},
+    model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
     adsorptionRateCO2,
     adsorptionRateN2,
     y,
@@ -83,14 +84,13 @@ Jutul.@jutul_secondary function JutulDarcy.update_total_masses!(
     cCO2,
     cN2,
     axialDispersion,
-    fluidVolume,
-    bulkVolume
-) where {G<:Any}
+    ix
+)
     sys = model.system
-    for cell in ix
-        totmass[CO2COMPONENTINDEX, cell] = y
-        totmass[N2COMPONENTINDEX, cell] = y
-    end
+    # for cell in ix
+    #     totmass[CO2COMPONENTINDEX, cell] = y
+    #     totmass[N2COMPONENTINDEX, cell] = y
+    # end
 end
 time = 1.0
 nc = 10
