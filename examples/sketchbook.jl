@@ -92,12 +92,19 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     #     totmass[N2COMPONENTINDEX, cell] = y
     # end
 end
+
+Jutul.@jutul_secondary function update_total_masses!(totmass, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, ix) where {G, S<:AdsorptionFlowSystem}
+    error("Implement me!!!")
+end
+
 time = 1.0
 nc = 10
 nstep = 8
 general_ad = false
 T = time
 tstep = repeat([T / nstep], nstep)
+timesteps = tstep*3600*24 # Convert time-steps from days to seconds
+
 ϵ = 0.37
 r_in = 0.289/2.0
 perm = -4/150 * (ϵ/(1-ϵ))^2*r_in^2
@@ -128,7 +135,7 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
 state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-#states, report = simulate(sim, timesteps, forces = forces)
+#states, report = Jutul.simulate(sim, timesteps)
 end
 
 Mocca.model
