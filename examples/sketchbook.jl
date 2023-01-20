@@ -9,6 +9,28 @@ using Parameters
     number_of_components::Int64 = 2
 end
 
+struct AdsorptionRates <: Jutul.VectorVariables
+end
+
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+
+struct AverageMolecularMass <: Jutul.ScalarVariable
+end
+
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+
+struct Concentrations <: Jutul.VectorVariables end
+
+
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+
+
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
 # function JutulDarcy.degrees_of_freedom_per_entity(
@@ -27,7 +49,7 @@ function Jutul.select_primary_variables!(
     ::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    S[:Pressure] = JutulDarcy.Pressure()
+    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = JutulDarcy.OverallMoleFractions()
 end
 
@@ -36,14 +58,12 @@ function Jutul.select_secondary_variables!(
     ::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    S[:adsorptionRateCO2] = JutulDarcy.TotalMass() # TODO: Make MassPerSecondType
-    S[:adsorptionRateN2] = JutulDarcy.TotalMass() # TODO: Make MassPerSecondType
+    S[:adsorptionRates] = AdsorptionRates()
     #S[:qCO2] = JutulDarcy.TotalMass()
     #S[:qN2] = JutulDarcy.TotalMass()
     S[:cTot] = JutulDarcy.TotalMass()
-    S[:cCO2] = JutulDarcy.TotalMass()
-    S[:cN2] = JutulDarcy.TotalMass()
-    S[:avm] = JutulDarcy.TotalMass()
+    S[:concentrations] = Concentrations()
+    S[:avm] = AverageMolecularMass()
     S[:TotalMasses] = JutulDarcy.TotalMasses()
 end
 
@@ -66,36 +86,69 @@ function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.Simula
     # TODO: Find proper type for fluidViscosity
     S[:fluidViscosity] = JutulDarcy.Transmissibilities()
     S[:solidVolume] = JutulDarcy.BulkVolume()
+    S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
+    S[:molecularMassOfN2] = JutulDarcy.TotalMass()
 
 end
 
-const CO2COMPONENTINDEX = 1
-const N2COMPONENTINDEX = 2
+const CO2INDEX = 1
+const N2INDEX = 2
 
 import Jutul: update_secondary_variable!
 Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
-    adsorptionRateCO2,
-    adsorptionRateN2,
+    adsorptionRates,
     y,
     cTot,
-    cCO2,
-    cN2,
+    concentrations,
     axialDispersion,
+    avm,
     ix
 )
+    println("Updating total mass")
     sys = model.system
+
     # for cell in ix
     #     totmass[CO2COMPONENTINDEX, cell] = y
     #     totmass[N2COMPONENTINDEX, cell] = y
     # end
 end
 
-Jutul.@jutul_secondary function update_total_masses!(totmass, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, ix) where {G, S<:AdsorptionFlowSystem}
-    error("Implement me!!!")
+
+
+Jutul.@jutul_secondary function update_adsorption_rates!(totmass, tv::AdsorptionRates,
+     model::Jutul.SimulationModel{G, S}, ix) where {G, S<:AdsorptionFlowSystem}
+    # TODO: Implement this
+    println("Updating adsorption rates")
 end
+
+Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, y, Pressure, ix) where {G, S<:AdsorptionFlowSystem}
+    # Update cTot
+    println("Updating ctot")
+end
+
+Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, molecularMassOfCO2, molecularMassOfN2, ix) where {G, S<:AdsorptionFlowSystem}
+    println("Updating avm")
+    for cellindex in ix
+        # TODO: Fix masses such that they are single parameters for the whole grid
+        avm[cellindex] = y[CO2INDEX, cellindex] * molecularMassOfCO2[cellindex] + y[N2INDEX, cellindex] * molecularMassOfN2[cellindex]
+    end
+end
+
+Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G, S}, y, cTot, ix) where {G, S<:AdsorptionFlowSystem}
+    println("Updating concentrations")
+    for cellindex in ix
+        # TODO: Fix masses such that they are single parameters for the whole grid
+        for component in 1:JutulDarcy.number_of_components(model.system)
+            concentrations[component, cellindex] = y[component, cellindex] * cTot[cellindex]
+        end
+    end
+end
+
+
+
 
 time = 1.0
 nc = 10
