@@ -2,7 +2,7 @@
 module Mocca
 import Jutul
 import JutulDarcy
-
+using StaticArrays
 using Parameters
 
 @with_kw struct AdsorptionFlowSystem <: JutulDarcy.MultiComponentSystem
@@ -10,6 +10,7 @@ using Parameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
+    rho_ref::Float64 = 1.0 # TODO: DELETEME!!!
 end
 
 struct AdsorptionRates <: Jutul.VectorVariables
@@ -91,11 +92,14 @@ function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.Simula
     S[:solidVolume] = JutulDarcy.BulkVolume()
     S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
     S[:molecularMassOfN2] = JutulDarcy.TotalMass()
+    S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
 
 end
 
 const CO2INDEX = 1
 const N2INDEX = 2
+
+const AdsorptionFlowModel = Jutul.SimulationModel{<:Any, <:AdsorptionFlowSystem, <:Any, <:Any}
 
 import Jutul: update_secondary_variable!
 Jutul.@jutul_secondary function update_our_total_masses!(
@@ -113,10 +117,46 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     println("Updating total mass")
     sys = model.system
 
-    # for cell in ix
-    #     totmass[CO2COMPONENTINDEX, cell] = y
-    #     totmass[N2COMPONENTINDEX, cell] = y
-    # end
+    for cell in ix
+        # totmass[CO2COMPONENTINDEX, cell] = y
+        # totmass[N2COMPONENTINDEX, cell] = y
+    end
+end
+
+function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G, S}, kgrad, upw) where {G<:Any, S<:AdsorptionFlowSystem}
+    # This is defined for us:
+    # kgrad = TPFA(left, right, face_sign)
+    # upw = SPU(left, right)
+    # TODO: Implement me
+
+
+    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
+    (∇p, T_f, gΔz) = disc
+    # @show T_f
+    # @show ∇p
+    for ph in eachindex(q)
+        q_darcy = -T_f * ∇p
+        
+        q = setindex(q, q_darcy, ph)
+    end
+    # @info "Flux $face" q
+    return q
+end
+
+# @inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::JutulDarcy.ConservationLaw{:TotalMasses}, state, model::AdsorptionFlowModel, dt, flow_disc::Jutul.TwoPointPotentialFlowHardCoded)
+#     # # Specific version for tpfa flux
+#     # # TODO: Add general version for thermal
+#     # grad = TPFA(left, right, face_sign)
+#     # upw = SPU(left, right)
+#     # q = thermal_heat_flux!(face, state, model, grad, upw)
+#     # return setindex(Q, q, 1)
+#     println("Hello")
+#     return Q
+# end
+
+function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt = 1) where {D, S<:AdsorptionFlowSystem}
+    R = (CNV = (errors = 0.0, names = ["A", "b"]),
+        MB = (errors = 1.0, names = ["A", "b"]))
 end
 
 
@@ -170,7 +210,7 @@ timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 
 ϵ = 0.37
 r_in = 0.289/2.0
-perm = -4/150 * (ϵ/(1-ϵ))^2*r_in^2
+perm = 4/150 * (ϵ/(1-ϵ))^2*r_in^2
 
 G = JutulDarcy.get_1d_reservoir(nc, general_ad = general_ad, poro=ϵ , perm=perm)
 sys = AdsorptionFlowSystem()
@@ -195,10 +235,15 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
     solidVolume = solid_volume, 
     axialDispersion = DL,
     fluidViscosity = 1.72e-5)
+irate = 500*sum(G.grid.pore_volumes)/time
+src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
+    JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
+forces = JutulDarcy.setup_forces(model, sources = src)
+@info "parameter set" parameters model.domain.grid.trans
 state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-# states, report = Jutul.simulate(sim, timesteps)
+states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces)
 end
 
 Mocca.model
