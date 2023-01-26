@@ -7,6 +7,9 @@ using Parameters
 
 @with_kw struct AdsorptionFlowSystem <: JutulDarcy.MultiComponentSystem
     number_of_components::Int64 = 2
+    molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
+    molecularMassOfN2::Float64 = 28e-3 # kg/mole
+    R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
 end
 
 struct AdsorptionRates <: Jutul.VectorVariables
@@ -124,16 +127,23 @@ Jutul.@jutul_secondary function update_adsorption_rates!(totmass, tv::Adsorption
     println("Updating adsorption rates")
 end
 
-Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, y, Pressure, ix) where {G, S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, y, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
     # Update cTot
-    println("Updating ctot")
+    sys = model.system
+
+    for cellindex in ix
+        ctot[cellindex] = Pressure[cellindex] / (sys.R * Temperature[cellindex])
+    end
 end
 
-Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, molecularMassOfCO2, molecularMassOfN2, ix) where {G, S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S<:AdsorptionFlowSystem}
     println("Updating avm")
     for cellindex in ix
         # TODO: Fix masses such that they are single parameters for the whole grid
-        avm[cellindex] = y[CO2INDEX, cellindex] * molecularMassOfCO2[cellindex] + y[N2INDEX, cellindex] * molecularMassOfN2[cellindex]
+        sys = model.system
+        molecularMassOfCO2 = sys.molecularMassOfCO2
+        molecularMassOfN2 = sys.molecularMassOfN2
+        avm[cellindex] = y[CO2INDEX, cellindex] * molecularMassOfCO2 + y[N2INDEX, cellindex] * molecularMassOfN2
     end
 end
 
@@ -188,7 +198,7 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
 state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-#states, report = Jutul.simulate(sim, timesteps)
+# states, report = Jutul.simulate(sim, timesteps)
 end
 
 Mocca.model
