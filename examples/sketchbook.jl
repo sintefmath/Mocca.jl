@@ -59,7 +59,7 @@ end
 
 function Jutul.select_secondary_variables!(
     S,
-    ::AdsorptionFlowSystem,
+    system::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
     S[:adsorptionRates] = AdsorptionRates()
@@ -69,6 +69,12 @@ function Jutul.select_secondary_variables!(
     S[:concentrations] = Concentrations()
     S[:avm] = AverageMolecularMass()
     S[:TotalMasses] = JutulDarcy.TotalMasses()
+
+    # 🙏
+    # Hope this works... Should provide uniqueness for system.
+    nph = JutulDarcy.number_of_phases(system)
+    S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
+
 end
 
 function Jutul.select_equations!(
@@ -101,27 +107,31 @@ const N2INDEX = 2
 
 const AdsorptionFlowModel = Jutul.SimulationModel{<:Any, <:AdsorptionFlowSystem, <:Any, <:Any}
 
+# We need this since the jutul_secondary macro assumes
+# update_secondary_variable! is in the namespace
 import Jutul: update_secondary_variable!
-Jutul.@jutul_secondary function update_our_total_masses!(
-    totmass,
-    tv::JutulDarcy.TotalMasses,
-    model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
-    adsorptionRates,
-    y,
-    cTot,
-    concentrations,
-    axialDispersion,
-    avm,
-    ix
-)
-    println("Updating total mass")
-    sys = model.system
 
-    for cell in ix
-        # totmass[CO2COMPONENTINDEX, cell] = y
-        # totmass[N2COMPONENTINDEX, cell] = y
-    end
-end
+
+# Jutul.@jutul_secondary function update_our_total_masses!(
+#     totmass,
+#     tv::JutulDarcy.TotalMasses,
+#     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
+#     y,
+#     cTot,
+#     PhaseMassDensities, 
+#     ix
+# )
+#     println("Updating total mass")
+#     sys = model.system
+
+#     for cell in ix
+#         @info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
+#         totmass[1, cell] = cTot[cell] * y[1, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
+#         totmass[2, cell] = cTot[cell] * y[2, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
+#         # totmass[CO2COMPONENTINDEX, cell] = y
+#         # totmass[N2COMPONENTINDEX, cell] = y
+#     end
+# end
 
 function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G, S}, kgrad, upw) where {G<:Any, S<:AdsorptionFlowSystem}
     # This is defined for us:
@@ -167,14 +177,16 @@ Jutul.@jutul_secondary function update_adsorption_rates!(totmass, tv::Adsorption
     println("Updating adsorption rates")
 end
 
-Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, y, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
-    # Update cTot
-    sys = model.system
+# Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
+#     # Update cTot
+#     sys = model.system
 
-    for cellindex in ix
-        ctot[cellindex] = Pressure[cellindex] / (sys.R * Temperature[cellindex])
-    end
-end
+#     for cellindex in ix
+#         ctot[cellindex] = Pressure[cellindex] / (sys.R * Temperature[cellindex])
+#         @info "Updating cTot to " ctot[cellindex] Pressure[cellindex] sys.R Temperature[cellindex]
+
+#     end
+# end
 
 Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S<:AdsorptionFlowSystem}
     println("Updating avm")
@@ -196,6 +208,8 @@ Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Conce
         end
     end
 end
+
+include("dontdothis.jl")
 
 
 
@@ -236,14 +250,14 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
     axialDispersion = DL,
     fluidViscosity = 1.72e-5)
 irate = 500*sum(G.grid.pore_volumes)/time
-src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
-    JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
-forces = JutulDarcy.setup_forces(model, sources = src)
+# src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
+#     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
+# forces = JutulDarcy.setup_forces(model, sources = src)
 @info "parameter set" parameters model.domain.grid.trans
 state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces)
+states, report = Jutul.simulate(sim, timesteps, info_level = 5)#, forces=forces)
 end
 
 Mocca.model
