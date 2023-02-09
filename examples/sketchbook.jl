@@ -5,6 +5,8 @@ import JutulDarcy
 using StaticArrays
 using Parameters
 using Tullio
+using CairoMakie
+using MakiePublication
 
 @with_kw struct AdsorptionFlowSystem <: JutulDarcy.MultiComponentSystem
     number_of_components::Int64 = 2
@@ -234,7 +236,26 @@ end
 # include("dontdothis.jl")
 
 
+function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any, T}, state, time) where T<:AdsorptionFlowSystem
 
+    mu = state.PhaseViscosities
+    @show size(mu)
+    rho = state.PhaseMassDensities
+    concentrations = state.concentrations
+    nph = length(acc)
+
+    rho_inj = bc.density
+    f_inj = bc.fractional_flow
+    c = bc.cell
+    
+    mobility = 1/mu[1, c]
+
+    for component in eachindex(acc)
+        @info "Adding bc to be " -mobility * q * concentrations[component, c] q
+        acc[component] += -mobility * q * concentrations[component, c]
+    end
+   
+end
 
 time = 1.0
 nc = 10
@@ -271,6 +292,9 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
     solidVolume = solid_volume, 
     axialDispersion = DL,
     fluidViscosity = 1.72e-5)
+
+d = JutulDarcy.FlowBoundaryCondition(nc, p0/2)
+forces = Jutul.setup_forces(model, sources = [], bc = d)
 irate = 500*sum(G.grid.pore_volumes)/time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
 #     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
@@ -279,7 +303,16 @@ irate = 500*sum(G.grid.pore_volumes)/time
 state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 5)#, forces=forces)
+states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces)
+with_theme(theme_web()) do 
+    f = Figure()
+    ax = Axis(f[1, 1], ylabel = "y", title = "Adsorption")
+    x = range(0, stop = 1, length = nc)
+    for i in 1:6:length(states)
+        lines!(ax, x, states[i][:y][2, :], color = :darkgray)
+    end
+    display(f)
+end
 end
 
 Mocca.model

@@ -17,7 +17,8 @@ function solve_bl(;nc = 100, time = 1.0, nstep = 100, general_ad = false)
     irate = 500*sum(G.grid.pore_volumes)/tot_time
     src  = [SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
             SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
-    forces = setup_forces(model, sources = src)
+    d = FlowBoundaryCondition(nc, p0/2)
+    forces = setup_forces(model, sources = [], bc = d)
 
     parameters = setup_parameters(model, PhaseViscosities = [1e-3, 5e-3]) # 1 and 5 cP
     state0 = setup_state(model, Pressure = p0, Saturations = [0.0, 1.0])
