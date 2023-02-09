@@ -4,6 +4,7 @@ import Jutul
 import JutulDarcy
 using StaticArrays
 using Parameters
+using Tullio
 
 @with_kw struct AdsorptionFlowSystem <: JutulDarcy.MultiComponentSystem
     number_of_components::Int64 = 2
@@ -11,6 +12,7 @@ using Parameters
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
     rho_ref::Float64 = 1.0 # TODO: DELETEME!!!
+    Φ::Float64 = 0.37 # TODO: We should not hardcode this....
 end
 
 struct AdsorptionRates <: Jutul.VectorVariables
@@ -34,7 +36,7 @@ Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, Adsorpti
 
 Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
-
+JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
 # function JutulDarcy.degrees_of_freedom_per_entity(
@@ -109,29 +111,29 @@ const AdsorptionFlowModel = Jutul.SimulationModel{<:Any, <:AdsorptionFlowSystem,
 
 # We need this since the jutul_secondary macro assumes
 # update_secondary_variable! is in the namespace
-import Jutul: update_secondary_variable!
+# import Jutul: update_secondary_variable!
 
 
-# Jutul.@jutul_secondary function update_our_total_masses!(
-#     totmass,
-#     tv::JutulDarcy.TotalMasses,
-#     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
-#     y,
-#     cTot,
-#     PhaseMassDensities, 
-#     ix
-# )
-#     println("Updating total mass")
-#     sys = model.system
+Jutul.@jutul_secondary function update_our_total_masses!(
+    totmass,
+    tv::JutulDarcy.TotalMasses,
+    model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
+    y,
+    cTot,
+    PhaseMassDensities, 
+    ix
+)
+    println("Updating total mass")
+    sys = model.system
 
-#     for cell in ix
-#         @info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
-#         totmass[1, cell] = cTot[cell] * y[1, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
-#         totmass[2, cell] = cTot[cell] * y[2, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
-#         # totmass[CO2COMPONENTINDEX, cell] = y
-#         # totmass[N2COMPONENTINDEX, cell] = y
-#     end
-# end
+    for cell in ix
+        #@info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
+        totmass[1, cell] = cTot[cell] * y[1, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
+        totmass[2, cell] = cTot[cell] * y[2, cell] * PhaseMassDensities[1, cell] * model.domain.grid.pore_volumes[cell]
+        # totmass[CO2COMPONENTINDEX, cell] = y
+        # totmass[N2COMPONENTINDEX, cell] = y
+    end
+end
 
 function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G, S}, kgrad, upw) where {G<:Any, S<:AdsorptionFlowSystem}
     # This is defined for us:
@@ -165,8 +167,28 @@ end
 # end
 
 function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt = 1) where {D, S<:AdsorptionFlowSystem}
-    R = (CNV = (errors = 0.0, names = ["A", "b"]),
-        MB = (errors = 1.0, names = ["A", "b"]))
+    M = Jutul.global_map(model.domain)
+    
+    v = x -> Jutul.as_value(Jutul.active_view(x, M, for_variables = false))
+    #Φ = v(storage.state.FluidVolume)
+    Φ = model.system.Φ
+    
+    ρ = v(storage.state.PhaseMassDensities)
+
+    @show size(r)
+    @show size(ρ)
+    e = [maximum(abs.(r[j, :]) * dt / (ρ[1, :]*Φ)) for j in 1:2]
+    
+    N = length(Φ)
+    pv_t = sum(Φ)
+    avg_density = sum(ρ, dims = 2)./N
+    r_sum = sum(r, dims = 2)
+    mb = @. (dt/pv_t)*abs(r_sum)/avg_density
+
+    names = ["CO2", "N2"]
+    R = (CNV = (errors = e, names = names),
+         MB = (errors = mb, names = names))
+    return R
 end
 
 
@@ -177,16 +199,16 @@ Jutul.@jutul_secondary function update_adsorption_rates!(totmass, tv::Adsorption
     println("Updating adsorption rates")
 end
 
-# Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
-#     # Update cTot
-#     sys = model.system
+Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
+    # Update cTot
+    sys = model.system
 
-#     for cellindex in ix
-#         ctot[cellindex] = Pressure[cellindex] / (sys.R * Temperature[cellindex])
-#         @info "Updating cTot to " ctot[cellindex] Pressure[cellindex] sys.R Temperature[cellindex]
+    for cellindex in ix
+        ctot[cellindex] = Pressure[cellindex] / (sys.R * Temperature[cellindex])
+        #@info "Updating cTot to " ctot[cellindex] Pressure[cellindex] sys.R Temperature[cellindex]
 
-#     end
-# end
+    end
+end
 
 Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S<:AdsorptionFlowSystem}
     println("Updating avm")
@@ -209,7 +231,7 @@ Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Conce
     end
 end
 
-include("dontdothis.jl")
+# include("dontdothis.jl")
 
 
 
