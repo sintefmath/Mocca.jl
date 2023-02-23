@@ -77,7 +77,7 @@ function Jutul.select_secondary_variables!(
     # 🙏
     # Hope this works... Should provide uniqueness for system.
     nph = JutulDarcy.number_of_phases(system)
-    S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
+    #S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
 
 end
 
@@ -103,6 +103,7 @@ function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.Simula
     S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
     S[:molecularMassOfN2] = JutulDarcy.TotalMass()
     S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
+    S[:PhaseMassDensities] = AdsorptionRates()
 
 end
 
@@ -188,6 +189,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     mb = @. (dt/pv_t)*abs(r_sum)/avg_density
 
     names = ["CO2", "N2"]
+    @info "Convergence" r
     R = (CNV = (errors = e, names = names),
          MB = (errors = mb, names = names))
     return R
@@ -242,17 +244,19 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
     @show size(mu)
     rho = state.PhaseMassDensities
     concentrations = state.concentrations
+    ctot = state.cTot
     nph = length(acc)
 
     rho_inj = bc.density
     f_inj = bc.fractional_flow
     c = bc.cell
     
-    mobility = 1/mu[1, c]
+    # = 1/mu[1, c]
+    mobility  = 1/mu[1, c]
 
     for component in eachindex(acc)
-        @info "Adding bc to be " -mobility * q * concentrations[component, c] q
-        acc[component] += -mobility * q * concentrations[component, c]
+        @info "Adding bc to be " -mobility * q * concentrations[component, c] q concentrations[component, c] mobility rho
+        acc[component] += mobility * q * concentrations[component, c] 
     end
    
 end
@@ -291,9 +295,11 @@ p0 = 100*bar
 parameters = Jutul.setup_parameters(model, Temperature=298,
     solidVolume = solid_volume, 
     axialDispersion = DL,
-    fluidViscosity = 1.72e-5)
+    fluidViscosity = 1.72e-5,
+    PhaseMassDensities=1.0)
 
-d = JutulDarcy.FlowBoundaryCondition(nc, p0/2)
+# TODO: Find a nicer way to specify trans on the boundary
+d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = model.domain.grid.trans[1])
 forces = Jutul.setup_forces(model, sources = [], bc = d)
 irate = 500*sum(G.grid.pore_volumes)/time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
@@ -305,11 +311,11 @@ state0 = Jutul.setup_state(model, Pressure = p0, y = [0.0, 1.0])
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
 states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces)
 with_theme(theme_web()) do 
-    f = Figure()
-    ax = Axis(f[1, 1], ylabel = "y", title = "Adsorption")
+    f = CairoMakie.Figure()
+    ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
     x = range(0, stop = 1, length = nc)
     for i in 1:6:length(states)
-        lines!(ax, x, states[i][:y][2, :], color = :darkgray)
+        CairoMakie.lines!(ax, x, states[i][:y][2, :], color = :darkgray)
     end
     display(f)
 end
