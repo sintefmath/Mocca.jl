@@ -399,7 +399,7 @@ irate = 500 * sum(g.pore_volumes) / time
 # forces = JutulDarcy.setup_forces(model, sources = src)
 @info "parameter set" parameters g.trans
 
-yCO2 = 0.02#e-15
+yCO2 = 1e-15
 initY = [yCO2, 1 - yCO2]
 equilinit = compute_equilibrium(sys, initY, 298) # TODO: Should this still be zero for CO2?
 equilinit = [0.0, equilinit[2]]
@@ -468,7 +468,7 @@ function zerofunc(state, state_prev, parameters, t1, t2)
     return (M - M0) / Δt - rhs
 end
 
-function newton(H, DH, U, max_iter=1000_000, tol=1e-16)
+function newton(H, DH, U; max_iter=10, tol=1e-7)
     for iter in 1:max_iter
         U = U - DH(U) \ H(U)
 
@@ -494,11 +494,11 @@ function solve_ode(initY, equilinit, sys, p0)
 
     U = U0
     T = 1.0
-    Δt = 0.001
+    Δt = 1 / 8.0
     Ts = 0:Δt:T
 
     Us = [U]
-    @showprogress for t in Ts
+    @showprogress for t in Ts[2:end]
         #@show U
         #@show right_hand_side(U, params, t)
         H = x -> zerofunc(x, U, params, t, t + Δt)
@@ -513,15 +513,19 @@ function solve_ode(initY, equilinit, sys, p0)
 
     with_theme(theme_web()) do
         f = CairoMakie.Figure()
-        ax = CairoMakie.Axis(f[1, 1], ylabel="y", title="Adsorption")
-        for i in 1:6:length(states)
-            CairoMakie.lines!(ax, t, first.(Us), color=:darkgray)
-        end
+        ax = CairoMakie.Axis(f[1, 1], ylabel=L"y_1", xlabel="t")
+        p1 = CairoMakie.lines!(ax, Ts, first.(Us))
+        ax2 = CairoMakie.Axis(f[1, 2], ylabel=L"y_2", xlabel="t")
+        p2 = CairoMakie.lines!(ax2, Ts, [u[2] for u in Us])
+
+        ax = CairoMakie.Axis(f[2, 1], ylabel=L"q_1", xlabel="t")
+        p1 = CairoMakie.lines!(ax, Ts, [u[3] for u in Us])
+        ax2 = CairoMakie.Axis(f[2, 2], ylabel=L"q_2", xlabel="t")
+        p2 = CairoMakie.lines!(ax2, Ts, [u[4] for u in Us])
+        #CairoMakie.Legend(f[1, 2], [p1, p2], ["y_1", "y_2"])
         display(f)
     end
 end
 
 solve_ode(initY, equilinit, sys, p0)
 end
-
-Mocca.model
