@@ -477,7 +477,7 @@ function newton(H, DH, U, max_iter=1000_000, tol=1e-16)
         end
     end
 
-    @warn "Newton failed to converge"
+    @warn "Newton failed to converge" LinearAlgebra.norm(H(U)) H(U)
 
     return U
 end
