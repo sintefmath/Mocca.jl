@@ -143,10 +143,11 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     ix
 )
     sys = model.system
+    pv = Jutul.physical_representation(model.domain).pore_volumes
     for cell in ix
         #@info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
-        totmass[1, cell] = cTot[cell] * y[1, cell] * model.domain.grid.pore_volumes[cell]
-        totmass[2, cell] = cTot[cell] * y[2, cell] * model.domain.grid.pore_volumes[cell]
+        totmass[1, cell] = cTot[cell] * y[1, cell] * pv[cell]
+        totmass[2, cell] = cTot[cell] * y[2, cell] * pv[cell]
         # totmass[CO2COMPONENTINDEX, cell] = y
         # totmass[N2COMPONENTINDEX, cell] = y
     end
@@ -346,8 +347,9 @@ sys = AdsorptionFlowSystem()
 
 model = Jutul.SimulationModel(G, sys)
 
+g = Jutul.physical_representation(model.domain)
 # pv = vol * poro
-pv = model.domain.grid.pore_volumes
+pv = g.pore_volumes
 volumes = pv / ϵ 
 solid_volume = volumes * (1 - ϵ )
 
@@ -367,13 +369,13 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
     PhaseMassDensities=1.0)
 
 # TODO: Find a nicer way to specify trans on the boundary
-d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = model.domain.grid.trans[1])
+d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = g.trans[1])
 forces = Jutul.setup_forces(model, sources = [])#, bc = d)
-irate = 500*sum(G.grid.pore_volumes)/time
+irate = 500*sum(g.pore_volumes)/time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
 #     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
 # forces = JutulDarcy.setup_forces(model, sources = src)
-@info "parameter set" parameters model.domain.grid.trans
+@info "parameter set" parameters g.trans
 
 yCO2 = 1e-15
 initY = [yCO2, 1-yCO2]
