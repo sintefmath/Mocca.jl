@@ -167,7 +167,7 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     for cell in ix
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
-        #@info "cell $ix" qstar k adsorptionRates k.*(qstar .- adsorptionRates[:, cell])
+        # @info "cell $ix" qstar k adsorptionRates k.*(qstar .- adsorptionRates[:, cell])
 
         adsorption_mass_transfer[:, cell] = k.*(qstar .- adsorptionRates[:, cell])
     end
@@ -180,15 +180,20 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     # upw = SPU(left, right)
     # TODO: Implement me
 
-
+    
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
     # @show T_f
     # @show ∇p
-    for ph in eachindex(q)
-        q_darcy = -T_f * ∇p
-        
-        q = setindex(q, q_darcy, ph)
+    c = state.concentrations
+    μ = state.PhaseViscosities
+    q_darcy = -T_f * ∇p
+
+    for component in eachindex(q)
+        F_c = cell -> c[component, cell]/μ[cell]
+        c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
+        q_ph = c_face*q_darcy
+        q = setindex(q, q_ph, component)
     end
     # @info "Flux $face" q
     return q
@@ -210,7 +215,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     for i in eachindex(div_v)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
-        eq_buf[i] = ∂M∂t - 0.0*div_v[i]# + forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t - div_v[i] + 0*forcing_term[i, self_cell]
     end
 end
 
@@ -223,9 +228,9 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     forcing_term = state[:AdsorptionMassTransfer]
     ϵ = model.system.Φ
-    for component in 1:2 # TODO: Don't hardcode 2
+    for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t #- forcing_term[component, self_cell]/(1-ϵ)
+        eq_buf[component] = ∂M∂t - 0*forcing_term[component, self_cell]/(1-ϵ)
     end
     
 end
@@ -269,7 +274,6 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     mb = @. (dt/pv_t)*abs(r_sum)/avg_density
 
     names = ["CO2", "N2"]
-    @info "Convergence" r
     R = (CNV = (errors = e, names = names),
          MB = (errors = mb, names = names))
     return R
