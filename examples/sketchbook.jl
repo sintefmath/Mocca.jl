@@ -265,17 +265,19 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     Φ = model.system.Φ
     
     
-    e = [maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
+    scale = 1/1000.0
+    e = scale.*[maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
     
     N = length(Φ)
     pv_t = sum(Φ)
     avg_density = 1.0#sum(ρ, dims = 2)./N
     r_sum = sum(r, dims = 2)
-    mb = @. (dt/pv_t)*abs(r_sum)/avg_density
+    # mb = @. (dt/pv_t)*abs(r_sum)/avg_density
 
     names = ["CO2", "N2"]
     R = (CNV = (errors = e, names = names),
-         MB = (errors = mb, names = names))
+         # MB = (errors = mb, names = names)
+         )
     return R
 end
 
@@ -316,7 +318,7 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
 
     mu = state.PhaseViscosities
     @show size(mu)
-    rho = state.PhaseMassDensities
+    # rho = state.PhaseMassDensities
     concentrations = state.concentrations
     ctot = state.cTot
     nph = length(acc)
@@ -327,9 +329,17 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
     
     # = 1/mu[1, c]
     mobility  = 1/mu[1, c]
-
-    for component in eachindex(acc)
-        acc[component] += mobility * q * concentrations[component, c] 
+    
+    if q > 0
+        for component in eachindex(acc)
+            c_i = mobility * q * concentrations[component, c] 
+            acc[component] += c_i
+        end
+    else
+        for component in eachindex(acc)
+            c_i = mobility * q * bc.fractional_flow[component]
+            acc[component] += c_i
+        end
     end
    
 end
@@ -373,8 +383,8 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
     PhaseMassDensities=1.0)
 
 # TODO: Find a nicer way to specify trans on the boundary
-d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = g.trans[1])
-forces = Jutul.setup_forces(model, sources = [])#, bc = d)
+d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = g.trans[1], fractional_flow = (0.5, 0.5))
+forces = Jutul.setup_forces(model, sources = [], bc = d)
 irate = 500*sum(g.pore_volumes)/time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
 #     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
