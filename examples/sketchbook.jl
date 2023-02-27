@@ -215,7 +215,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     for i in eachindex(div_v)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
-        eq_buf[i] = ∂M∂t - div_v[i] + 0*forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t + div_v[i] - forcing_term[i, self_cell]
     end
 end
 
@@ -230,7 +230,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     ϵ = model.system.Φ
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t - 0*forcing_term[component, self_cell]/(1-ϵ)
+        eq_buf[component] = ∂M∂t - forcing_term[component, self_cell]/(1-ϵ)
     end
     
 end
@@ -396,10 +396,10 @@ initY = [yCO2, 1-yCO2]
 equilinit = compute_equilibrium(sys,initY, 298) # TODO: Should this still be zero for CO2?
 @show equilinit
 
-state0 = Jutul.setup_state(model, Pressure = p0, y = initY, adsorptionRates=equilinit)
+state0 = Jutul.setup_state(model, Pressure = p0, y = initY, adsorptionRates=[0, equilinit[2]])
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces)
+states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces, max_timestep_cuts = 0)
 with_theme(theme_web()) do 
     f = CairoMakie.Figure()
     ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
