@@ -61,8 +61,10 @@ struct GasMoleFractions <: JutulDarcy.CompositionalFractions
     GasMoleFractions(;dz_max = 0.2) = new(dz_max)
 end
 
-minimum_value(::GasMoleFractions) = 0.0
-absolute_increment_limit(z::GasMoleFractions) = z.dz_max
+function Jutul.minimum_value(::GasMoleFractions)
+    return 1e-20
+end
+Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
 
 # function JutulDarcy.degrees_of_freedom_per_entity(
@@ -176,7 +178,7 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     for cell in ix
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
-        # @info "cell $ix" qstar k adsorptionRates k.*(qstar .- adsorptionRates[:, cell])
+        # @info "cell $ix" qstar k concentrations adsorptionRates k.*(qstar .- adsorptionRates[:, cell])
 
         adsorption_mass_transfer[:, cell] = k.*(qstar .- adsorptionRates[:, cell])
     end
@@ -276,6 +278,8 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     scale = 1/1000.0
     scale = 1/1e13
     e = scale.*[maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
+
+    e = sum(abs, r, dims = 2)
     
     N = length(Φ)
     pv_t = sum(Φ)
@@ -404,6 +408,7 @@ irate = 500*sum(g.pore_volumes)/time
 @info "parameter set" parameters g.trans
 
 yCO2 = 1e-15
+yCO2 = 1e-10
 initY = [yCO2, 1-yCO2]
 equilinit = compute_equilibrium(sys,initY, 298) # TODO: Should this still be zero for CO2?
 equilinit = [0, equilinit[2]]
