@@ -185,9 +185,11 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     for cell in ix
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
-        # @info "cell $ix" qstar k concentrations adsorptionRates k.*(qstar .- adsorptionRates[:, cell])
+        force = k.*(qstar .- adsorptionRates[:, cell])
 
-        adsorption_mass_transfer[:, cell] = k.*(qstar .- adsorptionRates[:, cell])
+        # @info "cell $ix" qstar k concentrations adsorptionRates force
+
+        adsorption_mass_transfer[:, cell] = force
     end
 end
 
@@ -427,9 +429,11 @@ irate = 500*sum(g.pore_volumes)/time
 
 yCO2 = 1e-15
 # yCO2 = 1e-10
-initY = [yCO2, 1-yCO2]
-equilinit = compute_equilibrium(sys,initY, 298) # TODO: Should this still be zero for CO2?
-equilinit = [0, equilinit[2]]
+initY = [yCO2, 1 - yCO2]
+ctot = p0/sys.R/298
+c = ctot .* initY
+equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
+# equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
@@ -440,7 +444,7 @@ state0 = Jutul.setup_state(model,
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
-states, report = Jutul.simulate(sim, timesteps, info_level = 0, forces=forces, max_timestep_cuts = 10)
+states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
 # with_theme(theme_web()) do 
 #     f = CairoMakie.Figure()
