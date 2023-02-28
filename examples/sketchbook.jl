@@ -15,12 +15,12 @@ using LinearAlgebra
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
     rho_ref::Float64 = 1.0 # TODO: DELETEME!!!
     Φ::Float64 = 0.37 # TODO: We should not hardcode this....
-    b0::SVector{2, Float64} = @SVector [8.65e-7, 2.5e-6]
-    d0::SVector{2, Float64} = @SVector [2.63e-8, 0.0]
-    ΔUbi::SVector{2, Float64} = @SVector [-36_641.21, -1.58e4]
-    ΔUdi::SVector{2, Float64} = @SVector [-35_690.66, 0.0]
-    qsbi::SVector{2, Float64} = @SVector [3489.44, 6613.551]
-    qsdi::SVector{2, Float64} = @SVector [2872.35, 0.00]
+    b0::SVector{2,Float64} = @SVector [8.65e-7, 2.5e-6]
+    d0::SVector{2,Float64} = @SVector [2.63e-8, 0.0]
+    ΔUbi::SVector{2,Float64} = @SVector [-36_641.21, -1.58e4]
+    ΔUdi::SVector{2,Float64} = @SVector [-35_690.66, 0.0]
+    qsbi::SVector{2,Float64} = @SVector [3489.44, 6613.551]
+    qsdi::SVector{2,Float64} = @SVector [2872.35, 0.00]
     ϵ_p::Float64 = 0.35
     D_m::Float64 = 1.6e-5
     τ::Float64 = 3.0
@@ -30,44 +30,44 @@ end
 struct AdsorptionRates <: Jutul.VectorVariables
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
 
 struct AverageMolecularMass <: Jutul.ScalarVariable
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
 
 struct Concentrations <: Jutul.VectorVariables end
 
 struct AdsorptionMassTransfer <: Jutul.VectorVariables end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
 JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
 struct GasMoleFractions <: JutulDarcy.CompositionalFractions
     dz_max::Float64
-    GasMoleFractions(;dz_max = 0.2) = new(dz_max)
+    GasMoleFractions(; dz_max=0.2) = new(dz_max)
 end
 
 function Jutul.minimum_value(::GasMoleFractions)
     return 1e-20
 end
 
-# Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+#Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
 
-# Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+#Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
 
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
@@ -145,7 +145,7 @@ end
 const CO2INDEX = 1
 const N2INDEX = 2
 
-const AdsorptionFlowModel = Jutul.SimulationModel{<:Any, <:AdsorptionFlowSystem, <:Any, <:Any}
+const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<:Any,<:Any}
 
 # We need this since the jutul_secondary macro assumes
 # update_secondary_variable! is in the namespace
@@ -156,7 +156,7 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
-    concentrations, 
+    concentrations,
     ix
 )
     sys = model.system
@@ -178,14 +178,14 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     tv::AdsorptionMassTransfer,
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
     concentrations,
-    Temperature, 
+    Temperature,
     adsorptionRates,
     ix
 )
     for cell in ix
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
-        force = k.*(qstar .- adsorptionRates[:, cell])
+        force = k .* (qstar .- adsorptionRates[:, cell])
 
         # @info "cell $ix" qstar k concentrations adsorptionRates force
 
@@ -194,13 +194,13 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
 end
 
 
-function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G, S}, kgrad, upw) where {G<:Any, S<:AdsorptionFlowSystem}
+function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G,S}, kgrad, upw) where {G<:Any,S<:AdsorptionFlowSystem}
     # This is defined for us:
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
     # TODO: Implement me
 
-    
+
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
     # @show T_f
@@ -212,28 +212,28 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     R = sys.R
     L = kgrad.left
     R = kgrad.right
-    
-    favg(X) = (X[L] + X[R])/2
+
+    favg(X) = (X[L] + X[R]) / 2
     P = favg(state.Pressure)
     T = favg(state.Temperature)
-    C = P/(R*T)
+    C = P / (R * T)
 
     D_l = favg(state.axialDispersion)
     for component in eachindex(q)
-        F_c = cell -> c[component, cell]/μ[cell]
+        F_c = cell -> c[component, cell] / μ[cell]
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
         y_i = view(state.y, component, :)
-        q_i = c_face*q_darcy + C*D_l*JutulDarcy.gradient(y_i, kgrad)
-        
+        q_i = c_face * q_darcy + C * D_l * JutulDarcy.gradient(y_i, kgrad)
+
         q = setindex(q, q_i, component)
     end
     # @info "Flux $face" q
     return q
 end
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:TotalMasses}, model::AdsorptionFlowModel, Δt, ldisc = Jutul.local_discretization(eq, self_cell)) where T_e
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:TotalMasses}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
     #@info "Updating total masses"
-    
+
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
     M₀ = state0[conserved]
@@ -252,8 +252,8 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:adsorptionRates}, model::AdsorptionFlowModel, Δt, ldisc = Jutul.local_discretization(eq, self_cell)) where T_e
-    
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:adsorptionRates}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
+
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
     M₀ = state0[conserved]
@@ -264,7 +264,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     # @info "From transfer system" forcing_term
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t - forcing_term[component, self_cell]/(1-ϵ)
+        eq_buf[component] = ∂M∂t - forcing_term[component, self_cell] / (1 - ϵ)
     end
 end
 
@@ -273,12 +273,12 @@ function compute_equilibrium(sys::AdsorptionFlowSystem, concentration, temperatu
     b = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
     d = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
     for i in 1:JutulDarcy.number_of_components(sys)
-        b[i] = sys.b0[i] * exp(-sys.ΔUbi[i]/(sys.R*temperature))
-        d[i] = sys.d0[i] * exp(-sys.ΔUdi[i]/(sys.R*temperature))
+        b[i] = sys.b0[i] * exp(-sys.ΔUbi[i] / (sys.R * temperature))
+        d[i] = sys.d0[i] * exp(-sys.ΔUdi[i] / (sys.R * temperature))
     end
-    
+
     for i in 1:JutulDarcy.number_of_components(sys)
-        qstar[i] = sys.qsbi[i]*b[i]*concentration[i] / (1 + sum(b.*concentration)) + sys.qsdi[i]*d[i]*concentration[i] / (1 + sum(d.*concentration))
+        qstar[i] = sys.qsbi[i] * b[i] * concentration[i] / (1 + sum(b .* concentration)) + sys.qsdi[i] * d[i] * concentration[i] / (1 + sum(d .* concentration))
     end
     return qstar
 end
@@ -290,17 +290,17 @@ function compute_ki(sys::AdsorptionFlowSystem, concentration, qstar)
     return concentration ./ qstar .* 15 .* sys.ϵ_p .* D_p ./ r_p^2
 end
 
-function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt = 1) where {D, S<:AdsorptionFlowSystem}
+function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt=1) where {D,S<:AdsorptionFlowSystem}
     M = Jutul.global_map(model.domain)
-    
-    v = x -> Jutul.as_value(Jutul.active_view(x, M, for_variables = false))
+
+    v = x -> Jutul.as_value(Jutul.active_view(x, M, for_variables=false))
     #Φ = v(storage.state.FluidVolume)
     Φ = model.system.Φ
-    
+
     scale = 1.0
     # scale = 1/1000.0
     # scale = 1/1e13
-    e = scale.*[maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
+    e = scale .* [maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
 
     # e = sum(abs, r, dims = 2)
     y = storage.state.y
@@ -309,22 +309,23 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     # @info "conv " size(r)
     #r_scaled = [r[:, cell] ./ [y[:, cell]..., q[:, cell]...] for cell in eachindex(q[1, :])]
 
-    e  = norm(r)
-    
+    e = norm(r)
+
     N = length(Φ)
     pv_t = sum(Φ)
     avg_density = 1.0#sum(ρ, dims = 2)./N
-    r_sum = sum(r, dims = 2)
+    r_sum = sum(r, dims=2)
     # mb = @. (dt/pv_t)*abs(r_sum)/avg_density
 
     names = ["CO2", "N2"]
-    R = (CNV = (errors = e, names = names),
-         # MB = (errors = mb, names = names)
-         )
+    R = (
+        CNV=(errors=e, names=names),
+        # MB = (errors = mb, names = names)
+    )
     return R
 end
 
-Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature,  ix) where {G, S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G,S}, Pressure, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
     # Update cTot
     sys = model.system
 
@@ -333,7 +334,7 @@ Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, mod
     end
 end
 
-Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
     #println("Updating avm")
     for cellindex in ix
         # TODO: Fix masses such that they are single parameters for the whole grid
@@ -344,8 +345,8 @@ Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model
     end
 end
 
-Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G, S}, y, cTot, ix) where {G, S<:AdsorptionFlowSystem}
-   # println("Updating concentrations")
+Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G,S}, y, cTot, ix) where {G,S<:AdsorptionFlowSystem}
+    # println("Updating concentrations")
     for cellindex in ix
         # TODO: Fix masses such that they are single parameters for the whole grid
         for component in 1:JutulDarcy.number_of_components(model.system)
@@ -357,7 +358,7 @@ end
 # include("dontdothis.jl")
 
 
-function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any, T}, state, time) where T<:AdsorptionFlowSystem
+function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any,T}, state, time) where {T<:AdsorptionFlowSystem}
 
     mu = state.PhaseViscosities
     # @show size(mu)
@@ -369,13 +370,13 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
     rho_inj = bc.density
     f_inj = bc.fractional_flow
     c = bc.cell
-    
+
     # = 1/mu[1, c]
-    mobility  = 1/mu[1, c]
-    
+    mobility = 1 / mu[1, c]
+
     if q > 0
         for component in eachindex(acc)
-            c_i = mobility * q * concentrations[component, c] 
+            c_i = mobility * q * concentrations[component, c]
             acc[component] += c_i
         end
     else
@@ -384,14 +385,14 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
             acc[component] += c_i
         end
     end
-   
+
 end
 
 time = 1.0
 nc = 10
 # nc = 2
 nstep = 8
-nstep = 1000
+nstep = 10
 general_ad = true
 T = time
 tstep = repeat([T / nstep], nstep)
@@ -399,42 +400,42 @@ tstep = repeat([T / nstep], nstep)
 timesteps = tstep
 
 ϵ = 0.37
-r_in = 0.289/2.0
-perm = 4/150 * ((ϵ/(1-ϵ))^2)*r_in^2
+r_in = 0.289 / 2.0
+perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2
 # perm = 1e-14
 perm = 5.0625e-09
-G = JutulDarcy.get_1d_reservoir(nc, general_ad = general_ad, poro=ϵ , perm=perm)
+G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=ϵ, perm=perm)
 sys = AdsorptionFlowSystem()
 
 ctx = Jutul.DefaultContext()
-model = Jutul.SimulationModel(G, sys, context = ctx)
+model = Jutul.SimulationModel(G, sys, context=ctx)
 
 g = Jutul.physical_representation(model.domain)
 # pv = vol * poro
 pv = g.pore_volumes
-volumes = pv / ϵ 
-solid_volume = volumes * (1 - ϵ )
+volumes = pv / ϵ
+solid_volume = volumes * (1 - ϵ)
 
 # axial Dispersion
 dp = sys.d_p
 Dm = sys.D_m
-V0_inter = 0.03653;         # Interstitial inlet velocity [m/s]
-V0 = V0_inter*ϵ;         # Inlet velocity [m/s]
+V0_inter = 0.03653         # Interstitial inlet velocity [m/s]
+V0 = V0_inter * ϵ         # Inlet velocity [m/s]
 
 DL = 0.7 * Dm + 0.5 * V0 * dp
 bar = 1e5
-p0 = 100*bar
+p0 = 1 * bar
 parameters = Jutul.setup_parameters(model, Temperature=298,
-    solidVolume = solid_volume, 
-    axialDispersion = DL,
-    fluidViscosity = 1.72e-5,
+    solidVolume=solid_volume,
+    axialDispersion=DL,
+    fluidViscosity=1.72e-5,
     PhaseMassDensities=1.0)
 
 # TODO: Find a nicer way to specify trans on the boundary
-d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = g.trans[1], fractional_flow = (0.5, 0.5))
+d = JutulDarcy.FlowBoundaryCondition(nc, 2 * p0, trans_flow=g.trans[1], fractional_flow=(0.5, 0.5))
 # forces = Jutul.setup_forces(model, sources = [], bc = d)
 forces = Jutul.setup_forces(model)
-irate = 500*sum(g.pore_volumes)/time
+irate = 500 * sum(g.pore_volumes) / time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
 #     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
 # forces = JutulDarcy.setup_forces(model, sources = src)
@@ -443,24 +444,24 @@ irate = 500*sum(g.pore_volumes)/time
 yCO2 = 1e-16
 # yCO2 = 1e-10
 initY = [yCO2, 1 - yCO2]
-ctot = p0/sys.R/298
+ctot = p0 / sys.R / 298
 c = ctot .* initY
 equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
-# equilinit = [0, equilinit[2]]
+equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
 
 p_init = p0
-p_init = collect(LinRange(100*bar, 99.999*bar, nc))
+p_init = collect(LinRange(p0, p0, nc))
 # p_init = [100*bar, 99.9999*bar]
 state0 = Jutul.setup_state(model,
-    Pressure = p_init, 
-    y = initY, 
+    Pressure=p_init,
+    y=initY,
     adsorptionRates=equilinit)
 # Simulate and return
-sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces)
+sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
+states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10000)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
@@ -474,18 +475,18 @@ states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces)
 #     display(f)
 # end
 
-with_theme(theme_web()) do 
+with_theme(theme_web()) do
     f = CairoMakie.Figure()
-    ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
+    ax = CairoMakie.Axis(f[1, 1], ylabel="y", title="Adsorption")
     x = collect(LinRange(0.0, 1.0, nc))
     for i in 1:6:length(states)
-        CairoMakie.lines!(ax, x, states[i][:y][1,:], color = :darkgray)
+        CairoMakie.lines!(ax, x, states[i][:y][1, :], color=:darkgray)
     end
-    CairoMakie.lines!(ax, x, states[end][:y][1,:], color = :red)
+    CairoMakie.lines!(ax, x, states[end][:y][1, :], color=:red)
     display(f)
 end
 display(Mocca.sim.storage.LinearizedSystem.jac)
-display(Mocca.sim.storage.LinearizedSystem.jac[1:2:end,:])
+display(Mocca.sim.storage.LinearizedSystem.jac[1:2:end, :])
 end
 
 Mocca.model
