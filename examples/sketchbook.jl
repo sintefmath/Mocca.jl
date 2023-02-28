@@ -389,9 +389,9 @@ end
 
 time = 1.0
 nc = 10
-nc = 2
+# nc = 2
 nstep = 8
-# nstep = 1000
+nstep = 1000
 general_ad = true
 T = time
 tstep = repeat([T / nstep], nstep)
@@ -401,8 +401,8 @@ timesteps = tstep
 ϵ = 0.37
 r_in = 0.289/2.0
 perm = 4/150 * ((ϵ/(1-ϵ))^2)*r_in^2
-perm = 1e-14
-
+# perm = 1e-14
+perm = 5.0625e-09
 G = JutulDarcy.get_1d_reservoir(nc, general_ad = general_ad, poro=ϵ , perm=perm)
 sys = AdsorptionFlowSystem()
 
@@ -440,26 +440,28 @@ irate = 500*sum(g.pore_volumes)/time
 # forces = JutulDarcy.setup_forces(model, sources = src)
 @info "parameter set" parameters g.trans
 
-yCO2 = 1e-15
+yCO2 = 1e-16
 # yCO2 = 1e-10
 initY = [yCO2, 1 - yCO2]
 ctot = p0/sys.R/298
 c = ctot .* initY
 equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
-equilinit = [0, equilinit[2]]
+# equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
 
 p_init = p0
-p_init = [100*bar, 99.9999*bar]
+p_init = collect(LinRange(100*bar, 99.999*bar, nc))
+# p_init = [100*bar, 99.9999*bar]
 state0 = Jutul.setup_state(model,
     Pressure = p_init, 
     y = initY, 
     adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
+states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces)
+# states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
 # with_theme(theme_web()) do 
@@ -475,10 +477,11 @@ states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, m
 with_theme(theme_web()) do 
     f = CairoMakie.Figure()
     ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
-    y = map(x -> x[:y][1], states)
+    x = collect(LinRange(0.0, 1.0, nc))
     for i in 1:6:length(states)
-        CairoMakie.lines!(ax, y, color = :darkgray)
+        CairoMakie.lines!(ax, x, states[i][:y][1,:], color = :darkgray)
     end
+    CairoMakie.lines!(ax, x, states[end][:y][1,:], color = :red)
     display(f)
 end
 display(Mocca.sim.storage.LinearizedSystem.jac)
