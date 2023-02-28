@@ -56,6 +56,15 @@ Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem
 JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
+struct GasMoleFractions <: JutulDarcy.CompositionalFractions
+    dz_max::Float64
+    GasMoleFractions(;dz_max = 0.2) = new(dz_max)
+end
+
+minimum_value(::GasMoleFractions) = 0.0
+absolute_increment_limit(z::GasMoleFractions) = z.dz_max
+
+
 # function JutulDarcy.degrees_of_freedom_per_entity(
 #     model::Jutul.SimulationModel{G,S},
 #     v::JutulDarcy.TotalMasses,
@@ -73,7 +82,7 @@ function Jutul.select_primary_variables!(
     model::Jutul.SimulationModel,
 )
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
-    S[:y] = JutulDarcy.OverallMoleFractions()
+    S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
 
 end
@@ -212,10 +221,10 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     disc = eq.flow_discretization
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
-    for i in eachindex(div_v)
+    for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
-        eq_buf[i] = ∂M∂t + div_v[i] - forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t + 0*div_v[i] + forcing_term[i, self_cell]
     end
 end
 
@@ -232,7 +241,6 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         eq_buf[component] = ∂M∂t - forcing_term[component, self_cell]/(1-ϵ)
     end
-    
 end
 
 function compute_equilibrium(sys::AdsorptionFlowSystem, concentration, temperature)
@@ -266,6 +274,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     
     
     scale = 1/1000.0
+    scale = 1/1e13
     e = scale.*[maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
     
     N = length(Φ)
@@ -317,7 +326,7 @@ end
 function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any, T}, state, time) where T<:AdsorptionFlowSystem
 
     mu = state.PhaseViscosities
-    @show size(mu)
+    # @show size(mu)
     # rho = state.PhaseMassDensities
     concentrations = state.concentrations
     ctot = state.cTot
@@ -346,6 +355,7 @@ end
 
 time = 1.0
 nc = 10
+nc = 2
 nstep = 8
 general_ad = true
 T = time
@@ -359,7 +369,8 @@ perm = 4/150 * (ϵ/(1-ϵ))^2*r_in^2
 G = JutulDarcy.get_1d_reservoir(nc, general_ad = general_ad, poro=ϵ , perm=perm)
 sys = AdsorptionFlowSystem()
 
-model = Jutul.SimulationModel(G, sys)
+ctx = Jutul.DefaultContext()
+model = Jutul.SimulationModel(G, sys, context = ctx)
 
 g = Jutul.physical_representation(model.domain)
 # pv = vol * poro
@@ -384,7 +395,8 @@ parameters = Jutul.setup_parameters(model, Temperature=298,
 
 # TODO: Find a nicer way to specify trans on the boundary
 d = JutulDarcy.FlowBoundaryCondition(nc, 2*p0, trans_flow = g.trans[1], fractional_flow = (0.5, 0.5))
-forces = Jutul.setup_forces(model, sources = [], bc = d)
+# forces = Jutul.setup_forces(model, sources = [], bc = d)
+forces = Jutul.setup_forces(model)
 irate = 500*sum(g.pore_volumes)/time
 # src  = [JutulDarcy.SourceTerm(1, irate, fractional_flow = [1.0, 0.0]), 
 #     JutulDarcy.SourceTerm(nc, -irate, fractional_flow = [1.0, 0.0])]
@@ -394,18 +406,32 @@ irate = 500*sum(g.pore_volumes)/time
 yCO2 = 1e-15
 initY = [yCO2, 1-yCO2]
 equilinit = compute_equilibrium(sys,initY, 298) # TODO: Should this still be zero for CO2?
+equilinit = [0, equilinit[2]]
+equilinit = [0, 0.0]
 @show equilinit
 
-state0 = Jutul.setup_state(model, Pressure = p0, y = initY, adsorptionRates=[0, equilinit[2]])
+state0 = Jutul.setup_state(model, Pressure = p0, y = initY, adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 5, forces=forces, max_timestep_cuts = 0)
+states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
+# states, report = Jutul.simulate(sim, timesteps, info_level = 0, forces=forces, max_timestep_cuts = 10)
+
+# with_theme(theme_web()) do 
+#     f = CairoMakie.Figure()
+#     ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
+#     x = range(0, stop = 1, length = nc)
+#     for i in 1:6:length(states)
+#         CairoMakie.lines!(ax, x, states[i][:y][2, :], color = :darkgray)
+#     end
+#     display(f)
+# end
+
 with_theme(theme_web()) do 
     f = CairoMakie.Figure()
     ax = CairoMakie.Axis(f[1, 1], ylabel = "y", title = "Adsorption")
-    x = range(0, stop = 1, length = nc)
+    y = map(x -> x[:y][1], states)
     for i in 1:6:length(states)
-        CairoMakie.lines!(ax, x, states[i][:y][2, :], color = :darkgray)
+        CairoMakie.lines!(ax, y, color = :darkgray)
     end
     display(f)
 end
