@@ -56,7 +56,7 @@ Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem
 JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
-struct GasMoleFractions <: Jutul.VectorVariables# <: JutulDarcy.CompositionalFractions
+struct GasMoleFractions <: JutulDarcy.CompositionalFractions
     dz_max::Float64
     GasMoleFractions(;dz_max = 0.2) = new(dz_max)
 end
@@ -65,9 +65,9 @@ function Jutul.minimum_value(::GasMoleFractions)
     return 1e-20
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+# Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+# Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
 
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
@@ -88,7 +88,7 @@ function Jutul.select_primary_variables!(
     ::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    # S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
 
@@ -139,7 +139,7 @@ function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.Simula
     S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
     S[:molecularMassOfN2] = JutulDarcy.TotalMass()
     S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
-    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+    # S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
 end
 
 const CO2INDEX = 1
@@ -209,11 +209,23 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     μ = state.PhaseViscosities
     q_darcy = -T_f * ∇p
 
+    R = sys.R
+    L = kgrad.left
+    R = kgrad.right
+    
+    favg(X) = (X[L] + X[R])/2
+    P = favg(state.Pressure)
+    T = favg(state.Temperature)
+    C = P/(R*T)
+
+    D_l = favg(state.axialDispersion)
     for component in eachindex(q)
         F_c = cell -> c[component, cell]/μ[cell]
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
-        q_ph = c_face*q_darcy
-        q = setindex(q, q_ph, component)
+        y_i = view(state.y, component, :)
+        q_i = c_face*q_darcy + C*D_l*JutulDarcy.gradient(y_i, kgrad)
+        
+        q = setindex(q, q_i, component)
     end
     # @info "Flux $face" q
     return q
@@ -236,7 +248,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
-        eq_buf[i] = ∂M∂t + 0*div_v[i] + forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t + div_v[i] + forcing_term[i, self_cell]
     end
 end
 
@@ -379,6 +391,7 @@ time = 1.0
 nc = 10
 nc = 2
 nstep = 8
+# nstep = 1000
 general_ad = true
 T = time
 tstep = repeat([T / nstep], nstep)
@@ -387,7 +400,8 @@ timesteps = tstep
 
 ϵ = 0.37
 r_in = 0.289/2.0
-perm = 4/150 * (ϵ/(1-ϵ))^2*r_in^2
+perm = 4/150 * ((ϵ/(1-ϵ))^2)*r_in^2
+perm = 1e-14
 
 G = JutulDarcy.get_1d_reservoir(nc, general_ad = general_ad, poro=ϵ , perm=perm)
 sys = AdsorptionFlowSystem()
@@ -413,7 +427,6 @@ p0 = 100*bar
 parameters = Jutul.setup_parameters(model, Temperature=298,
     solidVolume = solid_volume, 
     axialDispersion = DL,
-    Pressure = p0, 
     fluidViscosity = 1.72e-5,
     PhaseMassDensities=1.0)
 
@@ -433,18 +446,21 @@ initY = [yCO2, 1 - yCO2]
 ctot = p0/sys.R/298
 c = ctot .* initY
 equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
-# equilinit = [0, equilinit[2]]
+equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
+
+p_init = p0
+p_init = [100*bar, 99.9999*bar]
 state0 = Jutul.setup_state(model,
-    # Pressure = p0, 
+    Pressure = p_init, 
     y = initY, 
     adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-# states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
-states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
+states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
+# states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
 # with_theme(theme_web()) do 
 #     f = CairoMakie.Figure()
