@@ -401,8 +401,10 @@ irate = 500 * sum(g.pore_volumes) / time
 
 yCO2 = 1e-15
 initY = [yCO2, 1 - yCO2]
-equilinit = compute_equilibrium(sys, initY, 298) # TODO: Should this still be zero for CO2?
-equilinit = [0.0, equilinit[2]]
+ctot = p0/sys.R/298
+c = ctot .* initY
+equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
+#equilinit = [0.0, equilinit[2]]
 @show equilinit
 
 state0 = Jutul.setup_state(model, Pressure=p0, y=initY, adsorptionRates=equilinit)#[0, equilinit[2]])
@@ -413,13 +415,13 @@ function transfer_side(state, P, sys, time)
     T = 298
     y = state[1:2]
     q = state[3:4]
-
-    qstar = compute_equilibrium(sys, y, T)
-
     R = sys.R
     ctot = P / (R * T)
     concentration = y .* ctot
 
+    qstar = compute_equilibrium(sys, concentration, T)
+
+    
 
     k = compute_ki(sys, concentration, qstar)
     #@info "Compute qstar " qstar[1] qstar[2] q[1] q[2] k[1] k[2]
@@ -510,7 +512,7 @@ function solve_ode(initY, equilinit, sys, p0)
         U = newton(H, DH, U)
         push!(Us, U)
     end
-
+    @info "All done" Us
     with_theme(theme_web()) do
         f = CairoMakie.Figure()
         ax = CairoMakie.Axis(f[1, 1], ylabel=L"y_1", xlabel="t")
