@@ -7,7 +7,7 @@ using Parameters
 using Tullio
 using CairoMakie
 using MakiePublication
-
+using LinearAlgebra
 @with_kw struct AdsorptionFlowSystem <: JutulDarcy.MultiComponentSystem
     number_of_components::Int64 = 2
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
@@ -56,7 +56,7 @@ Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem
 JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
 JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
 
-struct GasMoleFractions <: JutulDarcy.CompositionalFractions
+struct GasMoleFractions <: Jutul.VectorVariables# <: JutulDarcy.CompositionalFractions
     dz_max::Float64
     GasMoleFractions(;dz_max = 0.2) = new(dz_max)
 end
@@ -64,6 +64,11 @@ end
 function Jutul.minimum_value(::GasMoleFractions)
     return 1e-20
 end
+
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
+
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
 
@@ -83,7 +88,7 @@ function Jutul.select_primary_variables!(
     ::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+    # S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
 
@@ -98,7 +103,9 @@ function Jutul.select_secondary_variables!(
     #S[:qN2] = JutulDarcy.TotalMass()
     S[:cTot] = JutulDarcy.TotalMass()
     S[:concentrations] = Concentrations()
-    S[:avm] = AverageMolecularMass()
+    # Not using AVM at the moment, so disabling. 
+    # TODO: Renable AVM
+    #S[:avm] = AverageMolecularMass()
     S[:TotalMasses] = JutulDarcy.TotalMasses()
     S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
     # 🙏 # Might still need this.
@@ -132,7 +139,7 @@ function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.Simula
     S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
     S[:molecularMassOfN2] = JutulDarcy.TotalMass()
     S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
-
+    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
 end
 
 const CO2INDEX = 1
@@ -149,16 +156,16 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
-    y,
-    cTot,
+    concentrations, 
     ix
 )
     sys = model.system
     pv = Jutul.physical_representation(model.domain).pore_volumes
+    pv = sys.Φ * ones(size(pv)) # FIXME: Remove this
     for cell in ix
         #@info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
-        totmass[1, cell] = cTot[cell] * y[1, cell] * pv[cell]
-        totmass[2, cell] = cTot[cell] * y[2, cell] * pv[cell]
+        totmass[1, cell] = concentrations[1, cell] * pv[cell]
+        totmass[2, cell] = concentrations[2, cell] * pv[cell]
         # totmass[CO2COMPONENTINDEX, cell] = y
         # totmass[N2COMPONENTINDEX, cell] = y
     end
@@ -223,6 +230,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     disc = eq.flow_discretization
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
+    # @info "Forcing term" forcing_term
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
@@ -239,6 +247,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     forcing_term = state[:AdsorptionMassTransfer]
     ϵ = model.system.Φ
+    # @info "From transfer system" forcing_term
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         eq_buf[component] = ∂M∂t - forcing_term[component, self_cell]/(1-ϵ)
@@ -274,12 +283,19 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D, S}, storage
     #Φ = v(storage.state.FluidVolume)
     Φ = model.system.Φ
     
-    
-    scale = 1/1000.0
-    scale = 1/1e13
+    scale = 1.0
+    # scale = 1/1000.0
+    # scale = 1/1e13
     e = scale.*[maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
 
-    e = sum(abs, r, dims = 2)
+    # e = sum(abs, r, dims = 2)
+    y = storage.state.y
+    q = storage.state.adsorptionRates
+    # @show r
+    # @info "conv " size(r)
+    #r_scaled = [r[:, cell] ./ [y[:, cell]..., q[:, cell]...] for cell in eachindex(q[1, :])]
+
+    e  = norm(r)
     
     N = length(Φ)
     pv_t = sum(Φ)
@@ -364,7 +380,8 @@ nstep = 8
 general_ad = true
 T = time
 tstep = repeat([T / nstep], nstep)
-timesteps = tstep*3600*24 # Convert time-steps from days to seconds
+# timesteps = tstep*3600*24 # Convert time-steps from days to seconds
+timesteps = tstep
 
 ϵ = 0.37
 r_in = 0.289/2.0
@@ -394,6 +411,7 @@ p0 = 100*bar
 parameters = Jutul.setup_parameters(model, Temperature=298,
     solidVolume = solid_volume, 
     axialDispersion = DL,
+    Pressure = p0, 
     fluidViscosity = 1.72e-5,
     PhaseMassDensities=1.0)
 
@@ -408,18 +426,21 @@ irate = 500*sum(g.pore_volumes)/time
 @info "parameter set" parameters g.trans
 
 yCO2 = 1e-15
-yCO2 = 1e-10
+# yCO2 = 1e-10
 initY = [yCO2, 1-yCO2]
 equilinit = compute_equilibrium(sys,initY, 298) # TODO: Should this still be zero for CO2?
 equilinit = [0, equilinit[2]]
-equilinit = [0, 0.0]
+# equilinit = [0, 0.0]
 @show equilinit
 
-state0 = Jutul.setup_state(model, Pressure = p0, y = initY, adsorptionRates=equilinit)
+state0 = Jutul.setup_state(model,
+    # Pressure = p0, 
+    y = initY, 
+    adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0 = state0, parameters = parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
-# states, report = Jutul.simulate(sim, timesteps, info_level = 0, forces=forces, max_timestep_cuts = 10)
+# states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
+states, report = Jutul.simulate(sim, timesteps, info_level = 0, forces=forces, max_timestep_cuts = 10)
 
 # with_theme(theme_web()) do 
 #     f = CairoMakie.Figure()
@@ -440,6 +461,8 @@ with_theme(theme_web()) do
     end
     display(f)
 end
+display(Mocca.sim.storage.LinearizedSystem.jac)
+display(Mocca.sim.storage.LinearizedSystem.jac[1:2:end,:])
 end
 
 Mocca.model
