@@ -24,7 +24,7 @@ using LinearAlgebra
     ϵ_p::Float64 = 0.35
     D_m::Float64 = 1.6e-5
     τ::Float64 = 3.0
-    d_p::Float64 = 0.002
+    d_p::Float64 = 0.00075
 end
 
 struct AdsorptionRates <: Jutul.VectorVariables
@@ -395,17 +395,21 @@ nstep = 8
 nstep = 10
 general_ad = true
 T = time
+
+initial_temperature = 298
 tstep = repeat([T / nstep], nstep)
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 timesteps = tstep
-
-ϵ = 0.37
-r_in = 0.289 / 2.0
+sys = AdsorptionFlowSystem()
+ϵ = sys.Φ
+r_in = sys.d_p / 2.0 #0.289 / 2.0
 perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2
 # perm = 1e-14
-perm = 5.0625e-09
+# perm = 5.0625e-09
+
+@info "Using perm " perm
+
 G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=ϵ, perm=perm)
-sys = AdsorptionFlowSystem()
 
 ctx = Jutul.DefaultContext()
 model = Jutul.SimulationModel(G, sys, context=ctx)
@@ -425,7 +429,7 @@ V0 = V0_inter * ϵ         # Inlet velocity [m/s]
 DL = 0.7 * Dm + 0.5 * V0 * dp
 bar = 1e5
 p0 = 1 * bar
-parameters = Jutul.setup_parameters(model, Temperature=298,
+parameters = Jutul.setup_parameters(model, Temperature=initial_temperature,
     solidVolume=solid_volume,
     axialDispersion=DL,
     fluidViscosity=1.72e-5,
@@ -444,16 +448,16 @@ irate = 500 * sum(g.pore_volumes) / time
 yCO2 = 1e-16
 # yCO2 = 1e-10
 initY = [yCO2, 1 - yCO2]
-ctot = p0 / sys.R / 298
+ctot = p0 / sys.R / initial_temperature
 c = ctot .* initY
-equilinit = compute_equilibrium(sys, c, 298) # TODO: Should this still be zero for CO2?
-equilinit = [0, equilinit[2]]
+equilinit = compute_equilibrium(sys, c, initial_temperature) # TODO: Should this still be zero for CO2?
+# equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
 
 p_init = p0
-p_init = collect(LinRange(p0, p0, nc))
+p_init = collect(LinRange(p0, 0.899999 * p0, nc))
 # p_init = [100*bar, 99.9999*bar]
 state0 = Jutul.setup_state(model,
     Pressure=p_init,
@@ -461,7 +465,7 @@ state0 = Jutul.setup_state(model,
     adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10000)
+states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10)#000)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
@@ -477,12 +481,33 @@ states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max
 
 with_theme(theme_web()) do
     f = CairoMakie.Figure()
-    ax = CairoMakie.Axis(f[1, 1], ylabel="y", title="Adsorption")
     x = collect(LinRange(0.0, 1.0, nc))
-    for i in 1:6:length(states)
-        CairoMakie.lines!(ax, x, states[i][:y][1, :], color=:darkgray)
+    key_to_label = Dict(
+        :y => "y",
+        :Pressure => "p",
+        :adsorptionRates => "q"
+    )
+    for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates])
+        @show symbol
+        if size(states[end][symbol], 2) == 1
+            ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=L"t", ylabel=L"%$(key_to_label[symbol])")
+            for j in 1:length(states)
+                CairoMakie.lines!(ax, x, states[j][symbol][:], color=:darkgray)
+            end
+            CairoMakie.lines!(ax, x, states[end][symbol][:], color=:red)
+
+        else
+            for i in 1:size(states[end][symbol], 1)
+                ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=L"t", ylabel=L"%$(key_to_label[symbol])_%$i")
+                for j in 1:length(states)
+                    CairoMakie.lines!(ax, x, states[j][symbol][i, :], color=:darkgray)
+                end
+                CairoMakie.lines!(ax, x, states[end][symbol][i, :], color=:red)
+
+            end
+        end
     end
-    CairoMakie.lines!(ax, x, states[end][:y][1, :], color=:red)
+    CairoMakie.resize!(f.scene, (2*400, 3*400))
     display(f)
 end
 display(Mocca.sim.storage.LinearizedSystem.jac)
