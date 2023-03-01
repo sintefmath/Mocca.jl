@@ -12,22 +12,22 @@ using LinearAlgebra
 time = 1.0
 nc = 10
 # nc = 2
-nstep = 80
+nstep = 8
 # nstep = 100000
 general_ad = true
 T = time
 
-initial_temperature = 298
+initial_temperature = 298.15
 tstep = repeat([T / nstep], nstep)
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 timesteps = tstep
-sys = AdsorptionFlowSystem(forcing_term_coefficient = 1.0)
+sys = AdsorptionFlowSystem(forcing_term_coefficient = 0.0)
 ϵ = sys.Φ
 r_in = sys.d_p / 2.0 #0.289 / 2.0
-perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2
+perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2 * ϵ
 # perm = 1e-14
 # perm = 5.0625e-09
-
+# perm = 0.3403e-8
 @info "Using perm " perm
 
 G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=ϵ, perm=perm)
@@ -49,15 +49,14 @@ V0 = V0_inter * ϵ         # Inlet velocity [m/s]
 
 DL = 0.7 * Dm + 0.5 * V0 * dp
 bar = 1e5
-p0 = 1 * bar
+p0 = 0.4 * bar
 parameters = Jutul.setup_parameters(model, Temperature=initial_temperature,
     solidVolume=solid_volume,
     axialDispersion=DL,
-    fluidViscosity=1.72e-5,
-    PhaseMassDensities=1.0)
+    fluidViscosity=1.72e-5)
 
 # TODO: Find a nicer way to specify trans on the boundary
-d = JutulDarcy.FlowBoundaryCondition(nc, 2 * p0, trans_flow=g.trans[1], fractional_flow=(0.5, 0.5))
+#d = JutulDarcy.FlowBoundaryCondition(nc, 2 * p0, trans_flow=g.trans[1], fractional_flow=(0.5, 0.5))
 # forces = Jutul.setup_forces(model, sources = [], bc = d)
 forces = Jutul.setup_forces(model)
 irate = 500 * sum(g.pore_volumes) / time
@@ -66,13 +65,13 @@ irate = 500 * sum(g.pore_volumes) / time
 # forces = JutulDarcy.setup_forces(model, sources = src)
 @info "parameter set" parameters g.trans
 
-yCO2 = 1e-16
+yCO2 = 1e-10
 # yCO2 = 1e-10
 initY = [yCO2, 1 - yCO2]
 ctot = p0 / sys.R / initial_temperature
 c = ctot .* initY
 equilinit = compute_equilibrium(sys, c, initial_temperature) # TODO: Should this still be zero for CO2?
-# equilinit = [0, equilinit[2]]
+equilinit = [0, equilinit[2]]
 # equilinit = [0, 0.0]
 @show equilinit
 
