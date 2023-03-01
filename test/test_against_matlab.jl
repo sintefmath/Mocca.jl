@@ -14,17 +14,7 @@ nc = size(field("qCO2"), 1)
 initial_temperature = field("T")
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 sys = AdsorptionFlowSystem(forcing_term_coefficient = 0.0)
-ϵ = sys.Φ
-r_in = sys.d_p / 2.0 #0.289 / 2.0
-perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2
 
-# axial Dispersion
-dp = sys.d_p
-Dm = sys.D_m
-V0_inter = 0.03653         # Interstitial inlet velocity [m/s]
-V0 = V0_inter * ϵ         # Inlet velocity [m/s]
-
-DL = 0.7 * Dm + 0.5 * V0 * dp
 bar = 1e5
 p0 = 0.4 * bar
 
