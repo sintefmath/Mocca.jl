@@ -27,7 +27,7 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
         F_c = cell -> c[component, cell] / μ[cell]
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
         y_i = view(state.y, component, :)
-        q_i = c_face * q_darcy + 0*C * D_l * JutulDarcy.gradient(y_i, kgrad)
+        q_i = c_face * q_darcy + C * D_l * JutulDarcy.gradient(y_i, kgrad)
 
         q = setindex(q, q_i, component)
     end
