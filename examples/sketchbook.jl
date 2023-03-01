@@ -21,7 +21,7 @@ initial_temperature = 298
 tstep = repeat([T / nstep], nstep)
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 timesteps = tstep
-sys = AdsorptionFlowSystem(forcing_term_coefficient = 0.0)
+sys = AdsorptionFlowSystem(forcing_term_coefficient = 1.0)
 ϵ = sys.Φ
 r_in = sys.d_p / 2.0 #0.289 / 2.0
 perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2
@@ -111,7 +111,7 @@ with_theme(theme_web()) do
     for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates])
         @show symbol
         if size(states[end][symbol], 2) == 1
-            ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=L"t", ylabel=L"%$(key_to_label[symbol])")
+            ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=L"x", ylabel=L"%$(key_to_label[symbol])")
             for j in 1:length(states)
                 CairoMakie.lines!(ax, x, states[j][symbol][:], color=:darkgray)
             end
@@ -119,7 +119,7 @@ with_theme(theme_web()) do
 
         else
             for i in 1:size(states[end][symbol], 1)
-                ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=L"t", ylabel=L"%$(key_to_label[symbol])_%$i")
+                ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=L"x", ylabel=L"%$(key_to_label[symbol])_%$i")
                 for j in 1:length(states)
                     CairoMakie.lines!(ax, x, states[j][symbol][i, :], color=:darkgray)
                 end
