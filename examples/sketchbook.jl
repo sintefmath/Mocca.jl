@@ -12,7 +12,7 @@ using LinearAlgebra
 time = 1.0
 nc = 10
 # nc = 2
-nstep = 8
+nstep = 80
 # nstep = 100000
 general_ad = true
 T = time
@@ -21,7 +21,7 @@ initial_temperature = 298.15
 tstep = repeat([T / nstep], nstep)
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
 timesteps = tstep
-sys = AdsorptionFlowSystem(forcing_term_coefficient = 0.0)
+sys = AdsorptionFlowSystem(forcing_term_coefficient = 1.0)
 ϵ = sys.Φ
 r_in = sys.d_p / 2.0 #0.289 / 2.0
 perm = 4 / 150 * ((ϵ / (1 - ϵ))^2) * r_in^2 * ϵ
@@ -77,7 +77,7 @@ equilinit = [0, equilinit[2]]
 
 
 p_init = p0
-p_init = collect(LinRange(p0, 0.899999 * p0, nc))
+p_init = collect(LinRange(p0, 0.89 * p0, nc))
 # p_init = [100*bar, 99.9999*bar]
 state0 = Jutul.setup_state(model,
     Pressure=p_init,
@@ -85,7 +85,7 @@ state0 = Jutul.setup_state(model,
     adsorptionRates=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
-states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10)#000)
+states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10000)#000)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 3, forces=forces, max_timestep_cuts = 0)
 # states, report = Jutul.simulate(sim, timesteps, info_level = 4, forces=forces, max_timestep_cuts = 0, max_nonlinear_iterations = 0)
 
@@ -109,20 +109,24 @@ with_theme(theme_web()) do
     )
     for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates])
         @show symbol
+        # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+        # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+        # TODO: Fix the above
         if size(states[end][symbol], 2) == 1
             ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=L"x", ylabel=L"%$(key_to_label[symbol])")
             for j in 1:length(states)
-                CairoMakie.lines!(ax, x, states[j][symbol][:], color=:darkgray)
+                CairoMakie.lines!(ax, x, Float16.(states[j][symbol][:]), color=:darkgray)
             end
-            CairoMakie.lines!(ax, x, states[end][symbol][:], color=:red)
+            CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red)
 
         else
             for i in 1:size(states[end][symbol], 1)
                 ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=L"x", ylabel=L"%$(key_to_label[symbol])_%$i")
                 for j in 1:length(states)
-                    CairoMakie.lines!(ax, x, states[j][symbol][i, :], color=:darkgray)
+                    CairoMakie.lines!(ax, x, Float16.(states[j][symbol][i, :]), color=:darkgray)
                 end
-                CairoMakie.lines!(ax, x, states[end][symbol][i, :], color=:red)
+
+                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red)
 
             end
         end
