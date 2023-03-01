@@ -1,3 +1,18 @@
 module Mocca
+export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki
+import Jutul
+import JutulDarcy
+using StaticArrays
 
+
+
+const CO2INDEX = 1 # TODO: We don't really need this
+const N2INDEX = 2 # TODO: We don't really need this
+include("system.jl")
+include("variable_structs.jl")
+include("select_variable.jl")
+include("updates.jl")
+include("flux.jl")
+include("convergence.jl")
+include("bc.jl")
 end

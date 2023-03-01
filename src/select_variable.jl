@@ -1,0 +1,58 @@
+function Jutul.select_primary_variables!(
+    S,
+    ::AdsorptionFlowSystem,
+    model::Jutul.SimulationModel,
+)
+    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+    S[:y] = GasMoleFractions()
+    S[:adsorptionRates] = AdsorptionRates()
+
+end
+
+function Jutul.select_secondary_variables!(
+    S,
+    system::AdsorptionFlowSystem,
+    model::Jutul.SimulationModel,
+)
+    #S[:qCO2] = JutulDarcy.TotalMass()
+    #S[:qN2] = JutulDarcy.TotalMass()
+    S[:cTot] = JutulDarcy.TotalMass()
+    S[:concentrations] = Concentrations()
+    # Not using AVM at the moment, so disabling. 
+    # TODO: Renable AVM
+    #S[:avm] = AverageMolecularMass()
+    S[:TotalMasses] = JutulDarcy.TotalMasses()
+    S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    # 🙏 # Might still need this.
+    # Hope this works... Should provide uniqueness for system. We don't seem to need this anymore
+    #nph = JutulDarcy.number_of_phases(system)
+    #S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
+
+end
+
+function Jutul.select_equations!(
+    eqs,
+    sys::AdsorptionFlowSystem,
+    model::Jutul.SimulationModel,
+)
+    fdisc = model.domain.discretizations.mass_flow
+    nc = JutulDarcy.number_of_components(sys)
+    eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :TotalMasses, nc)
+    eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :adsorptionRates, nc)
+
+end
+
+function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
+    S[:Temperature] = JutulDarcy.Temperature()
+
+    # TODO: Find better type for Dispersion
+    S[:axialDispersion] = JutulDarcy.Pressure()
+
+    # TODO: Find proper type for fluidViscosity
+    S[:fluidViscosity] = JutulDarcy.Transmissibilities()
+    S[:solidVolume] = JutulDarcy.BulkVolume()
+    S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
+    S[:molecularMassOfN2] = JutulDarcy.TotalMass()
+    S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
+    # S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+end
