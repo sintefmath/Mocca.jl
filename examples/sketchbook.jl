@@ -13,7 +13,6 @@ using LinearAlgebra
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
-    rho_ref::Float64 = 1.0 # TODO: DELETEME!!!
     Φ::Float64 = 0.37 # TODO: We should not hardcode this....
     b0::SVector{2,Float64} = @SVector [8.65e-7, 2.5e-6]
     d0::SVector{2,Float64} = @SVector [2.63e-8, 0.0]
@@ -24,7 +23,7 @@ using LinearAlgebra
     ϵ_p::Float64 = 0.35
     D_m::Float64 = 1.6e-5
     τ::Float64 = 3.0
-    d_p::Float64 = 0.00075
+    d_p::Float64 = 2e-3
 end
 
 struct AdsorptionRates <: Jutul.VectorVariables
@@ -161,7 +160,7 @@ Jutul.@jutul_secondary function update_our_total_masses!(
 )
     sys = model.system
     pv = Jutul.physical_representation(model.domain).pore_volumes
-    pv = sys.Φ * ones(size(pv)) # FIXME: Remove this
+    # pv = sys.Φ * ones(size(pv)) # FIXME: Remove this
     for cell in ix
         #@info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
         totmass[1, cell] = concentrations[1, cell] * pv[cell]
@@ -252,6 +251,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
+
 function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:adsorptionRates}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
 
     # Compute accumulation term
@@ -262,9 +262,13 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     forcing_term = state[:AdsorptionMassTransfer]
     ϵ = model.system.Φ
     # @info "From transfer system" forcing_term
+
+
+    # TODO: Figure out a better way to compute solid volume
+    solid_volume = state[:solidVolume]
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t - forcing_term[component, self_cell] / (1 - ϵ)
+        eq_buf[component] = ∂M∂t  - forcing_term[component, self_cell] / solid_volume[self_cell]
     end
 end
 
