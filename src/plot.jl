@@ -8,10 +8,12 @@ function plot_states(states)
         key_to_label = Dict(
             :y => "y",
             :Pressure => "p",
-            :adsorptionRates => "q"
+            :adsorptionRates => "q",
+            :Temperature => "T",
+            :WallTemperature => "T_{wall}"
         )
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates])
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
             @show symbol
             # Truncating to float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
@@ -35,7 +37,7 @@ function plot_states(states)
                 end
             end
         end
-        CairoMakie.resize!(f.scene, (2*400, 3*400))
+        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
         return f
     end
 end

@@ -41,6 +41,7 @@ using Parameters
 
     ρ_w::Float64 = 1.0 # TODO: Insert proper values
     C_pw::Float64 = 1.0  # TODO: Insert proper values
+    T0::Float64 = 298.15 # TODO: Review
 end
 const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<:Any,<:Any}
 

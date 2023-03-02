@@ -104,11 +104,25 @@ end
 
 Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
-    ρ_s = sys.ρ_s
-    C_ps = sys.C_ps
     for cellindex in ix
+        wall_energy[cellindex] = sys.ρ_w * sys.C_pw * WallTemperature[cellindex]
+    end
+end
 
-        wall_energy[cellindex] = sys.ρ_w * sys.C_pw * WallTemperature
+Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, adsorptionRates, ix) where {G,S<:AdsorptionFlowSystem}
+    sys = model.system
+
+    qsbi = sys.qsbi
+    qsdi = sys.qsdi
+    sumq = qsbi[CO2INDEX] + qsdi[CO2INDEX]
+    ΔUbi = sys.ΔUbi
+    ΔUdi = sys.ΔUdi
+    R = sys.R
+    T0 = sys.T0 # TODO: Review
+    for cellindex in ix
+        for i in eachindex(ΔH[:, cellindex])
+            ΔH[i, cellindex] = (qsbi[i] * (ΔUbi[i] - R * T0) + qsdi[i] * (ΔUdi[i] - R * T0)) / sumq
+        end
     end
 end
 
