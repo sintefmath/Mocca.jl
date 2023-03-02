@@ -1,9 +1,7 @@
 
 function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any,T}, state, time) where {T<:AdsorptionFlowSystem}
 
-    mu = state.PhaseViscosities
-    # @show size(mu)
-    # rho = state.PhaseMassDensities
+    mu = sys.fluid_viscosity
     concentrations = state.concentrations
     ctot = state.cTot
     nph = length(acc)
@@ -11,9 +9,7 @@ function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:An
     rho_inj = bc.density
     f_inj = bc.fractional_flow
     c = bc.cell
-
-    # = 1/mu[1, c]
-    mobility = 1 / mu[1, c]
+    mobility = 1 / mu
 
     if q > 0
         for component in eachindex(acc)

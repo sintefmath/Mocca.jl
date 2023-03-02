@@ -10,7 +10,7 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     # @show T_f
     # @show ∇p
     c = state.concentrations
-    μ = state.PhaseViscosities
+    μ = sys.fluid_viscosity
     q_darcy = -T_f * ∇p
 
     R = sys.R
@@ -22,9 +22,9 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     T = favg(state.Temperature)
     C = P / (R * T)
 
-    D_l = favg(state.axialDispersion)
+    D_l = axial_dispersion(sys)
     for component in eachindex(q)
-        F_c = cell -> c[component, cell] / μ[cell]
+        F_c = cell -> c[component, cell] / μ
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
         y_i = view(state.y, component, :)
         q_i = c_face * q_darcy + C * D_l * JutulDarcy.gradient(y_i, kgrad)

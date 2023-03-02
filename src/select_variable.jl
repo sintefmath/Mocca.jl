@@ -44,15 +44,6 @@ function Jutul.select_equations!(
 end
 
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
-
-    # TODO: Find better type for Dispersion
-    S[:axialDispersion] = JutulDarcy.Pressure()
-
-    # TODO: Find proper type for fluidViscosity
-    S[:fluidViscosity] = JutulDarcy.Transmissibilities()
     S[:solidVolume] = JutulDarcy.BulkVolume()
-    S[:molecularMassOfCO2] = JutulDarcy.TotalMass()
-    S[:molecularMassOfN2] = JutulDarcy.TotalMass()
-    S[:PhaseViscosities] = JutulDarcy.PhaseViscosities()
-    # S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
 end
+    
