@@ -89,3 +89,30 @@ Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Conce
         end
     end
 end
+
+
+
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S},solidVolume, C_pa, avm, adsorptionRates, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
+    sys = model.system
+    ρ_s = sys.ρ_s
+    C_ps = sys.C_ps
+    for cellindex in ix
+        sq = sum(adsorptionRates[:, cellindex])
+        column_energy[cellindex] = solidVolume * (ρ_s * C_ps + C_pa * avm * sq) * Temperature
+    end
+end
+
+
+Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapasityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+    sys = model.system
+    for cellindex in ix
+        cpa[cellindex] = sum(y[:, cellindex] .* sys.C_pa)
+    end
+end
+
+Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapasityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+    sys = model.system
+    for cellindex in ix
+        cpg[cellindex] = sum(y[:, cellindex] .* sys.C_pg)
+    end
+end

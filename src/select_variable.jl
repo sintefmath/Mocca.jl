@@ -19,13 +19,20 @@ function Jutul.select_secondary_variables!(
     S[:concentrations] = Concentrations()
     # Not using AVM at the moment, so disabling. 
     # TODO: Renable AVM
-    #S[:avm] = AverageMolecularMass()
+    S[:avm] = AverageMolecularMass()
     S[:TotalMasses] = JutulDarcy.TotalMasses()
     S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
     # 🙏 # Might still need this.
     # Hope this works... Should provide uniqueness for system. We don't seem to need this anymore
     #nph = JutulDarcy.number_of_phases(system)
     #S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
+
+    # For the energy equations
+    S[:ColumnConservedEnergy] = ColumnEnergy()
+    S[:WallConservedEnergy] = WallEnergy()
+    S[:ΔH] = EnthalpyChange()
+    S[:Cpa] = SpecificHeatCapasityAdsorbent()
+    S[:Cpg] = SpecificHeatCapasityFluid()
 
 end
 
@@ -39,6 +46,8 @@ function Jutul.select_equations!(
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :TotalMasses, nc)
     eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :adsorptionRates, nc)
 
+    eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, nc)
+    eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, nc)
 end
 
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)

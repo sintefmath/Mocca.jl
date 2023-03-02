@@ -43,3 +43,17 @@ end
 
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
+
+
+# Temperature variables
+abstract type Energy <: Jutul.ScalarVariable end
+struct ColumnEnergy <: Energy end
+struct WallEnergy <: Energy end
+
+struct EnthalpyChange <: Jutul.VectorVariables end
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
+
+abstract type SpecificHeatCapacity <: Jutul.ScalarVariable end
+struct SpecificHeatCapasityAdsorbent <: SpecificHeatCapacity end
+struct SpecificHeatCapasityFluid <: SpecificHeatCapacity end
