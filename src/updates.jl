@@ -92,16 +92,25 @@ end
 
 
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S},solidVolume, C_pa, avm, adsorptionRates, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, avm, adsorptionRates, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
     ρ_s = sys.ρ_s
     C_ps = sys.C_ps
     for cellindex in ix
         sq = sum(adsorptionRates[:, cellindex])
-        column_energy[cellindex] = solidVolume * (ρ_s * C_ps + C_pa * avm * sq) * Temperature
+        column_energy[cellindex] = solidVolume[cellindex] * (ρ_s * C_ps + C_pa[cellindex] * avm[cellindex] * sq) * Temperature[cellindex]
     end
 end
 
+Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
+    sys = model.system
+    ρ_s = sys.ρ_s
+    C_ps = sys.C_ps
+    for cellindex in ix
+
+        wall_energy[cellindex] = sys.ρ_w * sys.C_pw * WallTemperature
+    end
+end
 
 Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapasityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system

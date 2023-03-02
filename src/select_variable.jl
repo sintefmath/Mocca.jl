@@ -31,8 +31,8 @@ function Jutul.select_secondary_variables!(
     S[:ColumnConservedEnergy] = ColumnEnergy()
     S[:WallConservedEnergy] = WallEnergy()
     S[:ΔH] = EnthalpyChange()
-    S[:Cpa] = SpecificHeatCapasityAdsorbent()
-    S[:Cpg] = SpecificHeatCapasityFluid()
+    S[:C_pa] = SpecificHeatCapasityAdsorbent()
+    S[:C_pg] = SpecificHeatCapasityFluid()
 
 end
 
@@ -53,4 +53,4 @@ end
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
     S[:solidVolume] = JutulDarcy.BulkVolume()
 end
-    
+
