@@ -15,10 +15,15 @@ using Parameters
     D_m::Float64 = 1.6e-5
     τ::Float64 = 3.0
     d_p::Float64 = 2e-3
+    V0_inter::Float64 = 0.03653 
     "Use this to turn on and off the forcing term in the equation"
     forcing_term_coefficient::Float64 = 1.0
+    fluid_viscosity::Float64 = 1.72e-5
 end
 const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<:Any,<:Any}
 
 JutulDarcy.number_of_components(sys::AdsorptionFlowSystem) = sys.number_of_components
 JutulDarcy.has_other_phase(::AdsorptionFlowSystem) = false
+
+compute_permeability(sys::AdsorptionFlowSystem) = 4 / 150 * ((sys.Φ / (1 - sys.Φ))^2) * (sys.d_p/2)^2 * sys.Φ
+axial_dispersion(sys::AdsorptionFlowSystem) = 0.7 * sys.D_m + 0.5 * sys.V0_inter * sys.Φ * sys.d_p

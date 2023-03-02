@@ -1,5 +1,5 @@
 module Mocca
-export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki
+export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
 import Jutul
 import JutulDarcy
 using StaticArrays
@@ -15,4 +15,6 @@ include("updates.jl")
 include("flux.jl")
 include("convergence.jl")
 include("bc.jl")
+include("init.jl")
+include("plot.jl")
 end

@@ -6,7 +6,8 @@ function Jutul.select_primary_variables!(
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
-
+    S[:Temperature] = JutulDarcy.Temperature()
+    S[:WallTemperature] = JutulDarcy.Temperature()
 end
 
 function Jutul.select_secondary_variables!(
@@ -43,7 +44,6 @@ function Jutul.select_equations!(
 end
 
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
-    S[:Temperature] = JutulDarcy.Temperature()
 
     # TODO: Find better type for Dispersion
     S[:axialDispersion] = JutulDarcy.Pressure()
