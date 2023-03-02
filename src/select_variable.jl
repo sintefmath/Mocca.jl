@@ -15,8 +15,6 @@ function Jutul.select_secondary_variables!(
     system::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    #S[:qCO2] = JutulDarcy.TotalMass()
-    #S[:qN2] = JutulDarcy.TotalMass()
     S[:cTot] = JutulDarcy.TotalMass()
     S[:concentrations] = Concentrations()
     # Not using AVM at the moment, so disabling. 
