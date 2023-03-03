@@ -1,4 +1,11 @@
-function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.SimulationModel{G,S}, kgrad, upw) where {G<:Any,S<:AdsorptionFlowSystem}
+function JutulDarcy.component_mass_fluxes!(
+    q,
+    face,
+    state,
+    model::Jutul.SimulationModel{G,S},
+    kgrad,
+    upw,
+) where {G<:Any,S<:AdsorptionFlowSystem}
     # This is defined for us:
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
@@ -35,7 +42,16 @@ function JutulDarcy.component_mass_fluxes!(q, face, state, model::Jutul.Simulati
     return q
 end
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:TotalMasses}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
+function Jutul.update_equation_in_entity!(
+    eq_buf::AbstractVector{T_e},
+    self_cell,
+    state,
+    state0,
+    eq::Jutul.ConservationLaw{:TotalMasses},
+    model::AdsorptionFlowModel,
+    Δt,
+    ldisc = Jutul.local_discretization(eq, self_cell),
+) where {T_e}
     #@info "Updating total masses"
 
     # Compute accumulation term
@@ -49,7 +65,7 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
     # @info "Forcing term" forcing_term
-    forcing_term_coefficient= model.system.forcing_term_coefficient
+    forcing_term_coefficient = model.system.forcing_term_coefficient
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
@@ -58,7 +74,16 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 end
 
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:adsorptionRates}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
+function Jutul.update_equation_in_entity!(
+    eq_buf::AbstractVector{T_e},
+    self_cell,
+    state,
+    state0,
+    eq::Jutul.ConservationLaw{:adsorptionRates},
+    model::AdsorptionFlowModel,
+    Δt,
+    ldisc = Jutul.local_discretization(eq, self_cell),
+) where {T_e}
 
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
@@ -72,16 +97,28 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 
     # TODO: Figure out a better way to compute solid volume
     solid_volume = state[:solidVolume]
-    forcing_term_coefficient= model.system.forcing_term_coefficient
+    forcing_term_coefficient = model.system.forcing_term_coefficient
 
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t  - forcing_term_coefficient * forcing_term[component, self_cell] / solid_volume[self_cell]
+        eq_buf[component] =
+            ∂M∂t -
+            forcing_term_coefficient * forcing_term[component, self_cell] /
+            solid_volume[self_cell]
     end
 end
 
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:ColumnConservedEnergy}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
+function Jutul.update_equation_in_entity!(
+    eq_buf::AbstractVector{T_e},
+    self_cell,
+    state,
+    state0,
+    eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
+    model::AdsorptionFlowModel,
+    Δt,
+    ldisc = Jutul.local_discretization(eq, self_cell),
+) where {T_e}
 
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
@@ -95,7 +132,16 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
 end
 
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::Jutul.ConservationLaw{:WallConservedEnergy}, model::AdsorptionFlowModel, Δt, ldisc=Jutul.local_discretization(eq, self_cell)) where {T_e}
+function Jutul.update_equation_in_entity!(
+    eq_buf::AbstractVector{T_e},
+    self_cell,
+    state,
+    state0,
+    eq::Jutul.ConservationLaw{:WallConservedEnergy},
+    model::AdsorptionFlowModel,
+    Δt,
+    ldisc = Jutul.local_discretization(eq, self_cell),
+) where {T_e}
 
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
