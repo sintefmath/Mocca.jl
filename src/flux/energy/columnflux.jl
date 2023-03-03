@@ -1,4 +1,3 @@
-
 function Jutul.update_equation_in_entity!(
     eq_buf::AbstractVector{T_e},
     self_cell,
