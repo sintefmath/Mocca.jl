@@ -17,10 +17,10 @@ function JutulDarcy.component_mass_fluxes!(
     # @show T_f
     # @show ∇p
     c = state.concentrations
-    μ = sys.fluid_viscosity
+    μ = sys.p.fluid_viscosity
     q_darcy = -T_f * ∇p
 
-    R = sys.R
+    R = sys.p.R
     L = kgrad.left
     R = kgrad.right
 

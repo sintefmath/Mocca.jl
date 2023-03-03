@@ -8,6 +8,7 @@ using StaticArrays
 
 const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this
+include("parameters.jl")
 include("system.jl")
 include("variable_structs.jl")
 include("select_variable.jl")

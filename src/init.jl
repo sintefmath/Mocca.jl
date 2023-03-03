@@ -9,7 +9,8 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     field = name -> data["problem"]["SimulatorSetup"]["state0"][name]
 
     # TODO: Read the relevant properties from the matlab file here (eg porosity)
-    system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient)
+    parameters = AdsorptionParameters()
+    system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p = parameters)
     perm = compute_permeability(system)
     flatten = x -> collect(Iterators.flatten(x))
     p = flatten(field("pressure"))
@@ -25,15 +26,15 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
 
     @info "Initializing simulator" p temperature walltemperature q y
 
-    G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=system.Φ, perm=perm)
+    G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=system.p.Φ, perm=perm)
 
     model = Jutul.SimulationModel(G, system)
 
     g = Jutul.physical_representation(model.domain)
 
     pv = g.pore_volumes
-    volumes = pv / system.Φ
-    solid_volume = volumes * (1 - system.Φ)
+    volumes = pv / system.p.Φ
+    solid_volume = volumes * (1 - system.p.Φ)
 
 
     parameters = Jutul.setup_parameters(model,

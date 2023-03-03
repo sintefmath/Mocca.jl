@@ -1,0 +1,45 @@
+using Parameters
+@with_kw struct AdsorptionParameters
+    molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
+    molecularMassOfN2::Float64 = 28e-3 # kg/mole
+    R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
+    Φ::Float64 = 0.37 # TODO: We should not hardcode this....
+    b0::SVector{2,Float64} = @SVector [8.65e-7, 2.5e-6]
+    d0::SVector{2,Float64} = @SVector [2.63e-8, 0.0]
+    ΔUbi::SVector{2,Float64} = @SVector [-36_641.21, -1.58e4]
+    ΔUdi::SVector{2,Float64} = @SVector [-35_690.66, 0.0]
+    qsbi::SVector{2,Float64} = @SVector [3489.44, 6613.551]
+    qsdi::SVector{2,Float64} = @SVector [2872.35, 0.00]
+    ϵ_p::Float64 = 0.35
+    D_m::Float64 = 1.6e-5
+    τ::Float64 = 3.0
+    d_p::Float64 = 2e-3
+    V0_inter::Float64 = 0.03653
+
+    fluid_viscosity::Float64 = 1.72e-5
+    "[W/m/K]"
+    K_z::Float64 = 0.0903 # TODO: Double check
+    "Density of adsorbent, [kg m^{-3}]"
+    ρ_s::Float64 = 1130
+    "Specific heat capacity per component for fluid phase [J kg^{-1}K^{-1}]"
+    C_pg::SVector{2,Float64} = @SVector [697.5687, 1096.4]
+    "Specific heat capacity per component for adsorbent phase [J kg^{-1}K^{-1}]"
+    C_pa::SVector{2,Float64} = @SVector [697.5687, 1096.4]
+    "Specific heat capacity of solid adsorbent [J kg^[-1} K^{-1}]"
+    C_ps::Float64 = 1070.0
+    "Column radius [m]"
+    r_in::Float64 = 1.445
+    "Wall radius [m]"
+    r_out::Float64 = 1.162
+    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]"
+    h_in::Float64 = 8.6
+
+    "Density of wall medium [kg m^{-3}]"
+    ρ_w::Float64 = 7800.0 # TODO: Review this value and its documentation
+    
+    "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
+    C_pw::Float64 = 502.0  # TODO: Review this value and its documentation
+
+    "Initial temperature [K]"
+    T0::Float64 = 298.15 # TODO: this value and its documentation
+end

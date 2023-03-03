@@ -5,7 +5,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage,
 
     v = x -> Jutul.as_value(Jutul.active_view(x, M, for_variables=false))
     #Φ = v(storage.state.FluidVolume)
-    Φ = model.system.Φ
+    Φ = model.system.p.Φ
 
     scale = 1.0
     # scale = 1/1000.0

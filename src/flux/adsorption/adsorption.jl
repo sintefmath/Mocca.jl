@@ -16,7 +16,7 @@ function Jutul.update_equation_in_entity!(
     M = state[conserved]
 
     forcing_term = state[:AdsorptionMassTransfer]
-    ϵ = model.system.Φ
+    ϵ = model.system.p.Φ
     # @info "From transfer system" forcing_term
 
 
