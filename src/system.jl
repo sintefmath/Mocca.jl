@@ -39,9 +39,14 @@ using Parameters
     "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]"
     h_in::Float64 = 8.6
 
-    ρ_w::Float64 = 1.0 # TODO: Insert proper values
-    C_pw::Float64 = 1.0  # TODO: Insert proper values
-    T0::Float64 = 298.15 # TODO: Review
+    "Density of wall medium [kg m^{-3}]"
+    ρ_w::Float64 = 7800.0 # TODO: Review this value and its documentation
+    
+    "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
+    C_pw::Float64 = 502.0  # TODO: Review this value and its documentation
+
+    "Initial temperature [K]"
+    T0::Float64 = 298.15 # TODO: this value and its documentation
 end
 const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<:Any,<:Any}
 
