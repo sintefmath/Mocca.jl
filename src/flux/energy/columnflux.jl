@@ -1,38 +1,3 @@
-@inline function Jutul.face_flux!(
-    q,
-    face,
-    eq::Jutul.ConservationLaw{:ColumnConservedEnergy,<:Any},
-    state,
-    model::AdsorptionFlowModel,
-    dt,
-    disc,
-    flow_disc, 
-    T = Float64
-)
-    kgrad, upw = flow_disc.face_disc(face)
-
-    sys = model.system
-    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
-    (∇p, T_f, gΔz) = disc
-    K_z = model.system.p.K_z
-    v = -T_f * ∇p
-
-    R = sys.p.R
-    L = kgrad.left
-    R = kgrad.right
-
-    favg(X) = (X[L] + X[R]) / 2
-    P = favg(state.Pressure)
-    T = favg(state.Temperature)
-    C = P / (R * T)
-
-    P_c = cell -> state.Pressure[cell]
-    P_face = JutulDarcy.upwind(upw, P_c, v)
-    q = v * P_face + K_z * JutulDarcy.gradient(T, kgrad)
-
-    return q
-end
-
 @inline function face_flux_temperature(
     face,
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy,<:Any},
@@ -44,18 +9,8 @@ end
     T = Float64
 )
     q = zero(Jutul.flux_vector_type(eq, T))
-
     kgrad, upw = flow_disc.face_disc(face)
-
-    sys = model.system
-    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
-    (∇p, T_f, gΔz) = disc
     K_z = model.system.p.K_z
-    v = -T_f * ∇p
-
-    R = sys.p.R
-    L = kgrad.left
-    R = kgrad.right
 
     T = view(state.Temperature, :)
     q = K_z * JutulDarcy.gradient(T, kgrad)
@@ -80,12 +35,7 @@ end
     sys = model.system
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
-    K_z = model.system.p.K_z
     v = -T_f * ∇p
-
-    R = sys.p.R
-    L = kgrad.left
-    R = kgrad.right
     P_c = cell -> state.Pressure[cell]
     P_face = JutulDarcy.upwind(upw, P_c, v)
     q = v * P_face
