@@ -92,13 +92,17 @@ end
 
 
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, avm, adsorptionRates, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, adsorptionRates, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
     ρ_s = sys.p.ρ_s
     C_ps = sys.p.C_ps
-    for cellindex in ix
-        sq = sum(adsorptionRates[:, cellindex])
-        column_energy[cellindex] = solidVolume[cellindex] * (ρ_s * C_ps + C_pa[cellindex] * avm[cellindex] * sq) * Temperature[cellindex]
+    R = sys.p.R
+    for cx in ix
+        sq = sum(adsorptionRates[:, cx])
+        energy_term = solidVolume[cx] * (ρ_s * C_ps + C_pa[cx] * avm[cx] * sq) * Temperature[cx]
+        pressure_term = C_pg[cx] * avm[cx] / R * Pressure[cx]
+        adsorption_term = solidVolume[cx] * sum((C_pa[cx] * avm[cx] * Temperature[cx] .+ ΔH[:, cx]) .* adsorptionRates[:, cx])
+        column_energy[cx] = energy_term + adsorption_term + pressure_term
     end
 end
 
