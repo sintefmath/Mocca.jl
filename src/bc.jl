@@ -1,7 +1,7 @@
 
 function JutulDarcy.apply_flow_bc!(acc, q, bc, model::Jutul.SimulationModel{<:Any,T}, state, time) where {T<:AdsorptionFlowSystem}
-
-    mu = sys.fluid_viscosity
+    sys = model.system
+    mu = sys.p.fluid_viscosity
     concentrations = state.concentrations
     ctot = state.cTot
     nph = length(acc)
