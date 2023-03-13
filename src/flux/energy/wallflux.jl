@@ -13,7 +13,7 @@
     # kgrad = TPFA(left, right, face_sign)
     #upw = SPU(left, right)
     #return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
-    @info "In wall face flux" q_i
+    #@info "In wall face flux" q_i
     return q_i
 end
 
@@ -40,6 +40,6 @@ function Jutul.update_equation_in_entity!(
 
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t + div_v[component]
+        eq_buf[component] = ∂M∂t #+ div_v[component]
     end
 end

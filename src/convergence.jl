@@ -1,6 +1,8 @@
 using LinearAlgebra
 using Tullio
 function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt=1) where {D,S<:AdsorptionFlowSystem}
+
+    # TODO: Clean this up and fix it. 
     M = Jutul.global_map(model.domain)
 
     v = x -> Jutul.as_value(Jutul.active_view(x, M, for_variables=false))
@@ -10,7 +12,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage,
     scale = 1.0
     # scale = 1/1000.0
     # scale = 1/1e13
-    e = scale .* [maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
+    #e = scale .* [maximum(abs.(r[j, :]) * dt / (Φ)) for j in 1:2]
 
     # e = sum(abs, r, dims = 2)
     y = storage.state.y

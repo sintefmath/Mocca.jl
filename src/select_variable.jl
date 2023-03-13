@@ -33,7 +33,6 @@ function Jutul.select_secondary_variables!(
     S[:ΔH] = EnthalpyChange()
     S[:C_pa] = SpecificHeatCapasityAdsorbent()
     S[:C_pg] = SpecificHeatCapasityFluid()
-
 end
 
 function Jutul.select_equations!(
@@ -46,8 +45,8 @@ function Jutul.select_equations!(
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :TotalMasses, nc)
     eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :adsorptionRates, nc)
 
-    eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, nc)
-    eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, nc)
+    eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
+    eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)

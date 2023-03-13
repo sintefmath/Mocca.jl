@@ -9,21 +9,13 @@
     flow_disc, 
     T = Float64
 )
-    # Specific version for tpfa flux
-    # kgrad = TPFA(left, right, face_sign)
-    #upw = SPU(left, right)
-    #return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
-    #@info "In face_flux!" q_i
     kgrad, upw = flow_disc.face_disc(face)
 
     sys = model.system
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
-    # @show T_f
-    # @show ∇p
-    c = state.concentrations
-    μ = sys.p.fluid_viscosity
-    q_darcy = -T_f * ∇p
+    K_z = model.system.p.K_z
+    v = -T_f * ∇p
 
     R = sys.p.R
     L = kgrad.left
@@ -34,19 +26,71 @@
     T = favg(state.Temperature)
     C = P / (R * T)
 
-    D_l = axial_dispersion(sys)
-    for component in eachindex(q)
-        F_c = cell -> c[component, cell] / μ
-        c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
-        y_i = view(state.y, component, :)
-        q_i = c_face * q_darcy + C * D_l * JutulDarcy.gradient(y_i, kgrad)
+    P_c = cell -> state.Pressure[cell]
+    P_face = JutulDarcy.upwind(upw, P_c, v)
+    q = v * P_face + K_z * JutulDarcy.gradient(T, kgrad)
 
-        q = setindex(q, q_i, component)
-    end
-    # @info "Flux $face" q
     return q
 end
 
+@inline function face_flux_temperature(
+    face,
+    eq::Jutul.ConservationLaw{:ColumnConservedEnergy,<:Any},
+    state,
+    model::AdsorptionFlowModel,
+    dt,
+    disc,
+    flow_disc, 
+    T = Float64
+)
+    q = zero(Jutul.flux_vector_type(eq, T))
+
+    kgrad, upw = flow_disc.face_disc(face)
+
+    sys = model.system
+    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
+    (∇p, T_f, gΔz) = disc
+    K_z = model.system.p.K_z
+    v = -T_f * ∇p
+
+    R = sys.p.R
+    L = kgrad.left
+    R = kgrad.right
+
+    T = view(state.Temperature, :)
+    q = K_z * JutulDarcy.gradient(T, kgrad)
+
+    return q
+end
+
+@inline function face_flux_pressure(
+    face,
+    eq::Jutul.ConservationLaw{:ColumnConservedEnergy,<:Any},
+    state,
+    model::AdsorptionFlowModel,
+    dt,
+    disc,
+    flow_disc, 
+    T = Float64
+)
+    q = zero(Jutul.flux_vector_type(eq, T))
+
+    kgrad, upw = flow_disc.face_disc(face)
+
+    sys = model.system
+    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
+    (∇p, T_f, gΔz) = disc
+    K_z = model.system.p.K_z
+    v = -T_f * ∇p
+
+    R = sys.p.R
+    L = kgrad.left
+    R = kgrad.right
+    P_c = cell -> state.Pressure[cell]
+    P_face = JutulDarcy.upwind(upw, P_c, v)
+    q = v * P_face
+    return q
+end
 
 function Jutul.update_equation_in_entity!(
     eq_buf::AbstractVector{T_e},
@@ -64,11 +108,25 @@ function Jutul.update_equation_in_entity!(
     M₀ = state0[conserved]
     M = state[conserved]
     disc = eq.flow_discretization
-    flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
-    div_v = ldisc.div(flux)
+    flux_temp(face) = face_flux_temperature(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
+    flux_pressure(face) = face_flux_pressure(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
+    div_temp = ldisc.div(flux_temp)
+    div_pressure = ldisc.div(flux_pressure)
 
+    C_pg = state.C_pg[self_cell]
+    avm = state.avm[self_cell]
+
+    T = state.Temperature[self_cell]
+    T_w = state.WallTemperature[self_cell]
+    A_w = area_wall(model.system)
+    h_in = model.system.p.h_in
+    R = model.system.p.R
+    source_term = A_w * h_in * (T-T_w)
     for component in eachindex(eq_buf)
+        #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t + div_v[component]
+
+        coeff_pressure = C_pg * avm / R
+        eq_buf[component] = ∂M∂t - div_temp + coeff_pressure * div_pressure[component] + source_term[component]
     end
 end
