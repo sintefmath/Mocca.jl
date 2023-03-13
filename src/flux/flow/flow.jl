@@ -27,7 +27,7 @@ function JutulDarcy.component_mass_fluxes!(
     favg(X) = (X[L] + X[R]) / 2
     P = favg(state.Pressure)
     T = favg(state.Temperature)
-    C = P / (R * T)
+    C = P / (sys.p.R * T)
 
     D_l = axial_dispersion(sys)
     for component in eachindex(q)
@@ -66,6 +66,9 @@ function Jutul.update_equation_in_entity!(
     div_v = ldisc.div(flux)
     # @info "Forcing term" forcing_term
     forcing_term_coefficient = model.system.forcing_term_coefficient
+
+    #@info "flow " size(eq_buf)
+
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
