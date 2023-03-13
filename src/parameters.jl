@@ -19,6 +19,8 @@ using Parameters
     fluid_viscosity::Float64 = 1.72e-5
     "[W/m/K]"
     K_z::Float64 = 0.0903 # TODO: Double check
+    "[W/m/K]"
+    K_w::Float64 = 16 # TODO: Triple check!!
     "Density of adsorbent, [kg m^{-3}]"
     ρ_s::Float64 = 1130
     "Specific heat capacity per component for fluid phase [J kg^{-1}K^{-1}]"
@@ -31,8 +33,10 @@ using Parameters
     r_in::Float64 = 1.445
     "Wall radius [m]"
     r_out::Float64 = 1.162
-    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]"
+    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]" # TODO: Review this
     h_in::Float64 = 8.6
+    "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]" # TODO: Review this
+    h_out::Float64 = 2.5
 
     "Density of wall medium [kg m^{-3}]"
     ρ_w::Float64 = 7800.0 # TODO: Review this value and its documentation
@@ -42,4 +46,6 @@ using Parameters
 
     "Initial temperature [K]"
     T0::Float64 = 298.15 # TODO: this value and its documentation
+    "Ambient temperature [K]"
+    T_a::Float64 = 298.15 # TODO: this value and its documentation
 end

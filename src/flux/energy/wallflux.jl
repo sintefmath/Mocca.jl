@@ -1,5 +1,5 @@
-@inline function Jutul.face_flux!(
-    q_i,
+
+@inline function face_flux_temperature(
     face,
     eq::Jutul.ConservationLaw{:WallConservedEnergy,<:Any},
     state,
@@ -9,14 +9,15 @@
     flow_disc, 
     T = Float64
 )
-    # Specific version for tpfa flux
-    # kgrad = TPFA(left, right, face_sign)
-    #upw = SPU(left, right)
-    #return component_mass_fluxes!(q_i, face, state, model, kgrad, upw)
-    #@info "In wall face flux" q_i
-    return q_i
-end
+    q = zero(Jutul.flux_vector_type(eq, T))
 
+    kgrad, upw = flow_disc.face_disc(face)
+    K_w = model.system.p.K_w
+    T = view(state.WallTemperature, :)
+    q = K_w * JutulDarcy.gradient(T, kgrad)
+
+    return q
+end
 
 function Jutul.update_equation_in_entity!(
     eq_buf::AbstractVector{T_e},
@@ -33,13 +34,23 @@ function Jutul.update_equation_in_entity!(
     conserved = Jutul.conserved_symbol(eq)
     M₀ = state0[conserved]
     M = state[conserved]
-
     disc = eq.flow_discretization
-    flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
-    div_v = ldisc.div(flux)
+    flux_temp(face) = face_flux_temperature(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
+    div_temp = ldisc.div(flux_temp)
 
+
+    T = state.Temperature[self_cell]
+    T_w = state.WallTemperature[self_cell]
+    h_in = model.system.p.h_in
+    h_out = model.system.p.h_out
+    r_in = model.system.p.r_in
+    r_out = model.system.p.r_out
+    T_a = model.system.p.T_a
+
+    source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
     for component in eachindex(eq_buf)
+        #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t #+ div_v[component]
+        eq_buf[component] = ∂M∂t - div_temp - source_term
     end
 end
