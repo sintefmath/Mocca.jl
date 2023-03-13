@@ -2,10 +2,10 @@ using Mocca
 import Jutul
 import JutulDarcy
 simulator =
-    initialize_from_matlab("data/VSA_Hag_Simplified.mat", forcing_term_coefficient = 0.0)
+    initialize_from_matlab("data/VSA_Hag_Simplified.mat", forcing_term_coefficient = 1.0)
 forces = Jutul.setup_forces(simulator.model)
 
-numberoftimesteps = 100
+numberoftimesteps = 100_000
 dt = 1.0 / numberoftimesteps
 timesteps = repeat([dt], numberoftimesteps)
 
@@ -27,4 +27,4 @@ states, report = Jutul.simulate(
     max_nonlinear_iterations = 10000,
 )#000)
 
-display(plot_states(states))
+display(Mocca.plot_outlet(states))
