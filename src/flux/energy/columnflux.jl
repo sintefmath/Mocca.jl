@@ -72,17 +72,22 @@ function Jutul.update_equation_in_entity!(
     h_in = model.system.p.h_in
     R = model.system.p.R
     source_term = A_w * h_in * (T-T_w)
+    ρ_s = model.system.p.ρ_s
+    C_ps = model.system.p.C_ps
+    C_pa = state.C_pa
 
     ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
+    
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
 
     pressure_term = C_pg * avm / R * ∂P∂t
     adsorption_term = state.solidVolume[self_cell] * sum((state.C_pa[self_cell] * state.avm[self_cell] * state.Temperature[self_cell] .+ state.ΔH[:, self_cell]) .* ∂q∂t)
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
-        ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-
+        ∂T∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
+        sq = sum(state.adsorptionRates[:, self_cell])
+        accumulation_coeff = state.solidVolume[self_cell] * (ρ_s * C_ps + C_pa[self_cell] * avm * sq)
         coeff_pressure = C_pg * avm / R
-        eq_buf[component] = ∂M∂t + pressure_term + adsorption_term - div_temp + coeff_pressure * div_pressure[component] + source_term[component]
+        eq_buf[component] = accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp + coeff_pressure * div_pressure[component] + source_term[component]
     end
 end
