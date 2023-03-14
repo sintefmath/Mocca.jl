@@ -102,14 +102,13 @@ Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv
         energy_term = solidVolume[cx] * (ρ_s * C_ps + C_pa[cx] * avm[cx] * sq) * Temperature[cx]
         pressure_term = C_pg[cx] * avm[cx] / R * Pressure[cx]
         adsorption_term = solidVolume[cx] * sum((C_pa[cx] * avm[cx] * Temperature[cx] .+ ΔH[:, cx]) .* adsorptionRates[:, cx])
-        column_energy[cx] = energy_term + adsorption_term + pressure_term
+        column_energy[cx] = energy_term# + adsorption_term + pressure_term
     end
 end
 
 Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
-    sys = model.system
     for cellindex in ix
-        wall_energy[cellindex] = sys.p.ρ_w * sys.p.C_pw * WallTemperature[cellindex]
+        wall_energy[cellindex] = WallTemperature[cellindex]
     end
 end
 

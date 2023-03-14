@@ -47,10 +47,12 @@ function Jutul.update_equation_in_entity!(
     r_out = model.system.p.r_out
     T_a = model.system.p.T_a
 
+    C_pw = model.system.p.C_pw
+    ρ_w = model.system.p.ρ_w
     source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = ∂M∂t - div_temp - source_term
+        eq_buf[component] = ρ_w * C_pw * ∂M∂t - div_temp - source_term
     end
 end
