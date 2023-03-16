@@ -35,7 +35,8 @@ end
     sys = model.system
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
-    v = -T_f * ∇p
+    μ = sys.p.fluid_viscosity
+    v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
     P_face = JutulDarcy.upwind(upw, P_c, v)
     q = v * P_face
@@ -68,25 +69,28 @@ function Jutul.update_equation_in_entity!(
 
     T = state.Temperature[self_cell]
     T_w = state.WallTemperature[self_cell]
-    A_w = area_wall(model.system)
+    
+    A_win = area_wall_in(model, self_cell)
     h_in = model.system.p.h_in
     R = model.system.p.R
-    source_term = A_w * h_in * (T-T_w)
+    source_term = A_win * h_in * (T-T_w)
     ρ_s = model.system.p.ρ_s
     C_ps = model.system.p.C_ps
-    C_pa = state.C_pa
+    C_pa = state.C_pa[self_cell]
 
     ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
     
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
 
-    pressure_term = C_pg * avm / R * ∂P∂t
+    pv = Jutul.physical_representation(model.domain).pore_volumes
+
+    pressure_term = C_pg * avm / R * pv[self_cell] * ∂P∂t
     adsorption_term = state.solidVolume[self_cell] * sum((state.C_pa[self_cell] * state.avm[self_cell] * state.Temperature[self_cell] .+ state.ΔH[:, self_cell]) .* ∂q∂t)
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
         ∂T∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         sq = sum(state.adsorptionRates[:, self_cell])
-        accumulation_coeff = state.solidVolume[self_cell] * (ρ_s * C_ps + C_pa[self_cell] * avm * sq)
+        accumulation_coeff = state.solidVolume[self_cell] * (ρ_s * C_ps + C_pa * avm * sq)
         coeff_pressure = C_pg * avm / R
         eq_buf[component] = accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp + coeff_pressure * div_pressure[component] + source_term[component]
     end

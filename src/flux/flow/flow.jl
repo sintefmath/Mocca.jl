@@ -34,7 +34,7 @@ function JutulDarcy.component_mass_fluxes!(
         F_c = cell -> c[component, cell] / μ
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
         y_i = view(state.y, component, :)
-        q_i = c_face * q_darcy + C * D_l * JutulDarcy.gradient(y_i, kgrad)
+        q_i = c_face * q_darcy# + C * D_l * JutulDarcy.gradient(y_i, kgrad)
 
         q = setindex(q, q_i, component)
     end
@@ -67,12 +67,13 @@ function Jutul.update_equation_in_entity!(
     # @info "Forcing term" forcing_term
     forcing_term_coefficient = model.system.forcing_term_coefficient
 
+    ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
     #@info "flow " size(eq_buf)
 
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         # @info i ∂M∂t forcing_term[i, self_cell]
-        eq_buf[i] = ∂M∂t + div_v[i] + forcing_term_coefficient * forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell]* ∂q∂t[i])#forcing_term_coefficient * forcing_term[i, self_cell]
     end
 end
 

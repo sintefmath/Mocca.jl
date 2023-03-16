@@ -23,6 +23,7 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     y = hcat(yCO2, 1.0 .- yCO2)'
 
     nc = size(p, 1)
+    p = collect(LinRange(p[1], 0.9*p[1], nc))
 
     @info "Initializing simulator" p temperature walltemperature q y
 
