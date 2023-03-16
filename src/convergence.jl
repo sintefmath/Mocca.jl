@@ -21,7 +21,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage,
     # @info "conv " size(r)
     #r_scaled = [r[:, cell] ./ [y[:, cell]..., q[:, cell]...] for cell in eachindex(q[1, :])]
 
-    e = norm(r)
+    e = norm(r)/1e5
 
     N = length(Φ)
     pv_t = sum(Φ)
