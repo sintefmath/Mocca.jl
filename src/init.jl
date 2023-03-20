@@ -22,24 +22,25 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     yCO2 = field("yCO2")
     y = hcat(yCO2, 1.0 .- yCO2)'
 
-    nc = size(p, 1)
-    p = collect(LinRange(p[1], 0.9*p[1], nc))
+    numberofcells = size(p, 1)
+    p = collect(LinRange(p[1], 0.9*p[1], numberofcells))
 
     @info "Initializing simulator" p temperature walltemperature q y
 
-    G = JutulDarcy.get_1d_reservoir(nc, general_ad=general_ad, poro=system.p.Φ, perm=perm)
+    # TODO: Check the grid size
+    mesh = Jutul.CartesianMesh((numberofcells, 1))
+    
+    domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
+    model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
 
-    model = Jutul.SimulationModel(G, system)
-
-    g = Jutul.physical_representation(model.domain)
-
-    pv = g.pore_volumes
-    volumes = pv / system.p.Φ
+    # TODO: Figure out a better way to compute the volumes
+    volumes = ones(numberofcells) * first(mesh.deltas)
     solid_volume = volumes * (1 - system.p.Φ)
 
 
     parameters = Jutul.setup_parameters(model,
         solidVolume=solid_volume,
+
     )
 
     state0 = Jutul.setup_state(model,
