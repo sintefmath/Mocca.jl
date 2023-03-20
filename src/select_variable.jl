@@ -49,7 +49,13 @@ function Jutul.select_equations!(
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
+function Jutul.default_value(model::AdsorptionFlowModel, ::JutulDarcy.BulkVolume) 
+    Φ = model.system.p.Φ
+    error()
+end
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
     S[:solidVolume] = JutulDarcy.BulkVolume()
+    S[:fluidVolume] = JutulDarcy.FluidVolume()
+
 end
 

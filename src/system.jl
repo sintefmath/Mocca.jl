@@ -24,11 +24,11 @@ JutulDarcy.has_other_phase(::AdsorptionFlowSystem) = false
 compute_permeability(sys::AdsorptionFlowSystem) = 4 / 150 * ((sys.p.Φ / (1 - sys.p.Φ))^2) * (sys.p.d_p / 2)^2 * sys.p.Φ
 axial_dispersion(sys::AdsorptionFlowSystem) = 0.7 * sys.p.D_m + 0.5 * sys.p.V0_inter * sys.p.Φ * sys.p.d_p
 
-function compute_dx(model::AdsorptionFlowModel, self_cell)
+function compute_dx(model::AdsorptionFlowModel, self_cell)\
     # TODO: We need to get dx in a nicer way
-    g = Jutul.physical_representation(model.domain)
-    dx = g.pore_volumes[self_cell] ./ model.system.p.Φ
-    return dx
+    g = JutulDarcy.physical_representation(model.data_domain)
+
+    return first(g.deltas)
 end
 "Area of column wall [m^2]"
 area_wall(sys::AdsorptionFlowSystem) = π * (sys.p.r_out^2 - sys.p.r_in^2)

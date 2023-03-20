@@ -4,17 +4,13 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     tv::JutulDarcy.TotalMasses,
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
     concentrations,
+    fluidVolume,
     ix
 )
     sys = model.system
-    pv = Jutul.physical_representation(model.domain).pore_volumes
-    # pv = sys.Φ * ones(size(pv)) # FIXME: Remove this
     for cell in ix
-        #@info "Data in cell" cTot[cell] y[:, cell] PhaseMassDensities[1, cell]  model.domain.grid.pore_volumes[cell]
-        totmass[1, cell] = concentrations[1, cell] * pv[cell]
-        totmass[2, cell] = concentrations[2, cell] * pv[cell]
-        # totmass[CO2COMPONENTINDEX, cell] = y
-        # totmass[N2COMPONENTINDEX, cell] = y
+        totmass[1, cell] = concentrations[1, cell] * fluidVolume[cell]
+        totmass[2, cell] = concentrations[2, cell] * fluidVolume[cell]
     end
 end
 

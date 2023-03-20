@@ -82,7 +82,7 @@ function Jutul.update_equation_in_entity!(
     
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
 
-    pv = Jutul.physical_representation(model.domain).pore_volumes
+    pv = state.fluidVolume
 
     pressure_term = C_pg * avm / R * pv[self_cell] * ∂P∂t
     adsorption_term = state.solidVolume[self_cell] * sum((state.C_pa[self_cell] * state.avm[self_cell] * state.Temperature[self_cell] .+ state.ΔH[:, self_cell]) .* ∂q∂t)

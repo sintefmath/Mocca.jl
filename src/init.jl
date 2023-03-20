@@ -36,11 +36,11 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     # TODO: Figure out a better way to compute the volumes
     volumes = ones(numberofcells) * first(mesh.deltas)
     solid_volume = volumes * (1 - system.p.Φ)
-
+    fluid_volume = volumes * system.p.Φ
 
     parameters = Jutul.setup_parameters(model,
         solidVolume=solid_volume,
-
+        fluidVolume=fluid_volume
     )
 
     state0 = Jutul.setup_state(model,
