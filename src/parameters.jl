@@ -48,4 +48,27 @@ using Parameters
     T0::Float64 = 298.15 # TODO: this value and its documentation
     "Ambient temperature [K]"
     T_a::Float64 = 298.15 # TODO: this value and its documentation
+
+    # BC Stuff
+    "Fluid velocity of feed gas [m s^{-1}]"
+    v_feed::Float64 = 0.37
+
+    "Mole fraction of the components [-]"
+    y_feed::SVector{2, Float64} = [0.15, 0.85]
+    
+    "High pressure [Pa]"
+    p_high::Float64 = 1e-5
+
+    "Intermediate pressure [Pa]"
+    p_intermediate::Float64 = 0.2e-5
+
+    "Low pressure [Pa]"
+    p_low::Float64 = 0.1e-5
+
+    # TODO: Double check this
+    "?"
+    λ::Float64 = 0.5
+
+    "Feed temperature [K]"
+    T_feed::Float64 = 298.15
 end

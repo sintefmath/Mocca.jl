@@ -67,14 +67,9 @@ function Jutul.update_equation_in_entity!(
     forcing_term_coefficient = model.system.forcing_term_coefficient
 
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
-    #@info "flow " size(eq_buf)
 
-    if self_cell == 1
-        @info "At first cell" div_v
-    end
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        # @info i ∂M∂t forcing_term[i, self_cell]
         eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell] * ∂q∂t[i])#forcing_term_coefficient * forcing_term[i, self_cell]
     end
 end
