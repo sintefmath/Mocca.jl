@@ -4,50 +4,23 @@ using Parameters
    trans::Float64 = 1.0
 end
 
-# function JutulDarcy.apply_flow_bc!(
-#     acc,
-#     q,
-#     bc,
-#     model::Jutul.SimulationModel{<:Any,T},
-#     state,
-#     time,
-# ) where {T<:AdsorptionFlowSystem}
-#     sys = model.system
-#     mu = sys.p.fluid_viscosity
-#     concentrations = state.concentrations
-#     ctot = state.cTot
-#     nph = length(acc)
-
-#     rho_inj = bc.density
-#     f_inj = bc.fractional_flow
-#     c = bc.cell
-#     mobility = 1 / mu
-
-#     if q > 0
-#         for component in eachindex(acc)
-#             c_i = mobility * q * concentrations[component, c]
-#             acc[component] += c_i
-#         end
-#     else
-#         for component in eachindex(acc)
-#             c_i = mobility * q * bc.fractional_flow[component]
-#             acc[component] += c_i
-#         end
-#     end
-
-# end
+pressure_function(ph, pl, λ, t) = (ph - (ph-pl))*exp(-λ * t)
 
 function pressure_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t) 
     PH = model.p.p_high
     PL = model.p.p_low
     λ = model.p.λ
     # TODO: Shouldn't this be multiplied by 1/P0 
-    return (PH - (PH - PL)*exp(-λ*t))
+    return pressure_function(PH, PL, λ, t)
 end
 
 function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t) 
-    # Neumann
-    return state.Pressure[end]
+    # TODO: This is how it's done in the matlab code at the moment, but this can't be right??
+    PH = model.p.p_high
+    PL = model.p.p_low
+    λ = model.p.λ
+    # TODO: Shouldn't this be multiplied by 1/P0 
+    return pressure_function(PH, PL, λ, t)
 end
 
 function mole_fraction_left(state, model::AdsorptionFlowSystem, ::PressurationBC) 
@@ -69,8 +42,6 @@ function Jutul.apply_forces_to_equation!(
 )
 
     # TODO: Refactor this a bit. Should probably have one function per side?
-
-    @info "In adsorption bc" force
     state = storage.state
     #for bc in force
     sys = model.system
@@ -102,57 +73,70 @@ function Jutul.apply_forces_to_equation!(
         P = state.Pressure[cell_right]
         # v = -(T_{ij}/μ) ∇p
         q = -transmisibility * mobility * (P_right - P)
-        y_left = mole_fraction_left(state, sys, force)
-        y = state.y[:, cell_left]
-        T_left = temperature_left(state, sys, force)
-
+        
         acc_i = view(acc, :, cell_right)
-        cTot = P / (T_left * sys.p.R)
-        c = y .* cTot
-        acc_i[:] .+= cTot .* q .* (y_left .- y) .+ q .* c
+        c = state.concentrations[:, cell_right]
+        acc_i[:] .+= q .* c
     end
 end
 
-# function Jutul.apply_forces_to_equation!(
-#     acc,
-#     storage,
-#     model::AdsorptionFlowModel,
-#     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
-#     eq_s,
-#     force::PressurationBC,
-#     time,
-# )
-#     @info "In column bc"
-#     # state = storage.state
-#     # p = state.Pressure
-#     # for bc in force
-#     #     c = bc.cell
-#     #     T_f = bc.trans_flow
-#     #     Δp = p[c] - bc.pressure
-#     #     q = T_f*Δp
-#     #     acc_i = view(acc, :, c)
-#     #     apply_flow_bc!(acc_i, q, bc, model, state, time)
-#     # end
-# end
 
-# function Jutul.apply_forces_to_equation!(
-#     acc,
-#     storage,
-#     model::AdsorptionFlowModel,
-#     eq::Jutul.ConservationLaw{:WallConservedEnergy},
-#     eq_s,
-#     force::PressurationBC,
-#     time,
-# )
-#     @info "In wall bc"
-#     # state = storage.state
-#     # p = state.Pressure
-#     # for bc in force
-#     #     c = bc.cell
-#     #     T_f = bc.trans_flow
-#     #     Δp = p[c] - bc.pressure
-#     #     q = T_f*Δp
-#     #     acc_i = view(acc, :, c)
-#     #     apply_flow_bc!(acc_i, q, bc, model, state, time)
-#     # end
-# end
+
+function Jutul.apply_forces_to_equation!(
+    acc,
+    storage,
+    model::AdsorptionFlowModel,
+    eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
+    eq_s,
+    force::PressurationBC,
+    time,
+)
+
+    # TODO: Refactor this a bit. Should probably have one function per side? Can also be 
+    # combined with the BC for the other equations.
+
+    state = storage.state
+    #for bc in force
+    sys = model.system
+    
+    μ = sys.p.fluid_viscosity
+    mobility = 1.0 / μ
+    transmisibility = force.trans
+    R = sys.p.R
+
+    # left side
+    begin
+        ρ_g = sys.p.ρ_s
+        cell_left = 1
+        P_left = pressure_left(state, sys, force, time)
+        P = state.Pressure[cell_left]
+        # v = -(T_{ij}/μ) ∇p
+        q = -transmisibility * mobility * (P-P_left)
+        y = state.y[:, cell_left]
+        T_left = temperature_left(state, sys, force)
+        T = state.Temperature[cell_left]
+
+        acc_i = view(acc, :, cell_left)
+        cTot = P / (T_left * sys.p.R)
+        c = y .* cTot
+        C_pg = state.C_pg[cell_left]
+        avm = state.avm[cell_left]
+        
+        acc_i[:] .+= (q.*ρ_g.*C_pg.*(T_left - T)) + (q.*P_left./(R)).*C_pg.*avm
+    end
+    # right side
+    begin
+        cell_right = 1
+        P_right = pressure_right(state, sys, force, time)
+        P = state.Pressure[cell_right]
+        # v = -(T_{ij}/μ) ∇p
+        q = -transmisibility * mobility * (P_right - P)
+        
+        acc_i = view(acc, :, cell_right)
+        c = state.concentrations[:, cell_right]
+        C_pg = state.C_pg[cell_right]
+        avm = state.avm[cell_right]
+        
+        acc_i[:] .+= q.*P./(R).*C_pg.*avm
+    end
+end
