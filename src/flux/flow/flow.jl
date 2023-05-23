@@ -51,26 +51,21 @@ function Jutul.update_equation_in_entity!(
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}
-    #@info "Updating total masses"
-
     # Compute accumulation term
     conserved = Jutul.conserved_symbol(eq)
     M₀ = state0[conserved]
     M = state[conserved]
 
-    forcing_term = state[:AdsorptionMassTransfer]
     # Compute ∇⋅V
     disc = eq.flow_discretization
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
-    # @info "Forcing term" forcing_term
-    forcing_term_coefficient = model.system.forcing_term_coefficient
 
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
 
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell] * ∂q∂t[i])#forcing_term_coefficient * forcing_term[i, self_cell]
+        eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell] * ∂q∂t[i])
     end
 end
 
