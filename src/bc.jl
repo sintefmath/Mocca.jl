@@ -68,7 +68,9 @@ function Jutul.apply_forces_to_equation!(
     end
     # right side
     begin
-        cell_right = 1
+        cell_right = size(state.Pressure, 1)
+        #@info "Flow" cell_right
+
         P_right = pressure_right(state, sys, force, time)
         P = state.Pressure[cell_right]
         # v = -(T_{ij}/μ) ∇p
@@ -126,7 +128,9 @@ function Jutul.apply_forces_to_equation!(
     end
     # right side
     begin
-        cell_right = 1
+        cell_right = size(state.Temperature, 1)
+      #  @info "Temp" cell_right
+
         P_right = pressure_right(state, sys, force, time)
         P = state.Pressure[cell_right]
         # v = -(T_{ij}/μ) ∇p
@@ -138,5 +142,54 @@ function Jutul.apply_forces_to_equation!(
         avm = state.avm[cell_right]
         
         acc_i[:] .+= q.*P./(R).*C_pg.*avm
+    end
+end
+
+
+
+function Jutul.apply_forces_to_equation!(
+    acc,
+    storage,
+    model::AdsorptionFlowModel,
+    eq::Jutul.ConservationLaw{:WallConservedEnergy},
+    eq_s,
+    force::PressurationBC,
+    time,
+)
+
+    # TODO: Refactor this a bit. Should probably have one function per side? Can also be 
+    # combined with the BC for the other equations.
+
+    state = storage.state
+    #for bc in force
+    sys = model.system
+    
+    μ = sys.p.fluid_viscosity
+    mobility = 1.0 / μ
+    transmisibility = force.trans
+    R = sys.p.R
+
+    # left side
+    begin
+        
+        cell_left = 1
+        acc_i = view(acc, :, cell_left)
+        T_left = temperature_left(state, sys, force)
+        T = state.WallTemperature[cell_left]
+        K_w = sys.p.K_w
+
+        acc_i[:] .+= K_w * (T - T_left)
+    end
+    # right side
+    begin
+        cell_right = size(state.WallTemperature, 1)
+        #@info "Wall" cell_right
+        acc_i = view(acc, :, cell_right)
+        # FIXME: This might change in the future.
+        T_right = temperature_left(state, sys, force) # Same temperature
+        T = state.WallTemperature[cell_right]
+        K_w = sys.p.K_w
+
+        acc_i[:] .+= K_w * (T_right - T)
     end
 end

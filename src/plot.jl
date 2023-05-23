@@ -42,7 +42,7 @@ function plot_states(states)
     end
 end
 
-function plot_outlet(states)
+function plot_outlet(t, states)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
         f = CairoMakie.Figure()
         nc = size(states[end][:Pressure], 1)
@@ -61,13 +61,13 @@ function plot_outlet(states)
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
             # TODO: Fix the above
             if size(states[end][symbol], 2) == 1
-                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, Float16.([blah[symbol][end] for blah in states]), color=:darkgray)
+                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                CairoMakie.lines!(ax, t, Float16.([blah[symbol][end] for blah in states]), color=:darkgray)
             else
                 for i in 1:size(states[end][symbol], 1)
-                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
                     
-                    CairoMakie.lines!(ax, Float16.([blah[symbol][i, end] for blah in states]), color=:darkgray)
+                    CairoMakie.lines!(ax, t, Float16.([blah[symbol][i, end] for blah in states]), color=:darkgray)
                 end
             end
         end

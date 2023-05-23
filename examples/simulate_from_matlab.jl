@@ -10,8 +10,8 @@ model = simulator.model
 d = Mocca.PressurationBC(trans = Mocca.compute_permeability(model.system))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 1_000
-dt = 1.0 / numberoftimesteps
+numberoftimesteps = 1000_000
+dt = 15.0 / numberoftimesteps
 timesteps = repeat([dt], numberoftimesteps)
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
@@ -32,3 +32,4 @@ states, report = Jutul.simulate(
 )#000)
 
 display(Mocca.plot_states(states))
+display(Mocca.plot_outlet(cumsum(timesteps), states))
