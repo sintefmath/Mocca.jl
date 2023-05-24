@@ -59,6 +59,7 @@ function Jutul.update_equation_in_entity!(
     M₀ = state0[conserved]
     M = state[conserved]
     disc = eq.flow_discretization
+    Δx = compute_dx(model, self_cell)
     flux_temp(face) = face_flux_temperature(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     flux_pressure(face) = face_flux_pressure(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_temp = ldisc.div(flux_temp)
@@ -78,6 +79,7 @@ function Jutul.update_equation_in_entity!(
     C_ps = model.system.p.C_ps
     C_pa = state.C_pa[self_cell]
 
+
     ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
     
     ∂q∂t = (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
@@ -92,6 +94,6 @@ function Jutul.update_equation_in_entity!(
         sq = sum(state.adsorptionRates[:, self_cell])
         accumulation_coeff = state.solidVolume[self_cell] * (ρ_s * C_ps + C_pa * avm * sq)
         coeff_pressure = C_pg * avm / R
-        eq_buf[component] = accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp + coeff_pressure * div_pressure[component] + source_term[component]
+        eq_buf[component] = accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp / Δx + coeff_pressure * div_pressure[component] + source_term[component]
     end
 end

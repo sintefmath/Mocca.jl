@@ -28,12 +28,15 @@ function JutulDarcy.component_mass_fluxes!(
     favg(X) = (X[L] + X[R]) / 2
     C = favg(state.cTot)
 
+    # TODO: FIXME. Should be per cell.
+    Δx = compute_dx(model, 1)
+
     D_l = axial_dispersion(sys)
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
         y_i = view(state.y, component, :)
-        q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y_i, kgrad)
+        q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y_i, kgrad) / Δx
 
         q = setindex(q, q_i, component)
     end

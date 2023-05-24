@@ -58,6 +58,6 @@ function Jutul.update_equation_in_entity!(
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         A_w = area_wall(model.system)
         wall_volume = A_w * Δx
-        eq_buf[component] = ρ_w * C_pw * ∂M∂t - div_temp - source_term
+        eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - A_w * div_temp / Δx - wall_volume * source_term
     end
 end
