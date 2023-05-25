@@ -6,10 +6,16 @@ Return a simulator object.
 """
 function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_term_coefficient::Float64=1.0)
     data = MAT.matread(datafilepath)
-    field = name -> data["problem"]["SimulatorSetup"]["state0"][name]
+    
+    # TODO: Unify data files...
+    if haskey(data, "problem")
+        field = name -> data["problem"]["SimulatorSetup"]["state0"][name]
+    else
+        field = name -> data["SimulatorSetup"]["state0"][name]
+    end
 
     # TODO: Read the relevant properties from the matlab file here (eg porosity)
-    parameters = AdsorptionParameters()
+    parameters = AdsorptionParameters(datafilepath)
     system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p = parameters)
     perm = compute_permeability(system)
     flatten = x -> collect(Iterators.flatten(x))

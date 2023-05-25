@@ -21,8 +21,10 @@ const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<
 JutulDarcy.number_of_components(sys::AdsorptionFlowSystem) = sys.number_of_components
 JutulDarcy.has_other_phase(::AdsorptionFlowSystem) = false
 
-compute_permeability(sys::AdsorptionFlowSystem) = 4 / 150 * ((sys.p.Φ / (1 - sys.p.Φ))^2) * (sys.p.d_p / 2)^2 * sys.p.Φ
-axial_dispersion(sys::AdsorptionFlowSystem) = 0.7 * sys.p.D_m + 0.5 * sys.p.V0_inter * sys.p.Φ * sys.p.d_p
+
+
+compute_permeability(sys::AdsorptionFlowSystem) = compute_permeability(sys.p)
+axial_dispersion(sys::AdsorptionFlowSystem) = axial_dispersion(sys.p)
 
 function compute_dx(model::AdsorptionFlowModel, self_cell)\
     # TODO: We need to get dx in a nicer way

@@ -2,7 +2,7 @@ using Mocca
 import Jutul
 import JutulDarcy 
 simulator =
-    initialize_from_matlab("data/VSA_Hag_Simplified.mat", 
+    initialize_from_matlab("data/only_pressurisation.mat", 
         forcing_term_coefficient = 1.0)
 
 g = Jutul.physical_representation(simulator.model)
@@ -10,7 +10,7 @@ model = simulator.model
 d = Mocca.PressurationBC(trans = Mocca.compute_permeability(model.system)/ Mocca.compute_dx(model, 1))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 1_000
+numberoftimesteps = 1_000_000
 dt = 15.0 / numberoftimesteps
 timesteps = repeat([dt], numberoftimesteps)
 
