@@ -61,12 +61,15 @@ import MAT
     "Mole fraction of the components [-]"
     y_feed::SVector{2, Float64} = [0.15, 0.85]
     
+    # TODO: Check unit
     "High pressure [Pa]"
     p_high::Float64 = 1e-5
 
+    # TODO: Check unit
     "Intermediate pressure [Pa]"
     p_intermediate::Float64 = 0.2e-5
 
+    # TODO: Check unit
     "Low pressure [Pa]"
     p_low::Float64 = 0.1e-5
 
@@ -95,25 +98,7 @@ function AdsorptionParameters(filename::String)
     rock = model["rock"]
     fluid = model["fluid"]
     separationsystem = model["separationSystem"]
-
-
-#     face: 1
-#     type: {'flux'}
-#    value: @(t,PH,PI,PL,lambda)(PH-(PH-PL)*exp(-lambda*t))
-#      sat: 1
-#       Ta: 298.1500
-#        y: [0.1500 0.8500]
-#        T: 298.1500
-# stepType: 'pressurisation'
-#   stepNo: 1
-#       PH: 100000
-#       PI: 20000
-#       PL: 10000
-#   lambda: 0.5000
-#    Vfeed: 0.3700
-#  cycleNo: 1
-#   stept0: 0
-
+    
     parameters =  AdsorptionParameters(
         Φ = first(rock["poro"]),
         ρ_w = first(rock["rhoWall"]),
