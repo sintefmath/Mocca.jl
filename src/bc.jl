@@ -64,8 +64,8 @@ function Jutul.apply_forces_to_equation!(
         T_left = temperature_left(state, sys, force)
 
         acc_i = view(acc, :, cell_left)
-        cTot = P / (T_left * sys.p.R)
-        c = y .* cTot
+        cTot = P_left / (T_left * sys.p.R)
+        c = y_left .* cTot
         acc_i[:] .+= (cTot .* q .* (y_left .- y) .+ q .* c)
     end
     # right side
@@ -122,13 +122,13 @@ function Jutul.apply_forces_to_equation!(
         P = state.Pressure[cell_left]
         # v = -(T_{ij}/μ) ∇p
         q = -transmisibility * mobility * (P-P_left)
-        y = state.y[:, cell_left]
+        #y = state.y[:, cell_left]
         T_left = temperature_left(state, sys, force)
         T = state.Temperature[cell_left]
 
         acc_i = view(acc, :, cell_left)
-        cTot = P / (T_left * sys.p.R)
-        c = y .* cTot
+        #cTot = P / (T_left * sys.p.R)
+        #c = y .* cTot
         C_pg = state.C_pg[cell_left]
         avm = state.avm[cell_left]
         
@@ -147,7 +147,6 @@ function Jutul.apply_forces_to_equation!(
         q = -transmisibility * mobility * (P_right - P)
         
         acc_i = view(acc, :, cell_right)
-        c = state.concentrations[:, cell_right]
         C_pg = state.C_pg[cell_right]
         avm = state.avm[cell_right]
         
@@ -190,7 +189,7 @@ function Jutul.apply_forces_to_equation!(
         T = state.WallTemperature[cell_left]
         K_w = sys.p.K_w
 
-        acc_i[:] .-= K_w * (T - T_left) / Δx
+        acc_i[:] .+= K_w * (T - T_left) / Δx
     end
     # right side
     begin

@@ -35,3 +35,6 @@ area_wall(sys::AdsorptionFlowSystem) = π * (sys.p.r_out^2 - sys.p.r_in^2)
 
 area_wall_in(sys::AdsorptionFlowSystem, Δx) = π * sys.p.r_in * 2 * Δx
 area_wall_in(model::AdsorptionFlowModel, self_cell) = area_wall_in(model.system, compute_dx(model, self_cell))
+
+area_wall_out(sys::AdsorptionFlowSystem, Δx) = π * sys.p.r_out * 2 * Δx
+area_wall_out(model::AdsorptionFlowModel, self_cell) = area_wall_out(model.system, compute_dx(model, self_cell))

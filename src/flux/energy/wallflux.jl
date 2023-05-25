@@ -46,10 +46,15 @@ function Jutul.update_equation_in_entity!(
     r_in = model.system.p.r_in
     r_out = model.system.p.r_out
     T_a = model.system.p.T_a
-
+    aw_in = area_wall_in(model, self_cell)
+    aw_out = area_wall_out(model, self_cell)
     C_pw = model.system.p.C_pw
     ρ_w = model.system.p.ρ_w
-    source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
+    
+    # This is from the paper:
+    #source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
+    #this is from the matlab code:
+    source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
 
     
     Δx = compute_dx(model, self_cell)
@@ -58,6 +63,6 @@ function Jutul.update_equation_in_entity!(
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         A_w = area_wall(model.system)
         wall_volume = A_w * Δx
-        eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - A_w * div_temp / Δx - wall_volume * source_term
+        eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - A_w * div_temp / Δx - source_term
     end
 end

@@ -7,14 +7,15 @@ simulator =
 
 g = Jutul.physical_representation(simulator.model)
 model = simulator.model
-d = Mocca.PressurationBC(trans = Mocca.compute_permeability(model.system))
+d = Mocca.PressurationBC(trans = Mocca.compute_permeability(model.system)/ Mocca.compute_dx(model, 1))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 1000_000
+numberoftimesteps = 1_000
 dt = 15.0 / numberoftimesteps
 timesteps = repeat([dt], numberoftimesteps)
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
+@assert 1/nc ≈ Mocca.compute_dx(model, 1)
 @show nc
 # d = JutulDarcy.FlowBoundaryCondition(
 #     nc,

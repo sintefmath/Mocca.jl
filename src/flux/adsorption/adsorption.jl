@@ -28,6 +28,6 @@ function Jutul.update_equation_in_entity!(
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         eq_buf[component] =
             solid_volume[self_cell] * ∂M∂t -
-                forcing_term_coefficient * forcing_term[component, self_cell] 
+            solid_volume[self_cell] * forcing_term_coefficient * forcing_term[component, self_cell] 
     end
 end
