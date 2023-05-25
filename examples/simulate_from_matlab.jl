@@ -34,4 +34,4 @@ states, report = Jutul.simulate(
 
 #display(Mocca.plot_states(states))
 #display(Mocca.plot_outlet(cumsum(timesteps), states))
-display(Mocca.plot_against_matlab(states, "data/only_pressurisation/final_T/"))
+display(Mocca.plot_against_matlab(states, "data/only_pressurisation/final_t/"))
