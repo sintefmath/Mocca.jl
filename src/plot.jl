@@ -106,17 +106,18 @@ function plot_against_matlab(states, basedir)
             # TODO: Fix the above
             if size(states[end][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red)
+                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red, label="Mocca.jl")
 
                 if haskey(key_to_file, symbol)
                     matlabdata = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol])))
-                    CairoMakie.lines!(ax, x, matlabdata, color=:grey)
+                    CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")
                 end
+                CairoMakie.axislegend(ax)
             else
                 for i in 1:size(states[end][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
 
-                    CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red)
+                    CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red, label="Mocca.jl")
                     if haskey(key_to_file, symbol)
                         filenames = key_to_file[symbol]
                         if size(filenames, 1) == 1
@@ -125,10 +126,12 @@ function plot_against_matlab(states, basedir)
                         else
                             datamatlab = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol][i])))
                         end
-                        CairoMakie.lines!(ax, x, datamatlab, color=:grey)
+                        CairoMakie.lines!(ax, x, datamatlab, color=:grey, label="MRST")
+                        CairoMakie.axislegend(ax)
                     end
                 end
             end
+
         end
         CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
         return f
