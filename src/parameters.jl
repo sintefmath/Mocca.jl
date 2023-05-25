@@ -45,7 +45,7 @@ import MAT
 
     "Density of wall medium [kg m^{-3}]"
     ρ_w::Float64 = 7800.0 # TODO: Review this value and its documentation
-    
+
     "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
     C_pw::Float64 = 502.0  # TODO: Review this value and its documentation
 
@@ -59,8 +59,8 @@ import MAT
     v_feed::Float64 = 0.37
 
     "Mole fraction of the components [-]"
-    y_feed::SVector{2, Float64} = [0.15, 0.85]
-    
+    y_feed::SVector{2,Float64} = [0.15, 0.85]
+
     # TODO: Check unit
     "High pressure [Pa]"
     p_high::Float64 = 1e-5
@@ -81,7 +81,7 @@ import MAT
     T_feed::Float64 = 298.15
 end
 
-function AdsorptionParameters(filename::String)
+function read_adsorption_parameters_from_matlab(filename::String)
     data = MAT.matread(filename)
 
     if haskey(data, "problem")
@@ -93,46 +93,50 @@ function AdsorptionParameters(filename::String)
     model = setup["model"]
     schedule = setup["schedule"]
     bc = schedule["control"]["bc"]
+    G = model["G"]
 
-    @show keys(model)
     rock = model["rock"]
     fluid = model["fluid"]
     separationsystem = model["separationSystem"]
-    
-    parameters =  AdsorptionParameters(
-        Φ = first(rock["poro"]),
-        ρ_w = first(rock["rhoWall"]),
-        ρ_s = first(rock["rhoAds"]),
-        d_p = first(rock["rp"])*2,
-        ϵ_p = first(rock["poroAds"]),
-        τ = first(rock["tau"]),
-        C_pw = first(rock["CpWall"]),
-        C_ps = first(rock["CpAds"]),
-        h_in = first(rock["hIn"]),
-        h_out = first(rock["hOut"]),
-        K_w = first(rock["lambdaWall"]),
-        R = first(model["R"]),
-        T_a = first(model["ambientTemperature"]),
-        molecularMassOfCO2 = first(fluid["molarMass"]),
-        molecularMassOfN2 = fluid["molarMass"][2],
-        D_m = first(fluid["Dm"]),
-        C_pa = SVector{2, Float64}(fluid["CpAds"]),
-        C_pg = SVector{2, Float64}(fluid["CpAds"]),
-        K_z = first(fluid["lambdaF"]),
-        b0 = SVector{2, Float64}(separationsystem["b0"]),
-        d0 = SVector{2, Float64}(separationsystem["d0"]),
-        ΔUbi = SVector{2, Float64}(separationsystem["deltaUb"]),
-        ΔUdi = SVector{2, Float64}(separationsystem["deltaUd"]),
-        qsbi = SVector{2, Float64}(separationsystem["qsb"]),
-        qsdi = SVector{2, Float64}(separationsystem["qsd"]),
-        T0 = first(separationsystem["T0"]),
-        y_feed = SVector{2, Float64}(bc["y"]),
-        T_feed = first(bc["T"]),
-        p_high = first(bc["PH"]),
-        p_intermediate = first(bc["PI"]),
-        p_low = first(bc["PL"]),
-        λ = first(bc["lambda"]),
-        v_feed = first(bc["Vfeed"])
+
+    parameters = AdsorptionParameters(
+        Φ=first(rock["poro"]),
+        ρ_w=first(rock["rhoWall"]),
+        ρ_s=first(rock["rhoAds"]),
+        d_p=first(rock["rp"]) * 2,
+        ϵ_p=first(rock["poroAds"]),
+        τ=first(rock["tau"]),
+        C_pw=first(rock["CpWall"]),
+        C_ps=first(rock["CpAds"]),
+        h_in=first(rock["hIn"]),
+        h_out=first(rock["hOut"]),
+        K_w=first(rock["lambdaWall"]),
+        R=first(model["R"]),
+        T_a=first(model["ambientTemperature"]),
+        molecularMassOfCO2=first(fluid["molarMass"]),
+        molecularMassOfN2=fluid["molarMass"][2],
+        D_m=first(fluid["Dm"]),
+        C_pa=SVector{2,Float64}(fluid["CpAds"]),
+        C_pg=SVector{2,Float64}(fluid["CpAds"]),
+        K_z=first(fluid["lambdaF"]),
+        b0=SVector{2,Float64}(separationsystem["b0"]),
+        d0=SVector{2,Float64}(separationsystem["d0"]),
+        ΔUbi=SVector{2,Float64}(separationsystem["deltaUb"]),
+        ΔUdi=SVector{2,Float64}(separationsystem["deltaUd"]),
+        qsbi=SVector{2,Float64}(separationsystem["qsb"]),
+        qsdi=SVector{2,Float64}(separationsystem["qsd"]),
+        T0=first(separationsystem["T0"]),
+        y_feed=SVector{2,Float64}(bc["y"]),
+        T_feed=first(bc["T"]),
+        p_high=first(bc["PH"]),
+        p_intermediate=first(bc["PI"]),
+        p_low=first(bc["PL"]),
+        λ=first(bc["lambda"]),
+        v_feed=first(bc["Vfeed"]),
+        r_in=first(G["rIn"]),
+        r_out=first(G["rOut"]),
+        # TODO: Cannot read muG (seems to be weird array with no info?)
+        #fluid_viscosity = first(fluid["muG"])
         #ρ_g = first(rock[""]) # not used? TODO: Check
     )
 

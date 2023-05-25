@@ -6,7 +6,7 @@ Return a simulator object.
 """
 function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_term_coefficient::Float64=1.0)
     data = MAT.matread(datafilepath)
-    
+
     # TODO: Unify data files...
     if haskey(data, "problem")
         field = name -> data["problem"]["SimulatorSetup"]["state0"][name]
@@ -14,9 +14,8 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
         field = name -> data["SimulatorSetup"]["state0"][name]
     end
 
-    # TODO: Read the relevant properties from the matlab file here (eg porosity)
-    parameters = AdsorptionParameters(datafilepath)
-    system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p = parameters)
+    parameters = read_adsorption_parameters_from_matlab(datafilepath)
+    system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
     perm = compute_permeability(system)
     flatten = x -> collect(Iterators.flatten(x))
     p = flatten(field("pressure"))
@@ -29,13 +28,12 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     y = hcat(yCO2, 1.0 .- yCO2)'
 
     numberofcells = size(p, 1)
-    p = collect(LinRange(p[1], 0.9*p[1], numberofcells))
 
     @info "Initializing simulator" p temperature walltemperature q y
 
-    # TODO: Check the grid size
-    mesh = Jutul.CartesianMesh((numberofcells, 1))
-    
+    # TODO: Check the grid size. TODO: Don't hardcode extent.
+    mesh = Jutul.CartesianMesh((numberofcells, 1), (3.0, 1.0))
+
     domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
     model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
 
