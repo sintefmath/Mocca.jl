@@ -1,21 +1,21 @@
 using Mocca
 import Jutul
-import JutulDarcy 
+import JutulDarcy
 simulator =
-    initialize_from_matlab("data/only_pressurisation.mat", 
-        forcing_term_coefficient = 1.0)
+    initialize_from_matlab("data/only_pressurisation.mat",
+        forcing_term_coefficient=1.0)
 
 g = Jutul.physical_representation(simulator.model)
 model = simulator.model
-d = Mocca.PressurationBC(trans = Mocca.compute_permeability(model.system)/ Mocca.compute_dx(model, 1))
+d = Mocca.PressurationBC(trans=Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 1_000_000
-dt = 15.0 / numberoftimesteps
+numberoftimesteps = 45_000
+dt = 45.0 / numberoftimesteps
 timesteps = repeat([dt], numberoftimesteps)
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
-@assert 1/nc ≈ Mocca.compute_dx(model, 1)
+@assert 3.0 / nc ≈ Mocca.compute_dx(model, 1)
 @show nc
 # d = JutulDarcy.FlowBoundaryCondition(
 #     nc,
@@ -27,10 +27,11 @@ nc = size(simulator.storage.primary_variables.Pressure, 1)
 states, report = Jutul.simulate(
     simulator,
     timesteps,
-    info_level = 0,
-    forces = forces,
-    max_nonlinear_iterations = 10000,
+    info_level=0,
+    forces=forces,
+    max_nonlinear_iterations=10000,
 )#000)
 
-display(Mocca.plot_states(states))
-display(Mocca.plot_outlet(cumsum(timesteps), states))
+#display(Mocca.plot_states(states))
+#display(Mocca.plot_outlet(cumsum(timesteps), states))
+display(Mocca.plot_against_matlab(states, "data/only_pressurisation/final_T/"))

@@ -1,5 +1,7 @@
 import CairoMakie
 import MakiePublication
+import DelimitedFiles
+
 function plot_states(states)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
         f = CairoMakie.Figure()
@@ -66,7 +68,7 @@ function plot_outlet(t, states)
             else
                 for i in 1:size(states[end][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
-                    
+
                     CairoMakie.lines!(ax, t, Float16.([blah[symbol][i, end] for blah in states]), color=:darkgray)
                 end
             end
@@ -74,4 +76,62 @@ function plot_outlet(t, states)
         CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
         return f
     end
+end
+
+function plot_against_matlab(states, basedir)
+    return MakiePublication.with_theme(MakiePublication.theme_web()) do
+        f = CairoMakie.Figure()
+        nc = size(states[end][:Pressure], 1)
+        x = collect(LinRange(0.0, 1.0, nc))
+        key_to_label = Dict(
+            :y => "y",
+            :Pressure => "p",
+            :adsorptionRates => "q",
+            :Temperature => "T",
+            :WallTemperature => "T_{wall}"
+        )
+
+        key_to_file = Dict(
+            :Pressure => "P.txt",
+            :Temperature => "T.txt",
+            :WallTemperature => "Twall.txt",
+            :y => ["yCO2.txt"],
+            :adsorptionRates => ["qCO2.txt", "qN2.txt"]
+        )
+
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
+            @show symbol
+            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # TODO: Fix the above
+            if size(states[end][symbol], 2) == 1
+                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red)
+
+                if haskey(key_to_file, symbol)
+                    matlabdata = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol])))
+                    CairoMakie.lines!(ax, x, matlabdata, color=:grey)
+                end
+            else
+                for i in 1:size(states[end][symbol], 1)
+                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+
+                    CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red)
+                    if haskey(key_to_file, symbol)
+                        filenames = key_to_file[symbol]
+                        if size(filenames, 1) == 1
+                            datamatlab = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol][1])))
+                            datamatlab = 1.0 .- datamatlab
+                        else
+                            datamatlab = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol][i])))
+                        end
+                        CairoMakie.lines!(ax, x, datamatlab, color=:grey)
+                    end
+                end
+            end
+        end
+        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
+        return f
+    end
+
 end
