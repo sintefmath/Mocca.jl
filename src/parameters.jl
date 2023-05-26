@@ -62,7 +62,7 @@ import MAT
     y_feed::SVector{2,Float64} = [0.15, 0.85]
 
     # TODO: Check unit
-    "High pressure [Pa]"
+    "p_high High pressure [Pa]"
     p_high::Float64 = 1e5
 
     # TODO: Check unit
@@ -86,7 +86,8 @@ function read_adsorption_parameters_from_matlab(filename::String)
 
     if haskey(data, "problem")
         setup = data["problem"]["SimulatorSetup"]
-
+    elseif haskey(data, "problem_struct")
+        setup = data["problem_struct"]["SimulatorSetup"]
     else
         setup = data["SimulatorSetup"]
     end

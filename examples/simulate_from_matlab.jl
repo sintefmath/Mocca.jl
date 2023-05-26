@@ -1,6 +1,9 @@
 using Mocca
 import Jutul
 import JutulDarcy
+import MAT
+
+
 simulator =
     initialize_from_matlab("data/only_pressurisation.mat",
         forcing_term_coefficient=1.0)
@@ -10,9 +13,16 @@ model = simulator.model
 d = Mocca.PressurationBC(trans=Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 45_000
-dt = 45.0 / numberoftimesteps
+numberoftimesteps = 40_000
+dt = 15.0 / numberoftimesteps
+times_matlab = collect(Iterators.flatten(MAT.matread("data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat")["results"]["time"]))
+times_matlab_zero = zeros(length(times_matlab) + 1)
+times_matlab_zero[2:end] = times_matlab
+
+timesteps = times_matlab - times_matlab_zero[1:end-1]
+@show timesteps
 timesteps = repeat([dt], numberoftimesteps)
+
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
 @assert 3.0 / nc ≈ Mocca.compute_dx(model, 1)
@@ -34,4 +44,4 @@ states, report = Jutul.simulate(
 
 #display(Mocca.plot_states(states))
 #display(Mocca.plot_outlet(cumsum(timesteps), states))
-display(Mocca.plot_against_matlab(states, "data/only_pressurisation/final_t/"))
+display(Mocca.plot_against_matlab_mat(states, "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat"))

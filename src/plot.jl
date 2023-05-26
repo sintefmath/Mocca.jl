@@ -78,7 +78,7 @@ function plot_outlet(t, states)
     end
 end
 
-function plot_against_matlab(states, basedir)
+function plot_against_matlab_text(states, basedir)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
         f = CairoMakie.Figure()
         nc = size(states[end][:Pressure], 1)
@@ -138,3 +138,97 @@ function plot_against_matlab(states, basedir)
     end
 
 end
+
+
+function plot_against_matlab_mat(states, inputfile, t::Float64, times_mocca::Vector{Float64})
+    # Find corresponding index for Mocca
+
+    index_mocca = argmin(abs.(times_mocca .- t))
+    times_mrst = collect(Iterators.flatten(MAT.matread(inputfile)["results"]["time"]))
+    index_mrst = argmin(abs.(times_mrst .- t))
+
+    @info "Getting timesteps " index_mocca index_mrst times_mocca[index_mocca] times_mrst[index_mrst]
+
+    return plot_against_matlab_mat(states, inputfile, timestep=index_mocca, timestep_matlab = index_mrst)
+end
+
+function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_matlab=nothing)
+    return MakiePublication.with_theme(MakiePublication.theme_web()) do
+        
+        f = CairoMakie.Figure()
+
+        nc = size(states[end][:Pressure], 1)
+        x = collect(LinRange(0.0, 1.0, nc))
+        key_to_label = Dict(
+            :y => "y",
+            :Pressure => "p",
+            :adsorptionRates => "q",
+            :Temperature => "T",
+            :WallTemperature => "T_{wall}"
+        )
+
+        matfile = MAT.matread(inputfile)
+
+        results = matfile["results"]
+        key_to_file = Dict(
+            :Pressure => "pressure",
+            :Temperature => "T",
+            :WallTemperature => "Twall",
+            :y => ["yCO2"],
+            :adsorptionRates => ["qCO2", "qN2"]
+        )
+        if isnothing(timestep)
+            timestep = size(states, 1)
+        end
+
+        if isnothing(timestep_matlab) 
+            timestep_matlab = size(results[key_to_file[:Pressure]], 2)
+        end
+
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
+            @show symbol
+            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # TODO: Fix the above
+            if size(states[timestep][symbol], 2) == 1
+                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                CairoMakie.lines!(ax, x, Float16.(states[timestep][symbol][:]), color=:red, label="Mocca.jl")
+
+                if haskey(key_to_file, symbol)
+                    k = key_to_file[symbol]
+                    
+                    matlabdata = collect(Iterators.flatten(results[k][:,timestep_matlab]))
+
+                    CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")
+                end
+                CairoMakie.axislegend(ax)
+            else
+                for i in 1:size(states[timestep][symbol], 1)
+                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+
+                    CairoMakie.lines!(ax, x, Float16.(states[timestep][symbol][i, :]), color=:red, label="Mocca.jl")
+                    if haskey(key_to_file, symbol)
+                        keysforresult = key_to_file[symbol]
+                       
+                        if size(keysforresult, 1) == 1
+                            matlabdata = collect(Iterators.flatten(results[keysforresult[1]][:,timestep_matlab]))
+                            if i > 1
+                                matlabdata = 1.0 .- matlabdata
+                            end
+                        else
+                            matlabdata = collect(Iterators.flatten(results[keysforresult[i]][:,timestep_matlab]))
+                        end
+
+                        CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")
+                        CairoMakie.axislegend(ax)
+                    end
+                end
+            end
+
+        end
+        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
+        return f
+    end
+
+end
+

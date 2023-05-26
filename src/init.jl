@@ -10,6 +10,8 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     # TODO: Unify data files...
     if haskey(data, "problem")
         field = name -> data["problem"]["SimulatorSetup"]["state0"][name]
+    elseif haskey(data, "problem_struct")
+        field = name -> data["problem_struct"]["SimulatorSetup"]["state0"][name]
     else
         field = name -> data["SimulatorSetup"]["state0"][name]
     end
@@ -26,6 +28,7 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     q = hcat(qCO2, qN2)'
     yCO2 = field("yCO2")
     y = hcat(yCO2, 1.0 .- yCO2)'
+    
 
     numberofcells = size(p, 1)
 

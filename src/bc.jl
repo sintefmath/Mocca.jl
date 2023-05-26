@@ -82,7 +82,7 @@ function Jutul.apply_forces_to_equation!(
         
         acc_i = view(acc, :, cell_right)
         c = state.concentrations[:, cell_right]
-        acc_i[:] .+= q .* c 
+        #acc_i[:] .+= q .* c 
     end
 end
 
@@ -150,7 +150,7 @@ function Jutul.apply_forces_to_equation!(
         C_pg = state.C_pg[cell_right]
         avm = state.avm[cell_right]
         
-        acc_i[:] .+= (q.*P./(R).*C_pg.*avm)
+        #acc_i[:] .+= (q.*P./(R).*C_pg.*avm)
     end
 end
 
@@ -203,6 +203,6 @@ function Jutul.apply_forces_to_equation!(
         K_w = sys.p.K_w
 
 
-        acc_i[:] .-= K_w * (T_right - T) / Δx
+        #acc_i[:] .-= K_w * (T_right - T) / Δx
     end
 end
