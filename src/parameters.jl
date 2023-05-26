@@ -63,15 +63,15 @@ import MAT
 
     # TODO: Check unit
     "High pressure [Pa]"
-    p_high::Float64 = 1e-5
+    p_high::Float64 = 1e5
 
     # TODO: Check unit
     "Intermediate pressure [Pa]"
-    p_intermediate::Float64 = 0.2e-5
+    p_intermediate::Float64 = 0.2e5
 
     # TODO: Check unit
     "Low pressure [Pa]"
-    p_low::Float64 = 0.1e-5
+    p_low::Float64 = 0.1e5
 
     # TODO: Double check this
     "Pressure BC parameter [-]"
@@ -117,7 +117,7 @@ function read_adsorption_parameters_from_matlab(filename::String)
         molecularMassOfN2=fluid["molarMass"][2],
         D_m=first(fluid["Dm"]),
         C_pa=SVector{2,Float64}(fluid["CpAds"]),
-        C_pg=SVector{2,Float64}(fluid["CpAds"]),
+        C_pg=SVector{2,Float64}(fluid["CpG"]),
         K_z=first(fluid["lambdaF"]),
         b0=SVector{2,Float64}(separationsystem["b0"]),
         d0=SVector{2,Float64}(separationsystem["d0"]),
