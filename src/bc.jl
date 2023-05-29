@@ -192,7 +192,7 @@ function Jutul.apply_forces_to_equation!(
         K_w = sys.p.K_w
 
         A_w = area_wall(sys)
-        #acc_i[:] .+= A_w * K_w * (T - T_left) / Δx
+        acc_i[:] .-= A_w * K_w * (T - T_left) / Δx
     end
     # right side
     begin
