@@ -1,9 +1,9 @@
 function Jutul.select_primary_variables!(
     S,
-    ::AdsorptionFlowSystem,
+    system::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
+    S[:Pressure] = JutulDarcy.Pressure(minimum=system.p.p_low / 10, maximum=system.p.p_high * 10) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
     S[:Temperature] = JutulDarcy.Temperature()
@@ -49,7 +49,7 @@ function Jutul.select_equations!(
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
-function Jutul.default_value(model::AdsorptionFlowModel, ::JutulDarcy.BulkVolume) 
+function Jutul.default_value(model::AdsorptionFlowModel, ::JutulDarcy.BulkVolume)
     Φ = model.system.p.Φ
     error()
 end

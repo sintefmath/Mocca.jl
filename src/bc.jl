@@ -1,12 +1,12 @@
 using Parameters
 
 @with_kw struct PressurationBC
-   trans::Float64 = 1.0
+    trans::Float64 = 1.0
 end
 
-pressure_function(ph, pl, λ, t) = (ph - (ph-pl))*exp(-λ * t)
+pressure_function(ph, pl, λ, t) = (ph - (ph - pl) * exp(-λ * t))
 
-function pressure_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t) 
+function pressure_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
     PH = model.p.p_high
     PL = model.p.p_low
     λ = model.p.λ
@@ -14,7 +14,7 @@ function pressure_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
     return pressure_function(PH, PL, λ, t)
 end
 
-function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t) 
+function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
     # TODO: This is how it's done in the matlab code at the moment, but this can't be right??
     PH = model.p.p_high
     PL = model.p.p_low
@@ -23,11 +23,11 @@ function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
     return pressure_function(PH, PL, λ, t)
 end
 
-function mole_fraction_left(state, model::AdsorptionFlowSystem, ::PressurationBC) 
+function mole_fraction_left(state, model::AdsorptionFlowSystem, ::PressurationBC)
     return model.p.y_feed
 end
 
-function temperature_left(state, model::AdsorptionFlowSystem, ::PressurationBC) 
+function temperature_left(state, model::AdsorptionFlowSystem, ::PressurationBC)
     return model.p.T_feed
 end
 
@@ -45,7 +45,7 @@ function Jutul.apply_forces_to_equation!(
     state = storage.state
     #for bc in force
     sys = model.system
-    
+
     μ = sys.p.fluid_viscosity
     mobility = 1.0 / μ
     transmisibility = force.trans
@@ -58,7 +58,7 @@ function Jutul.apply_forces_to_equation!(
         P_left = pressure_left(state, sys, force, time)
         P = state.Pressure[cell_left]
         # v = -(T_{ij}/μ) ∇p
-        q = -transmisibility * mobility * (P-P_left)
+        q = -transmisibility * mobility * (P - P_left)
         y_left = mole_fraction_left(state, sys, force)
         y = state.y[:, cell_left]
         T_left = temperature_left(state, sys, force)
@@ -79,7 +79,7 @@ function Jutul.apply_forces_to_equation!(
         P = state.Pressure[cell_right]
         # v = -(T_{ij}/μ) ∇p
         q = -transmisibility * mobility * (P_right - P)
-        
+
         acc_i = view(acc, :, cell_right)
         c = state.concentrations[:, cell_right]
         #acc_i[:] .+= q .* c 
@@ -104,12 +104,12 @@ function Jutul.apply_forces_to_equation!(
     state = storage.state
     #for bc in force
     sys = model.system
-    
+
     μ = sys.p.fluid_viscosity
     mobility = 1.0 / μ
     transmisibility = force.trans
     R = sys.p.R
-    
+
 
     # left side
     begin
@@ -121,7 +121,7 @@ function Jutul.apply_forces_to_equation!(
 
         P = state.Pressure[cell_left]
         # v = -(T_{ij}/μ) ∇p
-        q = -transmisibility * mobility * (P-P_left)
+        q = -transmisibility * mobility * (P - P_left)
         #y = state.y[:, cell_left]
         T_left = temperature_left(state, sys, force)
         T = state.Temperature[cell_left]
@@ -131,25 +131,27 @@ function Jutul.apply_forces_to_equation!(
         #c = y .* cTot
         C_pg = state.C_pg[cell_left]
         avm = state.avm[cell_left]
-        
-        acc_i[:] .+= ((q.*ρ_g.*C_pg.*(T_left - T)) + (q.*P_left./(R)).*C_pg.*avm)
+
+
+        # @info "BC " q (T_left - T) ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm) acc_i[:]
+        acc_i[:] .+= ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm)
     end
     # right side
     begin
         cell_right = size(state.Temperature, 1)
         Δx = compute_dx(model, cell_right)
 
-      #  @info "Temp" cell_right
+        #  @info "Temp" cell_right
 
         P_right = pressure_right(state, sys, force, time)
         P = state.Pressure[cell_right]
         # v = -(T_{ij}/μ) ∇p
         q = -transmisibility * mobility * (P_right - P)
-        
+
         acc_i = view(acc, :, cell_right)
         C_pg = state.C_pg[cell_right]
         avm = state.avm[cell_right]
-        
+
         #acc_i[:] .+= (q.*P./(R).*C_pg.*avm)
     end
 end
@@ -172,24 +174,25 @@ function Jutul.apply_forces_to_equation!(
     state = storage.state
     #for bc in force
     sys = model.system
-    
+
     μ = sys.p.fluid_viscosity
     mobility = 1.0 / μ
     transmisibility = force.trans
     R = sys.p.R
 
     # left side
-    
+
     begin
-        
+
         cell_left = 1
         Δx = compute_dx(model, cell_left)
         acc_i = view(acc, :, cell_left)
-        T_left = temperature_left(state, sys, force)
+        T_left = sys.p.T_a
         T = state.WallTemperature[cell_left]
         K_w = sys.p.K_w
 
-        acc_i[:] .+= K_w * (T - T_left) / Δx
+        A_w = area_wall(sys)
+        #acc_i[:] .+= A_w * K_w * (T - T_left) / Δx
     end
     # right side
     begin
@@ -198,11 +201,11 @@ function Jutul.apply_forces_to_equation!(
         #@info "Wall" cell_right
         acc_i = view(acc, :, cell_right)
         # FIXME: This might change in the future.
-        T_right = temperature_left(state, sys, force) # Same temperature
+        T_right = sys.p.T_a
         T = state.WallTemperature[cell_right]
         K_w = sys.p.K_w
+        A_w = area_wall(sys)
 
-
-        #acc_i[:] .-= K_w * (T_right - T) / Δx
+        #acc_i[:] .-= A_w * K_w * (T_right - T) / Δx
     end
 end

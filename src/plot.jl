@@ -149,12 +149,12 @@ function plot_against_matlab_mat(states, inputfile, t::Float64, times_mocca::Vec
 
     @info "Getting timesteps " index_mocca index_mrst times_mocca[index_mocca] times_mrst[index_mrst]
 
-    return plot_against_matlab_mat(states, inputfile, timestep=index_mocca, timestep_matlab = index_mrst)
+    return plot_against_matlab_mat(states, inputfile, timestep=index_mocca, timestep_matlab=index_mrst)
 end
 
 function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_matlab=nothing)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
-        
+
         f = CairoMakie.Figure()
 
         nc = size(states[end][:Pressure], 1)
@@ -181,7 +181,9 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
             timestep = size(states, 1)
         end
 
-        if isnothing(timestep_matlab) 
+        timestep = min(timestep, size(states, 1))
+
+        if isnothing(timestep_matlab)
             timestep_matlab = size(results[key_to_file[:Pressure]], 2)
         end
 
@@ -196,8 +198,8 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
 
                 if haskey(key_to_file, symbol)
                     k = key_to_file[symbol]
-                    
-                    matlabdata = collect(Iterators.flatten(results[k][:,timestep_matlab]))
+
+                    matlabdata = collect(Iterators.flatten(results[k][:, timestep_matlab]))
 
                     CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")
                 end
@@ -209,14 +211,14 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
                     CairoMakie.lines!(ax, x, Float16.(states[timestep][symbol][i, :]), color=:red, label="Mocca.jl")
                     if haskey(key_to_file, symbol)
                         keysforresult = key_to_file[symbol]
-                       
+
                         if size(keysforresult, 1) == 1
-                            matlabdata = collect(Iterators.flatten(results[keysforresult[1]][:,timestep_matlab]))
+                            matlabdata = collect(Iterators.flatten(results[keysforresult[1]][:, timestep_matlab]))
                             if i > 1
                                 matlabdata = 1.0 .- matlabdata
                             end
                         else
-                            matlabdata = collect(Iterators.flatten(results[keysforresult[i]][:,timestep_matlab]))
+                            matlabdata = collect(Iterators.flatten(results[keysforresult[i]][:, timestep_matlab]))
                         end
 
                         CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")

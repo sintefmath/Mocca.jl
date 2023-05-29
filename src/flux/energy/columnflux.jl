@@ -6,7 +6,7 @@
     dt,
     disc,
     flow_disc,
-    T = Float64,
+    T=Float64,
 )
     q = zero(Jutul.flux_vector_type(eq, T))
     kgrad, upw = flow_disc.face_disc(face)
@@ -26,7 +26,7 @@ end
     dt,
     disc,
     flow_disc,
-    T = Float64,
+    T=Float64,
 )
     q = zero(Jutul.flux_vector_type(eq, T))
 
@@ -51,7 +51,7 @@ function Jutul.update_equation_in_entity!(
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
     model::AdsorptionFlowModel,
     Δt,
-    ldisc = Jutul.local_discretization(eq, self_cell),
+    ldisc=Jutul.local_discretization(eq, self_cell),
 ) where {T_e}
 
     # Compute accumulation term
@@ -103,6 +103,7 @@ function Jutul.update_equation_in_entity!(
         sq = sum(state.adsorptionRates[:, self_cell])
         accumulation_coeff = state.solidVolume[self_cell] * (ρ_s * C_ps + C_pa * avm * sq)
         coeff_pressure = C_pg * avm / R
+
         eq_buf[component] =
             accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp / Δx +
             coeff_pressure * div_pressure[component] +
