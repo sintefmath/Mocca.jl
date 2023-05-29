@@ -24,7 +24,7 @@ times_matlab_zero[2:end] = times_matlab
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
 
-timesteps = repeat([dt], numberoftimesteps)[1:2]
+timesteps = repeat([dt], numberoftimesteps)[1:10]
 
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
@@ -46,4 +46,7 @@ states, report = Jutul.simulate(
 
 #display(Mocca.plot_states(states))
 #display(Mocca.plot_outlet(cumsum(timesteps), states))
-display(Mocca.plot_against_matlab_mat(states, "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", cumsum(timesteps)[end]/2, cumsum(timesteps)))
+display(Mocca.plot_against_matlab_mat(states, 
+    "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", 
+    cumsum(timesteps)[end], 
+    cumsum(timesteps)))
