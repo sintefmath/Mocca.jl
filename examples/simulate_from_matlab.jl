@@ -13,7 +13,7 @@ model = simulator.model
 d = Mocca.PressurationBC(trans=Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 100
+numberoftimesteps = 150000
 dt = 15.0 / numberoftimesteps
 times_matlab = collect(Iterators.flatten(MAT.matread("data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat")["results"]["time"]))
 times_matlab_zero = zeros(length(times_matlab) + 1)
@@ -21,7 +21,8 @@ times_matlab_zero[2:end] = times_matlab
 
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
-timesteps = repeat([dt], numberoftimesteps)[1:100]
+
+timesteps = repeat([dt], numberoftimesteps)[1:2]
 
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
@@ -38,7 +39,7 @@ states, report = Jutul.simulate(
     timesteps,
     info_level=0,
     forces=forces,
-    max_nonlinear_iterations=100,
+    max_nonlinear_iterations=10000,
 )#000)
 
 #display(Mocca.plot_states(states))
