@@ -3,7 +3,7 @@ function Jutul.select_primary_variables!(
     system::AdsorptionFlowSystem,
     model::Jutul.SimulationModel,
 )
-    S[:Pressure] = JutulDarcy.Pressure(minimum=system.p.p_low / 10, maximum=system.p.p_high * 10) # FIXME: Proper lower value 
+    S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
     S[:Temperature] = JutulDarcy.Temperature()
