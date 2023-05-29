@@ -55,7 +55,7 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
 
     # TODO: Figure out a better way to compute the volumes
-    volumes = ones(numberofcells) * first(mesh.deltas)
+    volumes = ones(numberofcells) * prod(mesh.deltas)
     solid_volume = volumes * (1 - system.p.Φ)
     fluid_volume = volumes * system.p.Φ
 
