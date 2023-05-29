@@ -68,22 +68,7 @@ function Jutul.apply_forces_to_equation!(
         c = y_left .* cTot
         acc_i[:] .+= (cTot .* q .* (y_left .- y) .+ q .* c)
     end
-    # right side
-    begin
-        cell_right = size(state.Pressure, 1)
-        Δx = compute_dx(model, cell_right)
-
-        #@info "Flow" cell_right
-
-        P_right = pressure_right(state, sys, force, time)
-        P = state.Pressure[cell_right]
-        # v = -(T_{ij}/μ) ∇p
-        q = -transmisibility * mobility * (P_right - P)
-
-        acc_i = view(acc, :, cell_right)
-        c = state.concentrations[:, cell_right]
-        #acc_i[:] .+= q .* c 
-    end
+  
 end
 
 
@@ -136,24 +121,7 @@ function Jutul.apply_forces_to_equation!(
         # @info "BC " q (T_left - T) ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm) acc_i[:]
         acc_i[:] .+= ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm)
     end
-    # right side
-    begin
-        cell_right = size(state.Temperature, 1)
-        Δx = compute_dx(model, cell_right)
-
-        #  @info "Temp" cell_right
-
-        P_right = pressure_right(state, sys, force, time)
-        P = state.Pressure[cell_right]
-        # v = -(T_{ij}/μ) ∇p
-        q = -transmisibility * mobility * (P_right - P)
-
-        acc_i = view(acc, :, cell_right)
-        C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]
-
-        #acc_i[:] .+= (q.*P./(R).*C_pg.*avm)
-    end
+   
 end
 
 
@@ -194,18 +162,5 @@ function Jutul.apply_forces_to_equation!(
         A_w = area_wall(sys)
         acc_i[:] .-= A_w * K_w * (T - T_left) / Δx
     end
-    # right side
-    begin
-        cell_right = size(state.WallTemperature, 1)
-        Δx = compute_dx(model, cell_right)
-        #@info "Wall" cell_right
-        acc_i = view(acc, :, cell_right)
-        # FIXME: This might change in the future.
-        T_right = sys.p.T_a
-        T = state.WallTemperature[cell_right]
-        K_w = sys.p.K_w
-        A_w = area_wall(sys)
-
-        #acc_i[:] .-= A_w * K_w * (T_right - T) / Δx
-    end
+  
 end
