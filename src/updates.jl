@@ -89,10 +89,6 @@ end
 
 
 Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, adsorptionRates, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
-    sys = model.system
-    ρ_s = sys.p.ρ_s
-    C_ps = sys.p.C_ps
-    R = sys.p.R
     for cx in ix
         column_energy[cx] = Temperature[cx]
     end
