@@ -94,11 +94,7 @@ Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv
     C_ps = sys.p.C_ps
     R = sys.p.R
     for cx in ix
-        sq = sum(adsorptionRates[:, cx])
-        energy_term = solidVolume[cx] * (ρ_s * C_ps + C_pa[cx] * avm[cx] * sq) * Temperature[cx]
-        pressure_term = C_pg[cx] * avm[cx] / R * Pressure[cx]
-        adsorption_term = solidVolume[cx] * sum((C_pa[cx] * avm[cx] * Temperature[cx] .+ ΔH[:, cx]) .* adsorptionRates[:, cx])
-        column_energy[cx] = Temperature[cx]#energy_term# + adsorption_term + pressure_term
+        column_energy[cx] = Temperature[cx]
     end
 end
 
