@@ -11,17 +11,10 @@ function pressure_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
     PL = model.p.p_low
     λ = model.p.λ
     # TODO: Shouldn't this be multiplied by 1/P0 
+
     return pressure_function(PH, PL, λ, t)
 end
 
-function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
-    # TODO: This is how it's done in the matlab code at the moment, but this can't be right??
-    PH = model.p.p_high
-    PL = model.p.p_low
-    λ = model.p.λ
-    # TODO: Shouldn't this be multiplied by 1/P0 
-    return pressure_function(PH, PL, λ, t)
-end
 
 function mole_fraction_left(state, model::AdsorptionFlowSystem, ::PressurationBC)
     return model.p.y_feed
@@ -66,6 +59,7 @@ function Jutul.apply_forces_to_equation!(
         acc_i = view(acc, :, cell_left)
         cTot = P_left / (T_left * sys.p.R)
         c = y_left .* cTot
+        
         acc_i[:] .+= (cTot .* q .* (y_left .- y) .+ q .* c)
     end
   
@@ -101,8 +95,6 @@ function Jutul.apply_forces_to_equation!(
         ρ_g = sys.p.ρ_s
         cell_left = 1
         P_left = pressure_left(state, sys, force, time)
-
-        Δx = compute_dx(model, cell_left)
 
         P = state.Pressure[cell_left]
         # v = -(T_{ij}/μ) ∇p
