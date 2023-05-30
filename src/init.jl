@@ -52,13 +52,14 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     mesh = Jutul.CartesianMesh((numberofcells, 1, 1), (extent, dx, dx))
 
     domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
-    domain[:diffusion_coefficient] = D_l = axial_dispersion(system)
-    domain[:thermal_conductivity] = D_l = system.p.K_w # TODO: Check this and the one above
+    domain[:diffusion_coefficient] = axial_dispersion(system)
+    domain[:thermal_conductivity] = system.p.K_z # TODO: Check this and the one above
 
     model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
 
     # TODO: Figure out a better way to compute the volumes
     volumes = ones(numberofcells) * prod(mesh.deltas)
+    @assert volumes == domain[:volumes]
     solid_volume = volumes * (1 - system.p.Φ)
     fluid_volume = volumes * system.p.Φ
 
