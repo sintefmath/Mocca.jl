@@ -13,7 +13,7 @@
 
     kgrad, upw = flow_disc.face_disc(face)
     K_w = model.system.p.K_w
-    T = view(state.WallTemperature, :)
+    T = state.WallTemperature
     q = K_w * JutulDarcy.gradient(T, kgrad)
 
     return q

@@ -85,7 +85,7 @@ function Jutul.update_equation_in_entity!(
     ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
 
     ∂q∂t =
-        (state.adsorptionRates[:, self_cell] .- state0.adsorptionRates[:, self_cell]) ./ Δt
+        (state.adsorptionRates[:, self_cell] - state0.adsorptionRates[:, self_cell]) ./ Δt
 
     pv = state.fluidVolume
     sv = state.solidVolume[self_cell]
