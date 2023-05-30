@@ -56,6 +56,7 @@ end
 function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
     S[:solidVolume] = JutulDarcy.BulkVolume()
     S[:fluidVolume] = JutulDarcy.FluidVolume()
-
+    S[:ThermalConductivities] = ThermalConductivities()
+    S[:DiffusionTransmissibilities] = DiffusionTransmissibilities()
 end
 
