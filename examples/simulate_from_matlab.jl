@@ -24,7 +24,7 @@ times_matlab_zero[2:end] = times_matlab
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
 
-timesteps = repeat([dt], numberoftimesteps)[1:1000]
+# timesteps = repeat([dt], numberoftimesteps)[1:1000]
 
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)

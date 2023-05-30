@@ -29,8 +29,8 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
         force = k .* (qstar .- adsorptionRates[:, cell])
 
         # @info "cell $ix" qstar k concentrations adsorptionRates force
-
-        adsorption_mass_transfer[:, cell] = force
+        # TODO: Turn adsorption back on again!
+        adsorption_mass_transfer[:, cell] = force*0
     end
 end
 

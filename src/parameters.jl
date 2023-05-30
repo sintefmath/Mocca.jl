@@ -109,9 +109,9 @@ function read_adsorption_parameters_from_matlab(filename::String)
         τ=first(rock["tau"]),
         C_pw=first(rock["CpWall"]),
         C_ps=first(rock["CpAds"]),
-        h_in=first(rock["hIn"]),
-        h_out=first(rock["hOut"]),
-        K_w=first(rock["lambdaWall"]),
+        h_in=first(rock["hIn"])*0, #TODO: heat flow turn back on!
+        h_out=first(rock["hOut"])*0, #TODO: heat flow turn back on!
+        K_w=first(rock["lambdaWall"])*0, #TODO: heat flow turn back on!
         R=first(model["R"]),
         T_a=first(model["ambientTemperature"]),
         molecularMassOfCO2=first(fluid["molarMass"]),
