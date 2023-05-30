@@ -10,10 +10,10 @@
 )
     q = zero(Jutul.flux_vector_type(eq, T))
     kgrad, upw = flow_disc.face_disc(face)
-    K_z = model.system.p.K_z
+    # K_z = model.system.p.K_z
 
-    T = view(state.Temperature, :)
-    q = K_z * JutulDarcy.gradient(T, kgrad)
+    T = state.Temperature
+    q = state.ThermalConductivities[face] * JutulDarcy.gradient(T, kgrad)
 
     return q
 end
@@ -105,7 +105,7 @@ function Jutul.update_equation_in_entity!(
         coeff_pressure = C_pg * avm / R
 
         eq_buf[component] =
-            accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp / Δx +
+            accumulation_coeff * ∂T∂t + pressure_term + adsorption_term - div_temp +
             coeff_pressure * div_pressure[component] +
             source_term[component]
     end
