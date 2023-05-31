@@ -16,6 +16,7 @@ include("updates.jl")
 include("flux/flux.jl")
 include("convergence.jl")
 include("bc.jl")
+include("bc_adsorption.jl")
 include("init.jl")
 include("plot.jl")
 end

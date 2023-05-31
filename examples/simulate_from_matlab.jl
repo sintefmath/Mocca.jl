@@ -12,7 +12,9 @@ g = Jutul.physical_representation(simulator.model)
 model = simulator.model
 
 # TODO: Is the transmisibility for the bc computed correctly here? Seems to match...
-d = Mocca.PressurationBC(trans= 2 * Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1) * (pi * model.system.p.r_in^2))
+# d = Mocca.PressurationBC(trans= 2 * Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1) * (pi * model.system.p.r_in^2))
+d = Mocca.AdsorptionBC(trans= 2 * Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1) * (pi * model.system.p.r_in^2))
+
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
 numberoftimesteps = 15000
