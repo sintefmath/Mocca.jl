@@ -60,7 +60,8 @@ function Jutul.apply_forces_to_equation!(
         cTot = P_left / (T_left * sys.p.R)
         c = y_left .* cTot
         for i in eachindex(y)
-            acc[i, cell_left] += cTot*q*(y_left[i] - y[i]) - q*c[i]
+            mysource = cTot*q*(y_left[i] - y[i]) + q*c[i]
+            acc[i, cell_left] -= mysource
         end
         # acc_i[:] .+= (cTot .* q .* (y_left .- y) .+ q .* c)
     end
