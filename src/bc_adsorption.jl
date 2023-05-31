@@ -46,12 +46,10 @@ function Jutul.apply_forces_to_equation!(
         cell_left = 1
         Δx = compute_dx(model, cell_left)
 
-        q = - velocity_left * 
-
-        P_left = pressure_left(state, sys, force, time)
+        q = - velocity_left * A_f
         P = state.Pressure[cell_left]
-        # v = -(T_{ij}/μ) ∇p
-        q = -transmissibility * mobility * (P - P_left)
+        P_left = q / tranmissibility / mobility + P
+
         y_left = mole_fraction_left(state, sys, force)
         y = state.y[:, cell_left]
         T_left = temperature_left(state, sys, force)
@@ -60,8 +58,9 @@ function Jutul.apply_forces_to_equation!(
         cTot = P_left / (T_left * sys.p.R)
         c = y_left .* cTot
         for i in eachindex(y)
-            acc[i, cell_left] += cTot*q*(y_left[i] - y[i]) - q*c[i]
-            @info "acc" acc[i, cell_left]
+
+            mysource = cTot*q*(y_left[i] - y[i]) + q*c[i]
+            acc[i, cell_left] -= mysource
         end
     end
 
@@ -78,7 +77,9 @@ function Jutul.apply_forces_to_equation!(
         q = -transmissibility * mobility * (P_right - P)
 
         for i in eachindex(y)
-            acc[i, cell_right] += q*c[i]
+
+            mysource =  q*c[i]
+            acc[i, cell_left] -= mysource
         end
     end
   
