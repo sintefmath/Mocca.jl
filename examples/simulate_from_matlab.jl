@@ -9,6 +9,7 @@ simulator =
         forcing_term_coefficient=1.0)
 
 g = Jutul.physical_representation(simulator.model)
+gg = Jutul.physical_representation(simulator.model.data_domain)
 model = simulator.model
 
 # TODO: Is the transmisibility for the bc computed correctly here? Seems to match...

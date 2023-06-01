@@ -4,20 +4,33 @@ end
 
 
 
-function velocity_left(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
-    return model.p.v_feed
+function flux_left(state, model::AdsorptionFlowModel, force::AdsorptionBC)
+
+    sys = model.system
+    g = Jutul.physical_representation(model.data_domain)
+    A_f = g.deltas[2] * g.deltas[3]
+    q = - velocity_left(state, sys, force) * A_f
+    return q
 end
 
-function mole_fraction_left(state, model::AdsorptionFlowSystem, ::PressurationBC)
-    return model.p.y_feed
+function mole_fraction_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
+    return sys.p.y_feed
 end
 
-function temperature_left(state, model::AdsorptionFlowSystem, ::PressurationBC)
-    return model.p.T_feed
+function temperature_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
+    return sys.p.T_feed
 end
 
-function pressure_right(state, model::AdsorptionFlowSystem, ::PressurationBC, t)
-    return  model.p.p_high
+function pressure_right(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
+    return  sys.p.p_high
+end
+
+function pressure_left(state, sys::AdsorptionFlowSystem, q, P, transmissibility, mobility)
+    return  q / transmissibility / mobility + P
+end
+
+function velocity_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
+    return sys.p.v_feed
 end
 
 
@@ -45,10 +58,11 @@ function Jutul.apply_forces_to_equation!(
     begin
         cell_left = 1
         Δx = compute_dx(model, cell_left)
+        
 
-        q = - velocity_left * A_f
+        q = flux_left(state, model, force)
         P = state.Pressure[cell_left]
-        P_left = q / tranmissibility / mobility + P
+        P_left =  pressure_left(state, sys, q, P, transmissibility, mobility)
 
         y_left = mole_fraction_left(state, sys, force)
         y = state.y[:, cell_left]
@@ -64,12 +78,12 @@ function Jutul.apply_forces_to_equation!(
         end
     end
 
-    # left side
+    # right side
     begin
         cell_right = 30 # TODO: Don't hardcode final index!
         Δx = compute_dx(model, cell_right)
 
-        P_right = pressure_right(state, sys, force, time)
+        P_right = pressure_right(state, sys, force)
         P = state.Pressure[cell_right]
         T = state.Temperature[cell_right]
         cTot = P / (T * sys.p.R)
@@ -114,26 +128,42 @@ function Jutul.apply_forces_to_equation!(
     begin
         ρ_g = sys.p.ρ_s
         cell_left = 1
-        P_left = pressure_left(state, sys, force, time)
 
-        P = state.Pressure[cell_left]
-        # v = -(T_{ij}/μ) ∇p
-        q = -transmissibility * mobility * (P - P_left)
-        #y = state.y[:, cell_left]
+        q = flux_left(state, model, force)
+        P = state.Pressure[cell_left]        
+        P_left = pressure_left(state, sys, q, P, transmissibility, mobility)
+
         T_left = temperature_left(state, sys, force)
         T = state.Temperature[cell_left]
 
         acc_i = view(acc, :, cell_left)
-        #cTot = P / (T_left * sys.p.R)
-        #c = y .* cTot
+
         C_pg = state.C_pg[cell_left]
         avm = state.avm[cell_left]
 
-
-        # @info "BC " q (T_left - T) ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm) acc_i[:]
-        acc[cell_left] += ((q * ρ_g * C_pg * (T_left - T)) + (q * P_left / (R)) * C_pg * avm)
+       acc[cell_left] += ((q * ρ_g * C_pg * (T_left - T)) + (q * P_left / (R)) * C_pg * avm)
     end
    
+    # right side
+    begin
+        cell_right = 30 # TODO: Don't hardcode final index!
+        Δx = compute_dx(model, cell_right)
+
+        P_right = pressure_right(state, sys, force)
+        P = state.Pressure[cell_right]
+        T = state.Temperature[cell_right]
+        cTot = P / (T * sys.p.R)
+
+        q = -transmissibility * mobility * (P_right - P)
+
+        for i in eachindex(y)
+
+            mysource =  q*c[i]
+            acc[i, cell_left] -= mysource
+        end
+
+
+
 end
 
 
