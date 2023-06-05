@@ -15,8 +15,9 @@ model = simulator.model
 d = Mocca.PressurationBC(trans= 2 * Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1) * (pi * model.system.p.r_in^2))
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 15000
+numberoftimesteps = 1500
 dt = 15.0 / numberoftimesteps
+dt = 0.00390625/numberoftimesteps
 times_matlab = collect(Iterators.flatten(MAT.matread("data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat")["results"]["time"]))
 times_matlab_zero = zeros(length(times_matlab) + 1)
 times_matlab_zero[2:end] = times_matlab
@@ -24,12 +25,12 @@ times_matlab_zero[2:end] = times_matlab
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
 
-timesteps = repeat([dt], numberoftimesteps)[1:1000]
+timesteps = repeat([dt], numberoftimesteps)#[1:10]
 
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
 @show nc
-# d = JutulDarcy.FlowBoundaryCondition(
+# d = JutulDarcy.FlowBoundaryCondition( ρ
 #     nc,
 #     2 * simulator.storage.primary_variables.Pressure[1].value, # TODO: Do this nicer
 #     trans_flow = g.trans[1],
@@ -41,10 +42,12 @@ states, report = Jutul.simulate(
     timesteps,
     info_level=0,
     forces=forces,
-    max_nonlinear_iterations=20,
+    # max_nonlinear_iterations=0,
+    # max_timestep_cuts = 0
 )#000)
 ##
-#display(Mocca.plot_states(states))
+display(Mocca.plot_states(states))
+##
 #display(Mocca.plot_outlet(cumsum(timesteps), states))
 display(Mocca.plot_against_matlab_mat(states, 
     "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", 
