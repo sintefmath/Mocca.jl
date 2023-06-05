@@ -95,7 +95,7 @@ function Jutul.apply_forces_to_equation!(
 
     # left side
     begin
-        ρ_g = sys.p.ρ_s
+        ρ_g = sys.p.ρ_g
         cell_left = 1
         P_left = pressure_left(state, sys, force, time)
 

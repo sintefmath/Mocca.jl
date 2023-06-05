@@ -28,6 +28,9 @@ import MAT
     K_w::Float64 = 16 # TODO: Triple check!!
     "Density of adsorbent, [kg m^{-3}]"
     ρ_s::Float64 = 1130
+    "Density of gas, [kg m^{-3}]"
+    ρ_g::Float64 = 1.22638310956
+
     "Specific heat capacity per component for fluid phase [J kg^{-1}K^{-1}]"
     C_pg::SVector{2,Float64} = @SVector [697.5687, 1096.4]
     "Specific heat capacity per component for adsorbent phase [J kg^{-1}K^{-1}]"
@@ -104,6 +107,7 @@ function read_adsorption_parameters_from_matlab(filename::String)
         Φ=first(rock["poro"]),
         ρ_w=first(rock["rhoWall"]),
         ρ_s=first(rock["rhoAds"]),
+        ρ_g=first(fluid["rhoGS"]),
         d_p=first(rock["rp"]) * 2,
         ϵ_p=first(rock["poroAds"]),
         τ=first(rock["tau"]),
