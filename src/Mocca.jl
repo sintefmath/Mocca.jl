@@ -1,10 +1,10 @@
+__precompile__(false)
+
 module Mocca
 export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
 import Jutul
 import JutulDarcy
-using StaticArrays
-
-
+using StaticArrays, ForwardDiff
 
 const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this

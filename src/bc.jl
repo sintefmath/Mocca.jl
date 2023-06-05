@@ -114,9 +114,9 @@ function Jutul.apply_forces_to_equation!(
 
 
         # @info "BC " q (T_left - T) ((q .* ρ_g .* C_pg .* (T_left - T)) + (q .* P_left ./ (R)) .* C_pg .* avm) acc_i[:]
-        acc[cell_left] += ((q * ρ_g * C_pg * (T_left - T)) + (q * P_left / (R)) * C_pg * avm)
+        bc_src = -((q * ρ_g * C_pg * (T_left - T)) + (q * P_left / (R)) * C_pg * avm)
+        acc[cell_left] -= bc_src
     end
-   
 end
 
 
@@ -148,14 +148,15 @@ function Jutul.apply_forces_to_equation!(
     begin
 
         cell_left = 1
-        Δx = compute_dx(model, cell_left)
+        # Half cell width to boundary
+        Δx = compute_dx(model, cell_left)/2
         # acc_i = view(acc, :, cell_left)
         T_left = sys.p.T_a
         T = state.WallTemperature[cell_left]
         K_w = sys.p.K_w
 
         A_w = area_wall(sys)
-        acc[cell_left] -= A_w * K_w * (T - T_left) / Δx
+        bc_src = (A_w * K_w * (T - T_left) / Δx)
+        acc[cell_left] -= bc_src
     end
-  
 end
