@@ -2,6 +2,10 @@ struct MySuperStruct end
 struct AdsorptionRates <: Jutul.VectorVariables
 end
 
+function Jutul.minimum_value(::AdsorptionRates)
+    return 1e-10
+end
+
 Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
 
 Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
@@ -37,10 +41,9 @@ function Jutul.minimum_value(::GasMoleFractions)
     return 1e-20
 end
 
-#Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
-
-#Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any, AdsorptionFlowSystem}, ::GasMoleFractions) = JutulDarcy.number_of_components(model.system)
-
+function Jutul.variable_scale(::JutulDarcy.Pressure)
+    nothing
+end
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
 
