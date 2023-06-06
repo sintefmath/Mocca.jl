@@ -75,7 +75,7 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
         Temperature=temperature,
         WallTemperature=walltemperature)
 
-    return Jutul.Simulator(model, state0=state0, parameters=parameters)
+    return (sim = Jutul.Simulator(model, state0=state0, parameters=parameters), state0 = state0, parameters = parameters)
 end
 
 

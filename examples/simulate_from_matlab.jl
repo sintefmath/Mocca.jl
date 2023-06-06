@@ -3,9 +3,10 @@ import Jutul
 import JutulDarcy
 import MAT
 
-
-simulator =
-    initialize_from_matlab("data/only_pressurisation.mat",
+datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_slopingstate0_pressurisation.mat"
+# datapath = "only_pressurisation.mat"
+simulator, state0, parameters =
+    initialize_from_matlab("data/$datapath",
         forcing_term_coefficient=1.0)
 
 g = Jutul.physical_representation(simulator.model)
@@ -25,7 +26,7 @@ times_matlab_zero[2:end] = times_matlab
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
 
-timesteps = repeat([dt], numberoftimesteps)#[1:10]
+# timesteps = repeat([dt], numberoftimesteps)#[1:10]
 
 
 nc = size(simulator.storage.primary_variables.Pressure, 1)
@@ -42,15 +43,16 @@ states, report = Jutul.simulate(
     timesteps,
     info_level=0,
     forces=forces,
-    # max_nonlinear_iterations=0,
-    # max_timestep_cuts = 0
+    max_nonlinear_iterations=0,
+    max_timestep_cuts = 0
 )#000)
 ##
 display(Mocca.plot_states(states))
 ##
 #display(Mocca.plot_outlet(cumsum(timesteps), states))
 display(Mocca.plot_against_matlab_mat(states, 
-    "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", 
+    # "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", 
+    "data/$datapath",
     cumsum(timesteps)[end], 
     cumsum(timesteps)))
 ##
