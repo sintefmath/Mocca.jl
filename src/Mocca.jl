@@ -1,4 +1,4 @@
-__precompile__(false)
+__precompile__(true)
 
 module Mocca
 export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
@@ -16,6 +16,7 @@ include("updates.jl")
 include("flux/flux.jl")
 include("convergence.jl")
 include("bc.jl")
+include("bc_adsorption.jl")
 include("init.jl")
 include("plot.jl")
 end
