@@ -41,7 +41,7 @@ nc = size(simulator.storage.primary_variables.Pressure, 1)
 states, report = Jutul.simulate(
     simulator,
     timesteps,
-    info_level=0,
+    info_level=5,
     forces=forces,
     max_nonlinear_iterations=0,
     max_timestep_cuts = 0
