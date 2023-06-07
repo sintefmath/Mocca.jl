@@ -38,7 +38,7 @@ struct GasMoleFractions <: JutulDarcy.CompositionalFractions
 end
 
 function Jutul.minimum_value(::GasMoleFractions)
-    return 1e-20
+    return 1e-12
 end
 
 function Jutul.variable_scale(::JutulDarcy.Pressure)
