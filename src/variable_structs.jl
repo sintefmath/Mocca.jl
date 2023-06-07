@@ -37,13 +37,16 @@ struct GasMoleFractions <: JutulDarcy.CompositionalFractions
     GasMoleFractions(; dz_max=0.2) = new(dz_max)
 end
 
+const MIN_GAS_MOLEFRACTION = 1e-12
+
 function Jutul.minimum_value(::GasMoleFractions)
-    return 1e-12
+    return MIN_GAS_MOLEFRACTION
 end
 
-function Jutul.variable_scale(::JutulDarcy.Pressure)
-    nothing
+function Jutul.maximum_value(::GasMoleFractions)
+    return 1.0 - MIN_GAS_MOLEFRACTION
 end
+
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
 
 
