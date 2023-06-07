@@ -6,8 +6,8 @@ function Jutul.select_primary_variables!(
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
     S[:adsorptionRates] = AdsorptionRates()
-    S[:Temperature] = JutulDarcy.Temperature()
-    S[:WallTemperature] = JutulDarcy.Temperature()
+    S[:Temperature] = JutulDarcy.Temperature(min = 200.0, max_rel = 0.2)
+    S[:WallTemperature] = JutulDarcy.Temperature(min = 200.0, max_rel = 0.2)
 end
 
 function Jutul.select_secondary_variables!(
