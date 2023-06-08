@@ -17,24 +17,25 @@ function plot_states(states)
 
         for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
             @show symbol
-            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.
             # TODO: Fix the above
             if size(states[end][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
                 for j in eachindex(states)
-                    CairoMakie.lines!(ax, x, Float16.(states[j][symbol][:]), color=:darkgray)
+                    CairoMakie.lines!(ax, x, Float64.(states[j][symbol][:]), color=:darkgray)
                 end
-                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red)
+                CairoMakie.lines!(ax, x, Float64.(states[end][symbol][:]), color=:red)
 
             else
                 for i in 1:size(states[end][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
                     for j in eachindex(states)
-                        CairoMakie.lines!(ax, x, Float16.(states[j][symbol][i, :]), color=:darkgray)
+                        CairoMakie.lines!(ax, x, Float64.(states[j][symbol][i, :]), color=:darkgray)
                     end
 
-                    CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red)
+                    CairoMakie.lines!(ax, x, Float64.(states[end][symbol][i, :]), color=:red)
 
                 end
             end
@@ -59,17 +60,18 @@ function plot_outlet(t, states)
 
         for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
             @show symbol
-            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.            
             # TODO: Fix the above
             if size(states[end][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, t, Float16.([blah[symbol][end] for blah in states]), color=:darkgray)
+                CairoMakie.lines!(ax, t, Float64.([blah[symbol][end] for blah in states]), color=:darkgray)
             else
                 for i in 1:size(states[end][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
 
-                    CairoMakie.lines!(ax, t, Float16.([blah[symbol][i, end] for blah in states]), color=:darkgray)
+                    CairoMakie.lines!(ax, t, Float64.([blah[symbol][i, end] for blah in states]), color=:darkgray)
                 end
             end
         end
@@ -101,12 +103,13 @@ function plot_against_matlab_text(states, basedir)
 
         for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
             @show symbol
-            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.            
             # TODO: Fix the above
             if size(states[end][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, x, Float16.(states[end][symbol][:]), color=:red, label="Mocca.jl")
+                CairoMakie.lines!(ax, x, Float64.(states[end][symbol][:]), color=:red, label="Mocca.jl")
 
                 if haskey(key_to_file, symbol)
                     matlabdata = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol])))
@@ -117,7 +120,7 @@ function plot_against_matlab_text(states, basedir)
                 for i in 1:size(states[end][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
 
-                    CairoMakie.lines!(ax, x, Float16.(states[end][symbol][i, :]), color=:red, label="Mocca.jl")
+                    CairoMakie.lines!(ax, x, Float64.(states[end][symbol][i, :]), color=:red, label="Mocca.jl")
                     if haskey(key_to_file, symbol)
                         filenames = key_to_file[symbol]
                         if size(filenames, 1) == 1
@@ -189,12 +192,13 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
 
         for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
             @show symbol
-            # Truncating to float16 seems to be needed due to some weird cairomakie bug:
+            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
+            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.            
             # TODO: Fix the above
             if size(states[timestep][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, x, Float16.(states[timestep][symbol][:]), color=:red, label="Mocca.jl")
+                CairoMakie.lines!(ax, x, Float64.(states[timestep][symbol][:]), color=:red, label="Mocca.jl")
 
                 if haskey(key_to_file, symbol)
                     k = key_to_file[symbol]
@@ -208,7 +212,7 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
                 for i in 1:size(states[timestep][symbol], 1)
                     ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
 
-                    CairoMakie.lines!(ax, x, Float16.(states[timestep][symbol][i, :]), color=:red, label="Mocca.jl")
+                    CairoMakie.lines!(ax, x, Float64.(states[timestep][symbol][i, :]), color=:red, label="Mocca.jl")
                     if haskey(key_to_file, symbol)
                         keysforresult = key_to_file[symbol]
 
