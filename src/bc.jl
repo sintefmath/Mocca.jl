@@ -156,7 +156,7 @@ function Jutul.apply_forces_to_equation!(
         K_w = sys.p.K_w
 
         A_w = area_wall(sys)
-        bc_src = (A_w * K_w * (T - T_left) / Δx)
+        bc_src = -(A_w * K_w * (T - T_left) / Δx)
         acc[cell_left] -= bc_src
     end
 end
