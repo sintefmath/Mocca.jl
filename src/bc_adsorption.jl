@@ -1,38 +1,23 @@
-@with_kw struct AdsorptionBC
-    trans::Float64 = 1.0
+@with_kw struct AdsorptionBC{T, N}
+    y_feed::SVector{N,T}
+    PH::T
+    v_feed::T
+    T_feed::T
+    cell_left::Int
+    cell_right::Int
 end
 
-
-
-function flux_left(state, model::AdsorptionFlowModel, force::AdsorptionBC)
-
-    sys = model.system
-    g = Jutul.physical_representation(model.data_domain)
-    A_f = g.deltas[2] * g.deltas[3]
-    q = - velocity_left(state, sys, force) * A_f
-    return q
+function calc_bc_trans(model::AdsorptionFlowModel)
+    k = Mocca.compute_permeability(model.system)
+    dx = Mocca.compute_dx(model, 1) / 2
+    A = (pi * model.system.p.r_in^2)
+    return k * A / dx
 end
 
-function mole_fraction_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
-    return sys.p.y_feed
+function flux_left(model::AdsorptionFlowModel, force::AdsorptionBC)
+    Af = compute_column_face_area(model)
+    return -force.v_feed * Af
 end
-
-function temperature_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
-    return sys.p.T_feed
-end
-
-function pressure_right(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
-    return  sys.p.p_high
-end
-
-function pressure_left(state, sys::AdsorptionFlowSystem, q, P, transmissibility, mobility)
-    return  q / transmissibility / mobility + P
-end
-
-function velocity_left(state, sys::AdsorptionFlowSystem, ::AdsorptionBC)
-    return sys.p.v_feed
-end
-
 
 
 function Jutul.apply_forces_to_equation!(
@@ -45,55 +30,54 @@ function Jutul.apply_forces_to_equation!(
     time,
 )
 
-    # TODO: Refactor this a bit. Should probably have one function per side?
     state = storage.state
-    #for bc in force
-    sys = model.system
 
-    μ = sys.p.fluid_viscosity
-    mobility = 1.0 / μ
-    transmissibility = force.trans
+    pars = model.system.p
+    R = pars.R
+    μ = pars.fluid_viscosity
+    mob = 1.0 / μ
+    trans = calc_bc_trans(model)
+
 
     # left side
     begin
-        cell_left = 1
-        Δx = compute_dx(model, cell_left)
-        
-
-        q = flux_left(state, model, force)
+        cell_left = force.cell_left
         P = state.Pressure[cell_left]
-        P_left =  pressure_left(state, sys, q, P, transmissibility, mobility)
-
-        y_left = mole_fraction_left(state, sys, force)
         y = state.y[:, cell_left]
-        T_left = temperature_left(state, sys, force)
 
-        acc_i = view(acc, :, cell_left)
-        cTot = P_left / (T_left * sys.p.R)
-        c = y_left .* cTot
+        q = flux_left(model,force)
+
+        P_bc = q / trans / mob + P
+        y_bc = force.y_feed        
+        T_bc = force.T_feed
+
+        cTot = P_bc / (T_bc * R)
+        c = y_bc .* cTot
+
         for i in eachindex(y)
-
-            mysource = -(cTot*q*(y_left[i] - y[i]) + q*c[i])
+            mysource = -(cTot * q * (y_bc[i] - y[i]) + q * c[i])
             acc[i, cell_left] -= mysource
         end
     end
 
     # right side
     begin
-        cell_right = 30 # TODO: Don't hardcode final index!
-        Δx = compute_dx(model, cell_right)
-
-        P_right = pressure_right(state, sys, force)
+        cell_right = force.cell_right
         P = state.Pressure[cell_right]
-        T = state.Temperature[cell_right]
-        cTot = P / (T * sys.p.R)
-        y_right = state.y[:, cell_right]
-        c = y_right .* cTot
-        q = -transmissibility * mobility * (P_right - P)
+        y = state.y[:, cell_right] 
+        
+
+        P_bc = force.PH
+        y_bc = force.y_feed        
+        T_bc = force.T_feed
+
+        q = -trans * mob * (P_bc - P)
+
+        cTot = P_bc / (T_bc * R)
+        c = y_bc .* cTot
 
         for i in eachindex(y)
-
-            mysource =  -(q*c[i])
+            mysource =  -(q * c[i])
             acc[i, cell_left] -= mysource
         end
     end
@@ -111,58 +95,57 @@ function Jutul.apply_forces_to_equation!(
     force::AdsorptionBC,
     time,
 )
-
-    # TODO: Refactor this a bit. Should probably have one function per side? Can also be 
-    # combined with the BC for the other equations.
-
     state = storage.state
-    #for bc in force
-    sys = model.system
 
-    μ = sys.p.fluid_viscosity
-    mobility = 1.0 / μ
-    transmissibility = force.trans
-    R = sys.p.R
+    pars = model.system.p
+    ρ_g = pars.ρ_g
+    R = pars.R
+    μ = pars.fluid_viscosity
+    mob = 1.0 / μ
+    trans = calc_bc_trans(model)
 
 
     # left side
     begin
 
-        ρ_g = sys.p.ρ_g
-        cell_left = 1
-
-        q = flux_left(state, model, force)
-        P = state.Pressure[cell_left]        
-        P_left = pressure_left(state, sys, q, P, transmissibility, mobility)
-
-        T_left = temperature_left(state, sys, force)
+        cell_left = force.cell_left
+        P = state.Pressure[cell_left]
+        y = state.y[:, cell_left] 
         T = state.Temperature[cell_left]
-
-        acc_i = view(acc, :, cell_left)
-
         C_pg = state.C_pg[cell_left]
-        avm = state.avm[cell_left]
-        bc_src = -((q * ρ_g * C_pg * (T_left - T)) + (q * P_left / (R)) * C_pg * avm)
+        avm = state.avm[cell_left]    
+
+        q = flux_left(model,force)
+
+        P_bc = q / trans / mob + P
+        y_bc = force.y_feed        
+        T_bc = force.T_feed
+
+
+        cTot = P_bc / (T_bc * pars.R)
+        c = y_bc .* cTot
+
+        bc_src = -((q * ρ_g * C_pg * (T_bc - T)) + (q * P_bc / R) * C_pg * avm)
         acc[cell_left] -= bc_src
 
     end
    
     # right side
     begin
-        cell_right = 30 # TODO: Don't hardcode final index!
-        Δx = compute_dx(model, cell_right)
 
-        P_right = pressure_right(state, sys, force)
+        cell_right = force.cell_right
         P = state.Pressure[cell_right]
-        T = state.Temperature[cell_right]
-        cTot = P / (T * sys.p.R)
-
-        q = -transmissibility * mobility * (P_right - P)
-
+        y = state.y[:, cell_right] 
         C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]
+        avm = state.avm[cell_right]        
+        
+        P_bc = force.PH
+        y_bc = force.y_feed        
+        T_bc = force.T_feed
 
-        bc_src = -((q * P / (R) * C_pg * avm))
+        q = -trans * mob * (P_bc - P)
+
+        bc_src = -(q * P / R * C_pg * avm)
         acc[cell_left] -= bc_src
 
     end
@@ -183,50 +166,33 @@ function Jutul.apply_forces_to_equation!(
     time,
 )
 
-    # TODO: Refactor this a bit. Should probably have one function per side? Can also be 
-    # combined with the BC for the other equations.
-
     state = storage.state
-    #for bc in force
-    sys = model.system
 
-    μ = sys.p.fluid_viscosity
-    mobility = 1.0 / μ
-    transmissibility = force.trans
-    R = sys.p.R
+    pars = model.system.p
 
     # left side
-
     begin
+        cell_left = force.cell_left
+        trans_wall = calc_bc_wall_trans(model)
 
-        cell_left = 1
-        Δx = compute_dx(model, cell_left)/2
-        # acc_i = view(acc, :, cell_left)
-        T_left = sys.p.T_a
         T = state.WallTemperature[cell_left]
-        K_w = sys.p.K_w
+        T_bc = pars.T_a
 
-        A_w = area_wall(sys)
-
-        bc_src = (A_w * K_w * (T - T_left) / Δx)
+        bc_src = -(trans_wall * (T - T_bc))
         acc[cell_left] -= bc_src
     end
 
     # right side
-
     begin
+        cell_right = force.cell_right
+        trans_wall = calc_bc_wall_trans(model)
 
-        cell_right = 30 # TODO: Don't hardcode boundary cell index!!!
-        Δx = compute_dx(model, cell_left)/2
-        # acc_i = view(acc, :, cell_left)
-        T_right = sys.p.T_a
         T = state.WallTemperature[cell_right]
-        K_w = sys.p.K_w
+        T_bc = pars.T_a
 
-        A_w = area_wall(sys)
-
-        bc_src = (A_w * K_w * (T_right - T) / Δx)
-        acc[cell_right] -= bc_src
+        bc_src = -(trans_wall * (T_bc - T))
+        acc[cell_left] -= bc_src
     end
+
   
 end

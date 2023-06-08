@@ -29,9 +29,14 @@ axial_dispersion(sys::AdsorptionFlowSystem) = axial_dispersion(sys.p)
 function compute_dx(model::AdsorptionFlowModel, self_cell)\
     # TODO: We need to get dx in a nicer way
     g = JutulDarcy.physical_representation(model.data_domain)
-
     return first(g.deltas)
 end
+
+function compute_column_face_area(model::AdsorptionFlowModel)\
+    g = Jutul.physical_representation(model.data_domain)
+    return g.deltas[2] * g.deltas[3]
+end
+
 "Area of column wall [m^2]"
 area_wall(sys::AdsorptionFlowSystem) = π * (sys.p.r_out^2 - sys.p.r_in^2)
 

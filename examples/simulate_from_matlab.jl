@@ -3,22 +3,27 @@ import Jutul
 import JutulDarcy
 import MAT
 
-datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_slopingstate0_pressurisation.mat"
-# datapath = "only_pressurisation.mat"
+## Read in MATLAB packed problem
+datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp.mat"
+
+## Intialise parameters from MATLAB
 simulator, state0, parameters =
     initialize_from_matlab("data/$datapath",
         forcing_term_coefficient=1.0)
 
-g = Jutul.physical_representation(simulator.model)
-model = simulator.model
+## Setup BCs
+pars = simulator.model.system.p
 
-# TODO: Is the transmisibility for the bc computed correctly here? Seems to match...
-d = Mocca.PressurationBC(trans= 2 * Mocca.compute_permeability(model.system) / Mocca.compute_dx(model, 1) * (pi * model.system.p.r_in^2))
+
+d = Mocca.PressurisationBC(y_feed = pars.y_feed, PH = pars.p_high, PL = pars.p_low,
+                                λ = pars.λ, T_feed = pars.T_feed, cell_left = 1)
+
+d = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
+                                T_feed = pars.T_feed, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
+
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
-numberoftimesteps = 1500
-dt = 15.0 / numberoftimesteps
-dt = 0.00390625/numberoftimesteps
+
 times_matlab = collect(Iterators.flatten(MAT.matread("data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat")["results"]["time"]))
 times_matlab_zero = zeros(length(times_matlab) + 1)
 times_matlab_zero[2:end] = times_matlab
@@ -26,24 +31,15 @@ times_matlab_zero[2:end] = times_matlab
 timesteps = times_matlab - times_matlab_zero[1:end-1]
 @show timesteps
 
-# timesteps = repeat([dt], numberoftimesteps)#[1:10]
+sim_forces = repeat([forces], length(timesteps))
 
 
-nc = size(simulator.storage.primary_variables.Pressure, 1)
-@show nc
-# d = JutulDarcy.FlowBoundaryCondition( ρ
-#     nc,
-#     2 * simulator.storage.primary_variables.Pressure[1].value, # TODO: Do this nicer
-#     trans_flow = g.trans[1],
-#     fractional_flow = (0.5, 0.5),
-# )
-# forces = Jutul.setup_forces(simulator.model, sources = [], bc = d)
 states, report = Jutul.simulate(
     simulator,
     timesteps,
-    info_level=5,
-    forces=forces,
-    max_nonlinear_iterations=0,
+    info_level=0,
+    forces=sim_forces,
+     max_nonlinear_iterations=0,
     max_timestep_cuts = 0
 )#000)
 ##
