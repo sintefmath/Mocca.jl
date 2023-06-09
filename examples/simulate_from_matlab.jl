@@ -5,6 +5,8 @@ import MAT
 
 ## Read in MATLAB packed problem
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp.mat"
+datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorption.mat"
+# datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorptionbc_sloping.mat"
 
 ## Intialise parameters from MATLAB
 simulator, state0, parameters =
@@ -24,11 +26,12 @@ d = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_f
 forces = Jutul.setup_forces(simulator.model, bc=d)
 
 
-times_matlab = collect(Iterators.flatten(MAT.matread("data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat")["results"]["time"]))
+times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))
 times_matlab_zero = zeros(length(times_matlab) + 1)
 times_matlab_zero[2:end] = times_matlab
 
 timesteps = times_matlab - times_matlab_zero[1:end-1]
+
 @show timesteps
 
 sim_forces = repeat([forces], length(timesteps))
@@ -37,19 +40,14 @@ sim_forces = repeat([forces], length(timesteps))
 states, report = Jutul.simulate(
     simulator,
     timesteps,
-    info_level=0,
+    info_level=4,
     forces=sim_forces,
-     max_nonlinear_iterations=0,
-    max_timestep_cuts = 0
-)#000)
-##
+   # max_nonlinear_iterations=0,
+   # max_timestep_cuts = 0
+)
 display(Mocca.plot_states(states))
-##
-#display(Mocca.plot_outlet(cumsum(timesteps), states))
+
 display(Mocca.plot_against_matlab_mat(states, 
-    # "data/VSA_Comparison_HAG_n30_nc1_julia_comp.mat", 
     "data/$datapath",
     cumsum(timesteps)[end], 
     cumsum(timesteps)))
-##
-# plot_states(states)

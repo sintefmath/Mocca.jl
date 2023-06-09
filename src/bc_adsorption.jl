@@ -64,6 +64,7 @@ function Jutul.apply_forces_to_equation!(
     begin
         cell_right = force.cell_right
         P = state.Pressure[cell_right]
+        T = state.Temperature[cell_right]
         y = state.y[:, cell_right] 
         
 
@@ -73,12 +74,12 @@ function Jutul.apply_forces_to_equation!(
 
         q = -trans * mob * (P_bc - P)
 
-        cTot = P_bc / (T_bc * R)
-        c = y_bc .* cTot
+        cTot = P / (T * R)
 
         for i in eachindex(y)
-            mysource =  -(q * c[i])
-            acc[i, cell_left] -= mysource
+            c = y[i] *cTot
+            mysource =  -(q * c)
+            acc[i, cell_right] -= mysource
         end
     end
   
@@ -146,7 +147,7 @@ function Jutul.apply_forces_to_equation!(
         q = -trans * mob * (P_bc - P)
 
         bc_src = -(q * P / R * C_pg * avm)
-        acc[cell_left] -= bc_src
+        acc[cell_right] -= bc_src
 
     end
 
@@ -191,7 +192,7 @@ function Jutul.apply_forces_to_equation!(
         T_bc = pars.T_a
 
         bc_src = -(trans_wall * (T_bc - T))
-        acc[cell_left] -= bc_src
+        acc[cell_right] -= bc_src
     end
 
   
