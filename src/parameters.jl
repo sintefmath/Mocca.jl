@@ -131,8 +131,8 @@ function read_adsorption_parameters_from_matlab(filename::String)
         qsbi=SVector{2,Float64}(separationsystem["qsb"]),
         qsdi=SVector{2,Float64}(separationsystem["qsd"]),
         T0=first(separationsystem["T0"]),
-        y_feed=SVector{2,Float64}(bc["y"][1,:]),
-        T_feed=first(bc["T"]),
+        # y_feed=SVector{2,Float64}(bc["y"][1,:]), #DEBUG
+        # T_feed=first(bc["T"]), #DEBUG
         p_high=first(bc["PH"]),
         p_intermediate=first(bc["PI"]),
         p_low=first(bc["PL"]),

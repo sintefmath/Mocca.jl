@@ -1,0 +1,144 @@
+using Parameters
+
+@with_kw struct BlowdownBC{T}
+    PH::T
+    PI::T
+    λ::T
+    cell_right::Int
+end
+
+pressure_function(PH, PI, λ, t) = (PI - (PH - PI) * exp(-λ * t))
+
+function pressure_right(force::BlowdownBC, time)
+    return pressure_function(force.PH, force.PI, force.λ, time)
+end
+
+function calc_bc_trans(model::AdsorptionFlowModel)
+    k = Mocca.compute_permeability(model.system)
+    dx = Mocca.compute_dx(model, 1) / 2
+    A = (pi * model.system.p.r_in^2)
+    return k * A / dx
+end
+
+function calc_bc_wall_trans(model::AdsorptionFlowModel)
+    k = model.system.p.K_w
+    dx = compute_dx(model, 1) / 2
+    A = area_wall(model.system)
+    return k * A / dx
+end
+
+
+
+
+function Jutul.apply_forces_to_equation!(
+    acc,
+    storage,
+    model::AdsorptionFlowModel,
+    eq::Jutul.ConservationLaw{:TotalMasses},
+    eq_s,
+    force::BlowdownBC,
+    time,
+)
+
+    state = storage.state
+
+    pars = model.system.p
+    R = pars.R
+    μ = pars.fluid_viscosity
+    mob = 1.0 / μ
+    trans = calc_bc_trans(model)
+
+    # right side
+    begin
+        cell_right = force.cell_right
+        P = state.Pressure[cell_right]
+        T = state.Temperature[cell_right]
+        y = state.y[:, cell_right] 
+
+        P_bc = pressure_right(force, time)
+
+        q = -trans * mob * (P_bc - P)
+
+        cTot = P / (T * R)
+
+        for i in eachindex(y)
+            c = y[i] * cTot
+            mysource =  -(q * c)
+            acc[i, cell_right] -= mysource
+        end
+
+    end
+  
+end
+
+
+function Jutul.apply_forces_to_equation!(
+    acc,
+    storage,
+    model::AdsorptionFlowModel,
+    eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
+    eq_s,
+    force::BlowdownBC,
+    time,
+)
+
+    state = storage.state
+
+
+    pars = model.system.p
+    ρ_g = pars.ρ_g
+    R = pars.R
+    μ = pars.fluid_viscosity
+    mob = 1.0 / μ
+    trans = calc_bc_trans(model)
+
+    # right side
+    begin
+        cell_right = force.cell_right
+        P = state.Pressure[cell_right]
+
+        C_pg = state.C_pg[cell_right]
+        avm = state.avm[cell_right]        
+
+        P_bc = pressure_right(force, time)
+
+
+        q = -trans * mob * (P_bc - P)
+
+
+        bc_src = -(q * P / R * C_pg * avm)
+        acc[cell_right] -= bc_src
+
+    end
+
+end
+
+
+
+
+function Jutul.apply_forces_to_equation!(
+    acc,
+    storage,
+    model::AdsorptionFlowModel,
+    eq::Jutul.ConservationLaw{:WallConservedEnergy},
+    eq_s,
+    force::BlowdownBC,
+    time,
+)
+
+    state = storage.state
+
+    pars = model.system.p
+ 
+    # right side
+    begin
+        cell_right = force.cell_right
+        trans_wall = calc_bc_wall_trans(model)
+
+        T = state.WallTemperature[cell_right]
+        T_bc = pars.T_a
+
+        bc_src = -(trans_wall * (T_bc - T))
+        acc[cell_right] -= bc_src
+    end
+end
