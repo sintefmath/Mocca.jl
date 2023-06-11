@@ -7,7 +7,7 @@ using Parameters
     cell_right::Int
 end
 
-pressure_function(PH, PI, λ, t) = (PI - (PH - PI) * exp(-λ * t))
+pressure_function(PH, PI, λ, t) = (PI + (PH - PI) * exp(-λ * t))
 
 function pressure_right(force::BlowdownBC, time)
     return pressure_function(force.PH, force.PI, force.λ, time)
