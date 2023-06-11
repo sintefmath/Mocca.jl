@@ -8,6 +8,7 @@ datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorption.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_blowdown.mat"
 # datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorptionbc_sloping.mat"
+datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_evacuation.mat"
 
 ## Intialise parameters from MATLAB
 simulator, state0, parameters =
@@ -26,6 +27,11 @@ d = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_f
 
 d = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
                             λ = pars.λ, cell_right = 30) #TODO: Don't hardcode end cell!                               
+
+d = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
+                            λ = pars.λ, cell_left = 1) #TODO: Don't hardcode end cell!                               
+
+
 
 forces = Jutul.setup_forces(simulator.model, bc=d)
 

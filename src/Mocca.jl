@@ -18,6 +18,7 @@ include("convergence.jl")
 include("bc_pressurisation.jl")
 include("bc_adsorption.jl")
 include("bc_blowdown.jl")
+include("bc_evacuation.jl")
 include("init.jl")
 include("plot.jl")
 end
