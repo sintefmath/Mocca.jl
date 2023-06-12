@@ -5,9 +5,10 @@ using Parameters
     PI::T
     λ::T
     cell_left::Int
+    cell_right::Int
 end
 
-pressure_function(PL, PI, λ, t) = (PI + (PL - PI) * exp(-λ * t))
+pressure_function(PL, PI, λ, t) = (PL + (PI - PL) * exp(-λ * t))
 
 function pressure_left(force::EvacuationBC, time)
     return pressure_function(force.PL, force.PI, force.λ, time)
@@ -57,7 +58,7 @@ function Jutul.apply_forces_to_equation!(
 
         P_bc = pressure_left(force, time)
 
-        q = -trans * mob * (P - P_bc)
+        q = -trans * mob * (P_bc - P)
 
         cTot = P / (T * R)
 
@@ -103,7 +104,7 @@ function Jutul.apply_forces_to_equation!(
         P_bc = pressure_left(force, time)
 
 
-        q = -trans * mob * (P - P_bc)
+        q = -trans * mob * (P_bc - P)
 
 
         bc_src = -(q * P / R * C_pg * avm)
@@ -130,6 +131,7 @@ function Jutul.apply_forces_to_equation!(
 
     pars = model.system.p
  
+
     # left side
     begin
         cell_left = force.cell_left
@@ -141,4 +143,18 @@ function Jutul.apply_forces_to_equation!(
         bc_src = -(trans_wall * (T - T_bc))
         acc[cell_left] -= bc_src
     end
+
+    # right side
+    begin
+        cell_right = force.cell_right
+        trans_wall = calc_bc_wall_trans(model)
+
+        T = state.WallTemperature[cell_right]
+        T_bc = pars.T_a
+
+        bc_src = -(trans_wall * (T_bc - T))
+        acc[cell_right] -= bc_src
+    end
+
+
 end

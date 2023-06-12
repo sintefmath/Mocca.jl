@@ -29,7 +29,7 @@ d = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
                             λ = pars.λ, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
 d = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
-                            λ = pars.λ, cell_left = 1) #TODO: Don't hardcode end cell!                               
+                            λ = pars.λ, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
 
 

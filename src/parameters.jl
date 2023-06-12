@@ -114,7 +114,7 @@ function read_adsorption_parameters_from_matlab(filename::String)
         C_pw=first(rock["CpWall"]),
         C_ps=first(rock["CpAds"]),
         h_in=first(rock["hIn"]),
-        h_out=first(rock["hOut"]), 
+        h_out=first(rock["hOut"]),
         K_w=first(rock["lambdaWall"]),
         R=first(model["R"]),
         T_a=first(model["ambientTemperature"]),
