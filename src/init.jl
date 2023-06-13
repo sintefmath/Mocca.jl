@@ -78,39 +78,46 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     return (sim = Jutul.Simulator(model, state0=state0, parameters=parameters), state0 = state0, parameters = parameters)
 end
 
-function initialize_Haghpanah_model(datafilepath; general_ad::Bool=true, forcing_term_coefficient::Float64=1.0)
+export initialize_Haghpanah_model
+function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coefficient::Float64=1.0,
+    ncells::Int = 30)
 
 
-    parameters = haghpanah_parameters()
+    parameters = AdsorptionParameters()
+    R = parameters.R
     system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
     perm = compute_permeability(system)
-    flatten = x -> collect(Iterators.flatten(x))
-    p = flatten(field("pressure"))
-    temperature = flatten(field("T"))
-    walltemperature = flatten(field("Twall"))
-    qCO2 = field("qCO2")
-    qN2 = field("qN2")
-    q = hcat(qCO2, qN2)'
-    yCO2 = field("yCO2")
-    y = hcat(yCO2, 1.0 .- yCO2)'
+  
+    barsa = 1e5
+
+    # Set initial values
+    initPressure = 0.4*barsa 
+    initT = 289.15
+
+    p_init = ones(ncells)*initPressure
+    temperature_init = ones(ncells)*initT
+    
+    yCO2 = ones(ncells)*0
+    yN2 = ones(ncells)*1
+    y_init = hcat(yCO2, yN2)
+    
+    cTot = p_init ./ (R * temperature_init)
+    c = y_init .* cTot
 
 
-    numberofcells = size(p, 1)
+    qstar = compute_equilibrium(system, cTot, temperature_init)
 
-    @info "Initializing simulator" p temperature walltemperature q y
+    
+    qCO2 = ones(ncells)*0
+    qN2 = ones(ncells)*qstar[2]
+    q_init = hcat(qCO2, qN2)
 
-    # This is major hack
-    # TODO: How to get mesh length from matlab file?
-    centroids = setup["model"]["G"]["cells"]["centroids"][:,1,1]
-    approxdx = maximum(centroids[2:end]-centroids[1:end-1])
-    extent = maximum(centroids .+ approxdx/2)
+    walltemperature_init = ones(ncells)*parameters.ambientTemperature
 
-    # TODO: Remove this check
-    @assert extent == 1.0
 
     dx = sqrt(pi*parameters.r_in^2)
     # TODO: Check the grid size. TODO: Don't hardcode extent.
-    mesh = Jutul.CartesianMesh((numberofcells, 1, 1), (extent, dx, dx))
+    mesh = Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
 
     domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
     domain[:diffusion_coefficient] = axial_dispersion(system)
@@ -119,7 +126,7 @@ function initialize_Haghpanah_model(datafilepath; general_ad::Bool=true, forcing
     model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
 
     # TODO: Figure out a better way to compute the volumes
-    volumes = ones(numberofcells) * prod(mesh.deltas)
+    volumes = ones(ncells) * prod(mesh.deltas)
     @assert volumes == domain[:volumes]
     solid_volume = volumes * (1 - system.p.Φ)
     fluid_volume = volumes * system.p.Φ
@@ -130,11 +137,11 @@ function initialize_Haghpanah_model(datafilepath; general_ad::Bool=true, forcing
     )
 
     state0 = Jutul.setup_state(model,
-        Pressure=p,
-        y=y,
-        adsorptionRates=q,
-        Temperature=temperature,
-        WallTemperature=walltemperature)
+        Pressure = p_init,
+        y = y_init,
+        adsorptionRates = q_init,
+        Temperature = temperature_init,
+        WallTemperature = walltemperature_init)
 
     return (sim = Jutul.Simulator(model, state0=state0, parameters=parameters), state0 = state0, parameters = parameters)
 end

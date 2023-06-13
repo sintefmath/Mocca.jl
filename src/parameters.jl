@@ -1,6 +1,7 @@
 using Parameters
 import MAT
 
+
 @with_kw struct AdsorptionParameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
@@ -82,7 +83,15 @@ import MAT
 
     "Feed temperature [K]"
     T_feed::Float64 = 298.15
+
 end
+
+function setup_haghpanah_pars()
+    return AdsorptionParameters()
+end
+
+
+
 
 function read_adsorption_parameters_from_matlab(filename::String)
     data = MAT.matread(filename)
@@ -153,78 +162,7 @@ function read_adsorption_parameters_from_matlab(filename::String)
     return parameters
 end
 
-function haghpanah_parameters()
 
-    parameters = AdsorptionParameters(
-        # Column propeties
-        L = 1         # Column length [m]
-        Φ = 0.37;         % Column porosity [-]
-
-        
-        pd = 2*1e-3;       % particle diameter [m]
-        ρ_w = 7800.0;  % Density of column wall [kg/m3]
-        rho_Ads = 1130;     % Density of the adsorbent [kg/m3]
-        tau = 3.0;          % Adsorbent tortousity [-]
-        poro_Ads = 0.35;     % Adsorbent porosity [-]
-        C_pw = 502.0;    % Specfic heat capacity of column wall [J/kg/K]
-        K_w = 16.0;      % Thermal conductivity of column wall [W/m/K]
-        C_ps = 1070;        % Specific heat capacity of adsorbent [J/kg/K]
-        h_in = opt.h_in;         % Heat transfer coefficient from column to wall [W/m^2/K]
-        h_out = opt.h_out;        % Heat transfer coefficient from wall to outside [W/m^2/K]
-        r_in = 0.289/2.0;   % Internal column radius [-]
-        r_out = 0.324/2.0;  % External column radius [-]
-
-
-        L = 1 
-        Φ = 0.37
-        ρ_w = first(rock["rhoWall"]),
-        ρ_s = first(rock["rhoAds"]),
-
-        ρ_g = first(fluid["rhoGS"]),
-        d_p=first(rock["rp"]) * 2,
-        ϵ_p=first(rock["poroAds"]),
-        τ=first(rock["tau"]),
-        C_pw=first(rock["CpWall"]),
-        C_ps=first(rock["CpAds"]),
-        h_in=first(rock["hIn"]),
-        h_out=first(rock["hOut"]),
-        K_w=first(rock["lambdaWall"]),
-        R=first(model["R"]),
-        T_a=first(model["ambientTemperature"]),
-        molecularMassOfCO2=first(fluid["molarMass"]),
-        molecularMassOfN2=fluid["molarMass"][2],
-        D_m=first(fluid["Dm"]),
-        C_pa=SVector{2,Float64}(fluid["CpAds"]),
-        C_pg=SVector{2,Float64}(fluid["CpG"]),
-        K_z=first(fluid["lambdaF"]), 
-        b0=SVector{2,Float64}(separationsystem["b0"]),
-        d0=SVector{2,Float64}(separationsystem["d0"]),
-        ΔUbi=SVector{2,Float64}(separationsystem["deltaUb"]),
-        ΔUdi=SVector{2,Float64}(separationsystem["deltaUd"]),
-        qsbi=SVector{2,Float64}(separationsystem["qsb"]),
-        qsdi=SVector{2,Float64}(separationsystem["qsd"]),
-        T0=first(separationsystem["T0"]),
-        # y_feed=SVector{2,Float64}(bc["y"][1,:]), #DEBUG
-        # T_feed=first(bc["T"]), #DEBUG
-        p_high=first(bc["PH"]),
-        p_intermediate=first(bc["PI"]),
-        p_low=first(bc["PL"]),
-        λ=first(bc["lambda"]),
-        v_feed=first(bc["Vfeed"]), 
-        r_in=first(G["rIn"]),
-        r_out=first(G["rOut"]),
-        # TODO: Cannot read muG (seems to be weird array with no info?)
-        #fluid_viscosity = first(fluid["muG"])
-        #ρ_g = first(rock[""]) # not used? TODO: Check
-    )
-
-    # Some sanity checks
-    @assert parameters.D_m ≈ first(fluid["Dm"])
-    @assert compute_permeability(parameters) ≈ first(rock["perm"])
-    @assert axial_dispersion(parameters) ≈ first(fluid["DL"])
-
-    return parameters
-end
 
 
 compute_permeability(p::AdsorptionParameters) = 4 / 150 * ((p.Φ / (1 - p.Φ))^2) * (p.d_p / 2)^2 * p.Φ
