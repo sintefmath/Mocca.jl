@@ -7,13 +7,12 @@ import MAT
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorption.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_blowdown.mat"
-# datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorptionbc_sloping.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_evacuation.mat"
 
-# Intialise parameters from MATLAB
-simulator_mat, state0_mat, parameters_mat =
-    initialize_from_matlab("data/$datapath",
-        forcing_term_coefficient=1.0)
+# # Intialise parameters from MATLAB
+# simulator, state0, parameters =
+#     initialize_from_matlab("data/$datapath",
+#         forcing_term_coefficient=1.0)
 
 ## Intialise Haghpanah parameters
 simulator, state0, parameters =
@@ -23,21 +22,21 @@ initialize_Haghpanah_model(forcing_term_coefficient=1.0)
 pars = simulator.model.system.p
 
 
-d = Mocca.PressurisationBC(y_feed = pars.y_feed, PH = pars.p_high, PL = pars.p_low,
+d_press = Mocca.PressurisationBC(y_feed = pars.y_feed, PH = pars.p_high, PL = pars.p_low,
                                 λ = pars.λ, T_feed = pars.T_feed, cell_left = 1)
 
-d = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
+d_ads = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
                                 T_feed = pars.T_feed, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
-d = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
+d_blow = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
                             λ = pars.λ, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
-d = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
+d_evac = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
                             λ = pars.λ, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
 
 
-forces = Jutul.setup_forces(simulator.model, bc=d)
+forces = Jutul.setup_forces(simulator.model, bc=d_evac)
 
 
 times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))

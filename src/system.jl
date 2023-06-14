@@ -38,7 +38,6 @@ function compute_column_face_area(model::AdsorptionFlowModel)\
 end
 
 
-
 function calc_bc_trans(model::AdsorptionFlowModel)
     k = compute_permeability(model.system.p)
     dx = compute_dx(model, 1) / 2

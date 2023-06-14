@@ -5,8 +5,7 @@ import MAT
 @with_kw struct AdsorptionParameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
-    # R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1. #DEBUG
-    R::Float64 = 8.3145 # J⋅mol^−1⋅K^−1. #DEBUG    
+    R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1. #DEBUG  
     Φ::Float64 = 0.37 # TODO: We should not hardcode this....
     b0::SVector{2,Float64} = @SVector [8.65e-7, 2.5e-6]
     d0::SVector{2,Float64} = @SVector [2.63e-8, 0.0]
