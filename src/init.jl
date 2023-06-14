@@ -91,7 +91,8 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
     barsa = 1e5
 
     # Set initial values
-    initPressure = 0.4*barsa 
+    # initPressure = 0.4*barsa 
+    initPressure = 1*barsa   #DEBUG  
     initT = 289.15
 
     p_init = ones(ncells)*initPressure
@@ -103,21 +104,23 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
     
     cTot = p_init ./ (R * temperature_init)
     c = y_init .* cTot
-
-
-    qstar = compute_equilibrium(system, cTot, temperature_init)
+    qN2 = ones(ncells)
+    for i in 1:ncells
+        qstar = compute_equilibrium(system, c[i,:], temperature_init[i])
+        qN2[i] = qN2[i]*qstar[2]
+    end
 
     
     qCO2 = ones(ncells)*0
-    qN2 = ones(ncells)*qstar[2]
+
     q_init = hcat(qCO2, qN2)
 
-    walltemperature_init = ones(ncells)*parameters.ambientTemperature
+    walltemperature_init = ones(ncells)*parameters.T_a
 
 
     dx = sqrt(pi*parameters.r_in^2)
     # TODO: Check the grid size. TODO: Don't hardcode extent.
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
+    mesh = Jutul.CartesianMesh((ncells, 1, 1), (parameters.L, dx, dx))
 
     domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
     domain[:diffusion_coefficient] = axial_dispersion(system)
@@ -138,8 +141,8 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
 
     state0 = Jutul.setup_state(model,
         Pressure = p_init,
-        y = y_init,
-        adsorptionRates = q_init,
+        y = y_init',
+        adsorptionRates = q_init',
         Temperature = temperature_init,
         WallTemperature = walltemperature_init)
 

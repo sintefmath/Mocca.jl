@@ -84,6 +84,9 @@ import MAT
     "Feed temperature [K]"
     T_feed::Float64 = 298.15
 
+    "Column length [m]"
+    L::Float64 = 1.0
+
 end
 
 function setup_haghpanah_pars()
