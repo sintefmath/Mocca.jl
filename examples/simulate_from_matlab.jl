@@ -34,20 +34,44 @@ d_blow = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
 d_evac = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
                             λ = pars.λ, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
+numstages = 4
+forces = []
+
+append!(forces,Jutul.setup_forces(simulator.model, bc=d_press))
+append!(forces,Jutul.setup_forces(simulator.model, bc=d_ads))
+append!(forces,Jutul.setup_forces(simulator.model, bc=d_blow))
+append!(forces,Jutul.setup_forces(simulator.model, bc=d_evac))           
 
 
-forces = Jutul.setup_forces(simulator.model, bc=d_evac)
+# Set timesteps
+t_press = 15
+t_ads = 15
+t_blow = 30
+t_evac= 40
+
+t_stage = [t_press, t_ads, t_blow, t_evac]
 
 
-times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))
-times_matlab_zero = zeros(length(times_matlab) + 1)
-times_matlab_zero[2:end] = times_matlab
+timesteps = []
+sim_forces = []
+maxdt = 1.0
+for i in eachindex(t_stage)
+    numsteps = t_stage[i] / maxdt
+    append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
+    append!(sim_forces,repeat([forces[i]],Int(floor(numsteps))))
+end
+    
 
-timesteps = times_matlab - times_matlab_zero[1:end-1]
+
+# times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))
+# times_matlab_zero = zeros(length(times_matlab) + 1)
+# times_matlab_zero[2:end] = times_matlab
+
+# timesteps = times_matlab - times_matlab_zero[1:end-1]
 
 @show timesteps
 
-sim_forces = repeat([forces], length(timesteps))
+# sim_forces = repeat([forces], length(timesteps))
 
 
 states, report = Jutul.simulate(
