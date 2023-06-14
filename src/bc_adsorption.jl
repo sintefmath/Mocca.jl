@@ -7,12 +7,7 @@
     cell_right::Int
 end
 
-function calc_bc_trans(model::AdsorptionFlowModel)
-    k = Mocca.compute_permeability(model.system)
-    dx = Mocca.compute_dx(model, 1) / 2
-    A = (pi * model.system.p.r_in^2)
-    return k * A / dx
-end
+
 
 function flux_left(model::AdsorptionFlowModel, force::AdsorptionBC)
     Af = compute_column_face_area(model)

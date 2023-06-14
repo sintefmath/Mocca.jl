@@ -10,14 +10,14 @@ datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_blowdown.mat"
 # datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorptionbc_sloping.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_evacuation.mat"
 
-## Intialise parameters from MATLAB
-simulator, state0, parameters =
+# Intialise parameters from MATLAB
+simulator_mat, state0_mat, parameters_mat =
     initialize_from_matlab("data/$datapath",
         forcing_term_coefficient=1.0)
 
-# ## Intialise Haghpanah parameters
-# simulator, state0, parameters =
-# initialize_Haghpanah_model(forcing_term_coefficient=1.0)       
+## Intialise Haghpanah parameters
+simulator, state0, parameters =
+initialize_Haghpanah_model(forcing_term_coefficient=1.0)       
 
 ## Setup BCs
 pars = simulator.model.system.p

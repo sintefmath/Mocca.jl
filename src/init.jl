@@ -93,14 +93,14 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
     # Set initial values
     # initPressure = 0.4*barsa 
     initPressure = 1*barsa   #DEBUG  
-    initT = 289.15
+    initT = 298.15
 
     p_init = ones(ncells)*initPressure
     temperature_init = ones(ncells)*initT
     
-    yCO2 = ones(ncells)*0
-    yN2 = ones(ncells)*1
-    y_init = hcat(yCO2, yN2)
+    yCO2 = ones(ncells)*1e-10
+
+    y_init = hcat(yCO2, 1 .- yCO2)
     
     cTot = p_init ./ (R * temperature_init)
     c = y_init .* cTot

@@ -5,7 +5,8 @@ import MAT
 @with_kw struct AdsorptionParameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
-    R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1.
+    # R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1. #DEBUG
+    R::Float64 = 8.3145 # J⋅mol^−1⋅K^−1. #DEBUG    
     Φ::Float64 = 0.37 # TODO: We should not hardcode this....
     b0::SVector{2,Float64} = @SVector [8.65e-7, 2.5e-6]
     d0::SVector{2,Float64} = @SVector [2.63e-8, 0.0]
@@ -39,9 +40,9 @@ import MAT
     "Specific heat capacity of solid adsorbent [J kg^[-1} K^{-1}]"
     C_ps::Float64 = 1070.0
     "Column radius [m]"
-    r_in::Float64 = 1.445
+    r_in::Float64 = 0.1445
     "Wall radius [m]"
-    r_out::Float64 = 1.162
+    r_out::Float64 = 0.162
     "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]" # TODO: Review this
     h_in::Float64 = 8.6
     "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]" # TODO: Review this
@@ -87,10 +88,6 @@ import MAT
     "Column length [m]"
     L::Float64 = 1.0
 
-end
-
-function setup_haghpanah_pars()
-    return AdsorptionParameters()
 end
 
 

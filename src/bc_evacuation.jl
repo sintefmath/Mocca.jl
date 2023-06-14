@@ -8,24 +8,11 @@ using Parameters
     cell_right::Int
 end
 
-pressure_function(PL, PI, λ, t) = (PL + (PI - PL) * exp(-λ * t))
-
 function pressure_left(force::EvacuationBC, time)
-    return pressure_function(force.PL, force.PI, force.λ, time)
-end
-
-function calc_bc_trans(model::AdsorptionFlowModel)
-    k = Mocca.compute_permeability(model.system)
-    dx = Mocca.compute_dx(model, 1) / 2
-    A = (pi * model.system.p.r_in^2)
-    return k * A / dx
-end
-
-function calc_bc_wall_trans(model::AdsorptionFlowModel)
-    k = model.system.p.K_w
-    dx = compute_dx(model, 1) / 2
-    A = area_wall(model.system)
-    return k * A / dx
+    PL = force.PL
+    PI = force.PI
+    λ = force.λ
+    return (PL + (PI - PL) * exp(-λ * time))
 end
 
 

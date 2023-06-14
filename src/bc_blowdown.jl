@@ -7,26 +7,12 @@ using Parameters
     cell_right::Int
 end
 
-pressure_function(PH, PI, λ, t) = (PI + (PH - PI) * exp(-λ * t))
-
 function pressure_right(force::BlowdownBC, time)
-    return pressure_function(force.PH, force.PI, force.λ, time)
+    PH = force.PH
+    PI = force.PI
+    λ = force.λ
+    return (PI + (PH - PI) * exp(-λ * time))
 end
-
-function calc_bc_trans(model::AdsorptionFlowModel)
-    k = Mocca.compute_permeability(model.system)
-    dx = Mocca.compute_dx(model, 1) / 2
-    A = (pi * model.system.p.r_in^2)
-    return k * A / dx
-end
-
-function calc_bc_wall_trans(model::AdsorptionFlowModel)
-    k = model.system.p.K_w
-    dx = compute_dx(model, 1) / 2
-    A = area_wall(model.system)
-    return k * A / dx
-end
-
 
 
 

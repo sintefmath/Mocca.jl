@@ -37,6 +37,26 @@ function compute_column_face_area(model::AdsorptionFlowModel)\
     return g.deltas[2] * g.deltas[3]
 end
 
+
+
+function calc_bc_trans(model::AdsorptionFlowModel)
+    k = compute_permeability(model.system.p)
+    dx = compute_dx(model, 1) / 2
+    A = (π * model.system.p.r_in^2)
+    return k * A / dx
+end
+
+function calc_bc_wall_trans(model::AdsorptionFlowModel)
+    k = model.system.p.K_w
+    dx = compute_dx(model, 1) / 2
+    A = area_wall(model.system)
+    return k * A / dx
+end
+
+
+
+
+
 "Area of column wall [m^2]"
 area_wall(sys::AdsorptionFlowSystem) = π * (sys.p.r_out^2 - sys.p.r_in^2)
 
