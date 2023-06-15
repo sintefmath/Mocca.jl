@@ -7,13 +7,21 @@ using Parameters
     λ::T
     T_feed::T
     cell_left::Int
+    t_stage
 end
 
 function pressure_left(force::PressurisationBC, time)
+    @show "pressure"#DEBUG
+    cycle_time = sum(force.t_stage)
+    numcycles = max(0,time - cycle_time)
+    t =  mod(time, cycle_time)
+
+
     PH = force.PH
     PL = force.PL
     λ = force.λ
-    return (PH - (PH - PL) * exp(-λ * time))
+
+    return (PH - (PH - PL) * exp(-λ * t))
 end
 
 

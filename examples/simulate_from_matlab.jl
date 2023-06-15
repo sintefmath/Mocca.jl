@@ -23,25 +23,6 @@ initialize_Haghpanah_model(forcing_term_coefficient=1.0)
 ## Setup BCs
 pars = simulator.model.system.p
 
-# d_press: Optimize PL [0.05 - 0.5] bar but maybe go even lower (0.01?)
-d_press = Mocca.PressurisationBC(y_feed = pars.y_feed, PH = pars.p_high, PL = pars.p_low,
-                                λ = pars.λ, T_feed = pars.T_feed, cell_left = 1)
-# d_ads: Optimize v_feed []
-d_ads = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
-                                T_feed = pars.T_feed, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
-# d_blow: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
-d_blow = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
-                            λ = pars.λ, cell_right = 30) #TODO: Don't hardcode end cell!                               
-# d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
-d_evac = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
-                            λ = pars.λ, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
-
-
-# forces = Jutul.setup_forces(simulator.model, bc=d_evac)
-
-
-# numstages = 4
-bcs = [d_press, d_ads, d_blow, d_evac]
 
 # Set timesteps
 t_press = 15
@@ -52,14 +33,63 @@ t_evac= 40
 t_stage = [t_press, t_ads, t_blow, t_evac]
 
 
+# cell_right = simulator.model.data_domain
+
+
+# d_press: Optimize PL [0.05 - 0.5] bar but maybe go even lower (0.01?)
+d_press = Mocca.PressurisationBC(y_feed = pars.y_feed, PH = pars.p_high, PL = pars.p_low,
+                                λ = pars.λ, T_feed = pars.T_feed, cell_left = 1,
+                                t_stage = t_stage)
+# d_ads: Optimize v_feed []
+d_ads = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
+                                T_feed = pars.T_feed, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
+# d_blow: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+d_blow = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
+                            λ = pars.λ, cell_right = 30,
+                            t_stage = t_stage) #TODO: Don't hardcode end cell!                               
+# d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+d_evac = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
+                            λ = pars.λ, cell_left = 1, cell_right = 30,
+                            t_stage = t_stage) #TODO: Don't hardcode end cell!                               
+
+
+# forces = Jutul.setup_forces(simulator.model, bc=d_evac)
+
+
+# numstages = 4
+bcs = [d_press, d_ads, d_blow, d_evac]
+
+
+
+numcycles = 1
+
 timesteps = []
 sim_forces = []
 maxdt = 1.0
-for i in eachindex(t_stage)
-    numsteps = t_stage[i] / maxdt
-    append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
-    append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bcs[i])],Int(floor(numsteps))))
+
+
+times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))
+ts_matlab = diff(vcat(0,times_matlab))
+stepStart = [1,24,47,85]
+stepEnd = [23,46,84,132]
+numSteps = [23,23,38,48]
+
+for j = 1:numcycles
+        for i in eachindex(t_stage)
+            ns = numSteps[i]
+            append!(timesteps,ts_matlab[stepStart[i]:stepEnd[i]])
+            append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bcs[i])],ns))
+        end
 end
+
+
+# for j = 1:numcycles
+#     for i in eachindex(t_stage)
+#         numsteps = t_stage[i] / maxdt
+#         append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
+#         append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bcs[i])],Int(floor(numsteps))))
+#     end
+# end
 
 # for i in eachindex(t_stage)
 #     numsteps = t_stage[i] / maxdt
@@ -90,7 +120,7 @@ states, report = Jutul.simulate(
    # max_nonlinear_iterations=0,
    # max_timestep_cuts = 0
 )
-# display(Mocca.plot_states(states))
+#display(Mocca.plot_outlet(states))
 
 # display(Mocca.plot_against_matlab_mat(states, 
 #     "data/$datapath",
@@ -103,13 +133,39 @@ states, report = Jutul.simulate(
 # states_all = []
 # push!(states_all,states)
 
-# plot_pvars_outlet(model, states_all)
+# 
 
-# plot_pvars_spatial(model, states_all)
+plot_pvars_spatial(model, states_all)
+
+outputfile = "mocca_jl_nc30_2cycle.mat"
+
+states_jl = Dict()
+states_jl["times"] = timesteps
+
+for i in eachindex(states)
+    state = states[i]
+    state_new = Dict()  
+    for (key, value) in state
+        state_new[String(key)] = value
+    end
+    num = lpad(i,3,"0")
+    statename = "s_$num"
+    states_jl[statename] = state_new
+end
 
 
-states_mat = Mocca.get_matlab_states("data/$datapath")
 
+
+# MAT.matwrite("data/$outputfile",states_jl)
+
+
+
+# model = simulator.model
+
+# (states_mat, times_mat) = Mocca.get_matlab_states("data/$datapath")
+
+# sims_all = [(states, timesteps)]
+# Mocca.plot_pvars_outlet(model, sims_all)
 
 
 ##
@@ -154,7 +210,6 @@ end
 #     return obj
 # end
 
-model = simulator.model
 obj = 0.0
 for (i, state) in enumerate(states)
     global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i])

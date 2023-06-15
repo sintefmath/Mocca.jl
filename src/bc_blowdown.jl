@@ -5,13 +5,25 @@ using Parameters
     PI::T
     λ::T
     cell_right::Int
+    t_stage
 end
 
+
 function pressure_right(force::BlowdownBC, time)
+
+    @show "blowdown" #DEBUG
+
+    cycle_time = sum(force.t_stage)
+    numcycles = max(0,time - cycle_time)
+    step_end = cumsum(force.t_stage)
+    t =  mod(time, cycle_time) - step_end[3]
+
+
     PH = force.PH
     PI = force.PI
     λ = force.λ
-    return (PI + (PH - PI) * exp(-λ * time))
+
+    return (PI + (PH - PI) * exp(-λ * t))
 end
 
 

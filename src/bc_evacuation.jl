@@ -6,13 +6,24 @@ using Parameters
     λ::T
     cell_left::Int
     cell_right::Int
+    t_stage
 end
 
 function pressure_left(force::EvacuationBC, time)
+
+
+    @show "evacuation"#DEBUG
+    cycle_time = sum(force.t_stage)
+    numcycles = max(0,time - cycle_time)
+    step_end = cumsum(force.t_stage)
+    t =  mod(time, cycle_time) - step_end[2]
+
+
     PL = force.PL
     PI = force.PI
     λ = force.λ
-    return (PL + (PI - PL) * exp(-λ * time))
+
+    return (PL + (PI - PL) * exp(-λ * t))
 end
 
 
