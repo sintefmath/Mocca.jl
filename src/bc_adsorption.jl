@@ -220,17 +220,17 @@ function Jutul.vectorize_force!(v, bc::AdsorptionBC, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::AdsorptionBC, X, meta, variant)
+function Jutul.devectorize_force(bc::AdsorptionBC, X::AbstractVector{T}, meta, variant) where T
     if variant == :all
         PH = X[1]
         v_feed = X[2]
         T_feed = X[3]
         N = length(bc.y_feed)
-        tmp = zeros(N)
+        tmp = zeros(T, N)
         for i = 1:N
             tmp[i] = X[i + 3]
         end
-        y_feed = SVector{N, Float64}(tmp)
+        y_feed = SVector{N, T}(tmp)
         return AdsorptionBC(y_feed, PH, v_feed, T_feed, bc.cell_left, bc.cell_right)
     else
         error("Variant $variant not supported")

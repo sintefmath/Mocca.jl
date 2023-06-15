@@ -166,18 +166,18 @@ function Jutul.vectorize_force!(v, bc::PressurisationBC, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::PressurisationBC, X, meta, variant)
+function Jutul.devectorize_force(bc::PressurisationBC, X::AbstractVector{T}, meta, variant) where T
     if variant == :all
         PH = X[1]
         PL = X[2]
         λ = X[3]
         T_feed = X[4]
         N = length(bc.y_feed)
-        tmp = zeros(N)
+        tmp = zeros(T, N)
         for i = 1:N
             tmp[i] = X[i + 4]
         end
-        y_feed = SVector{N, Float64}(tmp)
+        y_feed = SVector{N, T}(tmp)
         return PressurisationBC(y_feed, PH, PL, λ, T_feed, bc.cell_left)
     else
         error("Variant $variant not supported")
