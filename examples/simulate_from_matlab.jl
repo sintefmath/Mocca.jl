@@ -162,7 +162,31 @@ obj
 
 G = (arg...) -> mocca_purity_objective(arg...; timesteps = timesteps)
 
-opt_config = Jutul.forces_optimization_config(model, sim_forces, timesteps, :all, abs_min = 0.0)
+opt_config = Jutul.forces_optimization_config(model, sim_forces, timesteps, :all, active = false)
+
+
+# d_press: Optimize PL [0.05 - 0.5] bar but maybe go even lower (0.01?)
+d_press_PL = opt_config.configs[1][:bc][:PL]
+d_press_PL[:abs_min] = 0.01e5
+d_press_PL[:abs_max] = 0.5e5
+d_press_PL[:active] = true
+# d_ads: Optimize v_feed []
+d_ads_vfeed = opt_config.configs[2][:bc][:v_feed]
+d_ads_vfeed[:abs_min] = 1e-3
+d_ads_vfeed[:abs_max] = 100
+d_ads_vfeed[:active] = true
+# d_blow: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+d_blow_pi = opt_config.configs[3][:bc][:PI]
+d_blow_pi[:abs_min] = 0.05e5
+d_blow_pi[:abs_max] = 0.25e5
+d_blow_pi[:active] = true
+
+# d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+d_evac_pi = opt_config.configs[4][:bc][:PI]
+d_evac_pi[:abs_min] = 0.26e5
+d_evac_pi[:abs_max] = 0.5e5
+d_evac_pi[:active] = true
+
 
 case = JutulCase(model, timesteps, sim_forces, state0 = state0, parameters = parameters)
 x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config)
