@@ -192,3 +192,47 @@ function Jutul.apply_forces_to_equation!(
 
   
 end
+
+function Jutul.vectorization_length(bc::AdsorptionBC, variant)
+    # y_feed::SVector{N,T}
+    # PH::T
+    # v_feed::T
+    # T_feed::T
+
+    return 3 + length(bc.y_feed)
+end
+
+function Jutul.vectorize_force!(v, bc::AdsorptionBC, variant)
+    if variant == :all
+        names = [:PH, :v_feed, :T_feed]
+        v[1] = bc.PH
+        v[2] = bc.v_feed
+        v[3] = bc.T_feed
+        offset = length(names)
+        for (i, f_i) in enumerate(bc.y_feed)
+            offset += 1
+            v[offset] = f_i
+            push!(names, Symbol("y_feed$i"))
+        end
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(bc::AdsorptionBC, X, meta, variant)
+    if variant == :all
+        PH = X[1]
+        v_feed = X[2]
+        T_feed = X[3]
+        N = length(bc.y_feed)
+        tmp = zeros(N)
+        for i = 1:N
+            tmp[i] = X[i + 3]
+        end
+        y_feed = SVector{N, Float64}(tmp)
+        return AdsorptionBC(y_feed, PH, v_feed, T_feed, bc.cell_left, bc.cell_right)
+    else
+        error("Variant $variant not supported")
+    end
+end

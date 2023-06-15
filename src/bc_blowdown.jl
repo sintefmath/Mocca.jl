@@ -128,3 +128,34 @@ function Jutul.apply_forces_to_equation!(
         acc[cell_right] -= bc_src
     end
 end
+
+
+function Jutul.vectorization_length(bc::BlowdownBC, variant)
+    # PH::T
+    # PI::T
+    # λ::T
+    return 3
+end
+
+function Jutul.vectorize_force!(v, bc::BlowdownBC, variant)
+    if variant == :all
+        names = [:PH, :PI, :λ]
+        v[1] = bc.PH
+        v[2] = bc.PI
+        v[3] = bc.λ
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(bc::BlowdownBC, X, meta, variant)
+    if variant == :all
+        PH = X[1]
+        PI = X[2]
+        λ = X[3]
+        return BlowdownBC(PH, PI, λ, bc.cell_right)
+    else
+        error("Variant $variant not supported")
+    end
+end

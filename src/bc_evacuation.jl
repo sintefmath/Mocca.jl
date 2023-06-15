@@ -145,3 +145,33 @@ function Jutul.apply_forces_to_equation!(
 
 
 end
+
+function Jutul.vectorization_length(bc::EvacuationBC, variant)
+    # PL::T
+    # PI::T
+    # λ::T
+    return 3
+end
+
+function Jutul.vectorize_force!(v, bc::EvacuationBC, variant)
+    if variant == :all
+        names = [:PL, :PI, :λ]
+        v[1] = bc.PL
+        v[2] = bc.PI
+        v[3] = bc.λ
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(bc::EvacuationBC, X, meta, variant)
+    if variant == :all
+        PL = X[1]
+        PI = X[2]
+        λ = X[3]
+        return EvacuationBC(PL, PI, λ, bc.cell_left, bc.cell_right)
+    else
+        error("Variant $variant not supported")
+    end
+end

@@ -52,7 +52,7 @@ t_evac= 40
 t_stage = [t_press, t_ads, t_blow, t_evac]
 
 
-timesteps = []
+timesteps = Float64[]
 sim_forces = []
 maxdt = 1.0
 for i in eachindex(t_stage)
@@ -117,7 +117,7 @@ GLMakie.activate!(inline = false)
 plot_interactive(simulator.model, states)
 
 ##
-function mocca_purity_objective(model, state, dt, step_no, forces)
+function mocca_purity_objective(model, state, dt, step_no, forces; timesteps)
     function local_purity(bc::Mocca.EvacuationBC)
         y = state[:y]
         p = state[:Pressure][1]
@@ -156,6 +156,15 @@ end
 model = simulator.model
 obj = 0.0
 for (i, state) in enumerate(states)
-    global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i])
+    global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i], timesteps = timesteps)
 end
 obj
+
+G = (arg...) -> mocca_purity_objective(arg...; timesteps = timesteps)
+
+opt_config = Jutul.forces_optimization_config(model, sim_forces, timesteps, :all, abs_min = 0.0)
+
+case = JutulCase(model, timesteps, sim_forces, state0 = state0, parameters = parameters)
+x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config)
+using LBFGSB
+fout, xout = lbfgsb(f, g!, x0, lb=xmin, ub=xmax, m=5, pgtol=1e-5, iprint=101, maxfun=100, maxiter=100)
