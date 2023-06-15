@@ -82,7 +82,7 @@ p_init = collect(LinRange(p0, 0.89 * p0, nc))
 state0 = Jutul.setup_state(model,
     Pressure=p_init,
     y=initY,
-    adsorptionRates=equilinit)
+    AdsorbedConcentration=equilinit)
 # Simulate and return
 sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
 states, report = Jutul.simulate(sim, timesteps, info_level=3, forces=forces, max_nonlinear_iterations=10000)#000)
@@ -105,9 +105,9 @@ with_theme(theme_web()) do
     key_to_label = Dict(
         :y => "y",
         :Pressure => "p",
-        :adsorptionRates => "q"
+        :AdsorbedConcentration => "q"
     )
-    for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates])
+    for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration])
         @show symbol
         # Truncating to float16 seems to be needed due to some weird cairomakie bug:
         # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10

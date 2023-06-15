@@ -20,15 +20,15 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
     concentrations,
     Temperature,
-    adsorptionRates,
+    AdsorbedConcentration,
     ix
 )
     for cell in ix
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
-        force = k .* (qstar .- adsorptionRates[:, cell])
+        force = k .* (qstar .- AdsorbedConcentration[:, cell])
 
-        # @info "cell $ix" qstar k concentrations adsorptionRates force
+        # @info "cell $ix" qstar k concentrations AdsorbedConcentration force
 
         adsorption_mass_transfer[:, cell] = force
     end
@@ -88,7 +88,7 @@ end
 
 
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, adsorptionRates, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
     for cx in ix
         column_energy[cx] = Temperature[cx]
     end
@@ -100,7 +100,7 @@ Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::Wa
     end
 end
 
-Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, adsorptionRates, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, AdsorbedConcentration, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
 
     qsbi = sys.p.qsbi

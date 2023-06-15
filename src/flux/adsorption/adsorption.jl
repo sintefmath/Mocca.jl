@@ -4,7 +4,7 @@ function Jutul.update_equation_in_entity!(
     self_cell,
     state,
     state0,
-    eq::Jutul.ConservationLaw{:adsorptionRates},
+    eq::Jutul.ConservationLaw{:AdsorbedConcentration},
     model::AdsorptionFlowModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),

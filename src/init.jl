@@ -71,7 +71,7 @@ function initialize_from_matlab(datafilepath; general_ad::Bool=true, forcing_ter
     state0 = Jutul.setup_state(model,
         Pressure=p,
         y=y,
-        adsorptionRates=q,
+        AdsorbedConcentration=q,
         Temperature=temperature,
         WallTemperature=walltemperature)
 
@@ -142,7 +142,7 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
     state0 = Jutul.setup_state(model,
         Pressure = p_init,
         y = y_init',
-        adsorptionRates = q_init',
+        AdsorbedConcentration = q_init',
         Temperature = temperature_init,
         WallTemperature = walltemperature_init)
 

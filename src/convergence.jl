@@ -16,7 +16,7 @@ function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage,
 
     # # e = sum(abs, r, dims = 2)
     # y = storage.state.y
-    # q = storage.state.adsorptionRates
+    # q = storage.state.AdsorbedConcentration
     # # @show r
     # # @info "conv " size(r)
     # #r_scaled = [r[:, cell] ./ [y[:, cell]..., q[:, cell]...] for cell in eachindex(q[1, :])]

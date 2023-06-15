@@ -90,12 +90,27 @@ states, report = Jutul.simulate(
    # max_nonlinear_iterations=0,
    # max_timestep_cuts = 0
 )
-display(Mocca.plot_states(states))
+# display(Mocca.plot_states(states))
 
 # display(Mocca.plot_against_matlab_mat(states, 
 #     "data/$datapath",
 #     cumsum(timesteps)[end], 
 #     cumsum(timesteps)))
+
+
+
+# ## Plotting
+# states_all = []
+# push!(states_all,states)
+
+# plot_pvars_outlet(model, states_all)
+
+# plot_pvars_spatial(model, states_all)
+
+
+
+
+
 ##
 using GLMakie, Jutul
 GLMakie.activate!(inline = false)

@@ -5,7 +5,7 @@ function Jutul.select_primary_variables!(
 )
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
     S[:y] = GasMoleFractions()
-    S[:adsorptionRates] = AdsorptionRates()
+    S[:AdsorbedConcentration] = AdsorbedConcentration()
     S[:Temperature] = JutulDarcy.Temperature(min = 200.0, max_rel = 0.2)
     S[:WallTemperature] = JutulDarcy.Temperature(min = 200.0, max_rel = 0.2)
 end
@@ -43,7 +43,7 @@ function Jutul.select_equations!(
     fdisc = model.domain.discretizations.mass_flow
     nc = JutulDarcy.number_of_components(sys)
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :TotalMasses, nc)
-    eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :adsorptionRates, nc)
+    eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :AdsorbedConcentration, nc)
 
     eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)

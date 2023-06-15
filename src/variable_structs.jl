@@ -1,14 +1,14 @@
 struct MySuperStruct end
-struct AdsorptionRates <: Jutul.VectorVariables
+struct AdsorbedConcentration <: Jutul.VectorVariables
 end
 
-function Jutul.minimum_value(::AdsorptionRates)
+function Jutul.minimum_value(::AdsorbedConcentration)
     return 1e-10
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionRates) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
 
 struct AverageMolecularMass <: Jutul.ScalarVariable
 end

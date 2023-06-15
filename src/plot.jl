@@ -2,25 +2,84 @@ import CairoMakie
 import MakiePublication
 import DelimitedFiles
 
-function plot_states(states)
+
+
+
+# function plot_pvars_outlet(model, states_all)
+#     return MakiePublication.with_theme(MakiePublication.theme_web()) do
+        
+#         f = CairoMakie.Figure()
+        
+#         nc = size(states[end][:Pressure], 1)
+#         x = model.data_domain[:cell_centroids][1,:]
+
+#         key_to_label = Dict(
+#             :y => "y",
+#             :Pressure => "p",
+#             :AdsorbedConcentration => "q",
+#             :Temperature => "T",
+#             :WallTemperature => "T_{wall}"
+#         )
+
+#         for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
+#             @show symbol
+
+
+
+
+#     end
+    
+# end
+
+
+function plot_outlet(model,states)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
         f = CairoMakie.Figure()
         nc = size(states[end][:Pressure], 1)
-        x = collect(LinRange(0.0, 1.0, nc))
+        x = model.data_domain[:cell_centroids][1,:]
         key_to_label = Dict(
             :y => "y",
             :Pressure => "p",
-            :adsorptionRates => "q",
+            :AdsorbedConcentration => "q",
             :Temperature => "T",
             :WallTemperature => "T_{wall}"
         )
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
             @show symbol
-            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
-            # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
-            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.
-            # TODO: Fix the above
+
+            if size(states[end][symbol], 2) == 1
+                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                CairoMakie.lines!(ax, t, Float64.([result[symbol][end] for result in states]), color=:darkgray)
+            else
+                for i in 1:size(states[end][symbol], 1)
+                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+
+                    CairoMakie.lines!(ax, t, Float64.([blah[symbol][i, end] for blah in states]), color=:darkgray)
+                end
+            end
+        end
+        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
+        return f
+    end
+end
+
+
+function plot_states(model, states)
+    return MakiePublication.with_theme(MakiePublication.theme_web()) do
+        f = CairoMakie.Figure()
+        nc = size(states[end][:Pressure], 1)
+        x = model.data_domain[:cell_centroids][1,:]
+        key_to_label = Dict(
+            :y => "y",
+            :Pressure => "p",
+            :AdsorbedConcentration => "q",
+            :Temperature => "T",
+            :WallTemperature => "T_{wall}"
+        )
+
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
+            @show symbol
             if size(states[end][symbol], 2) == 1
                 ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
                 for j in eachindex(states)
@@ -45,40 +104,7 @@ function plot_states(states)
     end
 end
 
-function plot_outlet(t, states)
-    return MakiePublication.with_theme(MakiePublication.theme_web()) do
-        f = CairoMakie.Figure()
-        nc = size(states[end][:Pressure], 1)
-        x = collect(LinRange(0.0, 1.0, nc))
-        key_to_label = Dict(
-            :y => "y",
-            :Pressure => "p",
-            :adsorptionRates => "q",
-            :Temperature => "T",
-            :WallTemperature => "T_{wall}"
-        )
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
-            @show symbol
-            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
-            # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
-            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.            
-            # TODO: Fix the above
-            if size(states[end][symbol], 2) == 1
-                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, t, Float64.([blah[symbol][end] for blah in states]), color=:darkgray)
-            else
-                for i in 1:size(states[end][symbol], 1)
-                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
-
-                    CairoMakie.lines!(ax, t, Float64.([blah[symbol][i, end] for blah in states]), color=:darkgray)
-                end
-            end
-        end
-        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
-        return f
-    end
-end
 
 function plot_against_matlab_text(states, basedir)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
@@ -88,7 +114,7 @@ function plot_against_matlab_text(states, basedir)
         key_to_label = Dict(
             :y => "y",
             :Pressure => "p",
-            :adsorptionRates => "q",
+            :AdsorbedConcentration => "q",
             :Temperature => "T",
             :WallTemperature => "T_{wall}"
         )
@@ -98,10 +124,10 @@ function plot_against_matlab_text(states, basedir)
             :Temperature => "T.txt",
             :WallTemperature => "Twall.txt",
             :y => ["yCO2.txt"],
-            :adsorptionRates => ["qCO2.txt", "qN2.txt"]
+            :AdsorbedConcentration => ["qCO2.txt", "qN2.txt"]
         )
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
             @show symbol
             # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
@@ -165,7 +191,7 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
         key_to_label = Dict(
             :y => "y",
             :Pressure => "p",
-            :adsorptionRates => "q",
+            :AdsorbedConcentration => "q",
             :Temperature => "T",
             :WallTemperature => "T_{wall}"
         )
@@ -178,7 +204,7 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
             :Temperature => "T",
             :WallTemperature => "Twall",
             :y => ["yCO2"],
-            :adsorptionRates => ["qCO2", "qN2"]
+            :AdsorbedConcentration => ["qCO2", "qN2"]
         )
         if isnothing(timestep)
             timestep = size(states, 1)
@@ -190,7 +216,7 @@ function plot_against_matlab_mat(states, inputfile; timestep=nothing, timestep_m
             timestep_matlab = size(results[key_to_file[:Pressure]], 2)
         end
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :adsorptionRates, :Temperature, :WallTemperature])
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
             @show symbol
             # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
             # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
