@@ -108,13 +108,14 @@ states, report = Jutul.simulate(
 # plot_pvars_spatial(model, states_all)
 
 
+states_mat = Mocca.get_matlab_states("data/$datapath")
 
 
 
 ##
-using GLMakie, Jutul
-GLMakie.activate!(inline = false)
-plot_interactive(simulator.model, states)
+# using GLMakie, Jutul
+# GLMakie.activate!(inline = false)
+# plot_interactive(simulator.model, states)
 
 ##
 function mocca_purity_objective(model, state, dt, step_no, forces)

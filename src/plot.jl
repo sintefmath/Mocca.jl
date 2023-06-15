@@ -2,34 +2,126 @@ import CairoMakie
 import MakiePublication
 import DelimitedFiles
 
+function get_pvar_symbols()
+    pvars = [:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature]
+    return pvars
+end
 
 
+"""
+    get_matlab_states(matfile)
 
-# function plot_pvars_outlet(model, states_all)
-#     return MakiePublication.with_theme(MakiePublication.theme_web()) do
+Convert matlab .mat file results struct to states like julia states struct
+"""
+function get_matlab_states(inputfile)
+
+    pvars = get_pvar_symbols()
+    matfile = MAT.matread(inputfile)
+
+    results = matfile["results"]
+    key_to_file = Dict(
+        :Pressure => "pressure",
+        :Temperature => "T",
+        :WallTemperature => "Twall",
+        :y => "yCO2",
+        :AdsorbedConcentration => ["qCO2", "qN2"]
+    )
+    num_timesteps = size(results["pressure"])[2]
+
+
+    states = []
+    for t in 1:num_timesteps
+        tmp = Dict()
+        for (nsymb, symbol) in enumerate(pvars)
+            if symbol == :AdsorbedConcentration
+
+                qCO2 = results[key_to_file[symbol][1]][:,t]
+                qN2 = results[key_to_file[symbol][2]][:,t]
+                matlabdata = hcat(qCO2,qN2)'
+            else
+                k = key_to_file[symbol]
+                matlabdata = results[k][:,t]
+
+            end
+            tmp[symbol] = matlabdata
+        end
+        push!(states,tmp)
+    end
+
+    return states
+
+end
+
+
+function plot_pvars_outlet(model, all_sims)
+    return MakiePublication.with_theme(MakiePublication.theme_web()) do
+
+        pvars = get_pvar_symbols()
         
-#         f = CairoMakie.Figure()
+        f = CairoMakie.Figure()
         
-#         nc = size(states[end][:Pressure], 1)
-#         x = model.data_domain[:cell_centroids][1,:]
 
-#         key_to_label = Dict(
-#             :y => "y",
-#             :Pressure => "p",
-#             :AdsorbedConcentration => "q",
-#             :Temperature => "T",
-#             :WallTemperature => "T_{wall}"
-#         )
+            nc = size(states[end][:Pressure], 1)
+            x = model.data_domain[:cell_centroids][1,:]
 
-#         for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
-#             @show symbol
+            key_to_label = Dict(
+                :y => "y",
+                :Pressure => "p",
+                :AdsorbedConcentration => "q",
+                :Temperature => "T",
+                :WallTemperature => "T_{wall}"
+            )
+
+            outlet_cell = nc # TODO This should really be changed for EvacuationBC
+            for (nsymb, symbol) in enumerate(pvars)
+                @show symbol
+
+                if cmp(symbol,":y")
+                    ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                    
+                    for states in states_all
+                        CairoMakie.lines!(ax, t, Float64.([result[symbol][i, end] for result in states]), color=:darkgray)
+                    end
+
+                elseif cmp(symbol,":AdsorbedConcentration")
+                    for i in 1:size(states[end][symbol], 1)
+                        
+                        # Make axes
+                        ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), 
+                        xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+
+                        # Loop through simulation states
+                        for states in all_sims
+                            CairoMakie.lines!(ax, t, Float64.([result[symbol][i, end] for result in states]), color=:darkgray)
+                        end
+                    end
+
+                else
+                    CairoMakie.lines!(ax, t, Float64.([result[symbol][end] for result in states]), color=:darkgray)
+
+                end
 
 
+                if size(states[end][symbol], 2) == 1
+                    ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+                    CairoMakie.lines!(ax, t, Float64.([result[symbol][end] for result in states]), color=:darkgray)
+                else
+                    for i in 1:size(states[end][symbol], 1)
+                        ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
 
+                        CairoMakie.lines!(ax, t, Float64.([blah[symbol][i, end] for blah in states]), color=:darkgray)
+                    end
+                end
+            end
 
-#     end
+        end
+
+        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
+        return f            
+
+    end
     
-# end
+
 
 
 function plot_outlet(model,states)
@@ -45,7 +137,7 @@ function plot_outlet(model,states)
             :WallTemperature => "T_{wall}"
         )
 
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
+        for (nsymb, symbol) in enumerate()
             @show symbol
 
             if size(states[end][symbol], 2) == 1
@@ -106,67 +198,7 @@ end
 
 
 
-function plot_against_matlab_text(states, basedir)
-    return MakiePublication.with_theme(MakiePublication.theme_web()) do
-        f = CairoMakie.Figure()
-        nc = size(states[end][:Pressure], 1)
-        x = collect(LinRange(0.0, 1.0, nc))
-        key_to_label = Dict(
-            :y => "y",
-            :Pressure => "p",
-            :AdsorbedConcentration => "q",
-            :Temperature => "T",
-            :WallTemperature => "T_{wall}"
-        )
 
-        key_to_file = Dict(
-            :Pressure => "P.txt",
-            :Temperature => "T.txt",
-            :WallTemperature => "Twall.txt",
-            :y => ["yCO2.txt"],
-            :AdsorbedConcentration => ["qCO2.txt", "qN2.txt"]
-        )
-
-        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
-            @show symbol
-            # Truncating to Float16 seems to be needed due to some weird cairomakie bug:
-            # https://discourse.julialang.org/t/range-step-cannot-be-zero/66948/10
-            # Reverting to Float64 so values can be compared with MRST. Not encountered bug so far.            
-            # TODO: Fix the above
-            if size(states[end][symbol], 2) == 1
-                ax = CairoMakie.Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-                CairoMakie.lines!(ax, x, Float64.(states[end][symbol][:]), color=:red, label="Mocca.jl")
-
-                if haskey(key_to_file, symbol)
-                    matlabdata = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol])))
-                    CairoMakie.lines!(ax, x, matlabdata, color=:grey, label="MRST")
-                end
-                CairoMakie.axislegend(ax)
-            else
-                for i in 1:size(states[end][symbol], 1)
-                    ax = CairoMakie.Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"x", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
-
-                    CairoMakie.lines!(ax, x, Float64.(states[end][symbol][i, :]), color=:red, label="Mocca.jl")
-                    if haskey(key_to_file, symbol)
-                        filenames = key_to_file[symbol]
-                        if size(filenames, 1) == 1
-                            datamatlab = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol][1])))
-                            datamatlab = 1.0 .- datamatlab
-                        else
-                            datamatlab = collect(Iterators.flatten(DelimitedFiles.readdlm(basedir * key_to_file[symbol][i])))
-                        end
-                        CairoMakie.lines!(ax, x, datamatlab, color=:grey, label="MRST")
-                        CairoMakie.axislegend(ax)
-                    end
-                end
-            end
-
-        end
-        CairoMakie.resize!(f.scene, (2 * 400, 3 * 400))
-        return f
-    end
-
-end
 
 
 function plot_against_matlab_mat(states, inputfile, t::Float64, times_mocca::Vector{Float64})
