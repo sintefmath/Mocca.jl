@@ -8,6 +8,8 @@ datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_adsorption.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_blowdown.mat"
 datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_evacuation.mat"
+datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_all.mat"
+
 
 # # Intialise parameters from MATLAB
 # simulator, state0, parameters =
@@ -34,14 +36,12 @@ d_blow = Mocca.BlowdownBC(PH = pars.p_high, PI = pars.p_intermediate,
 d_evac = Mocca.EvacuationBC(PL = pars.p_low, PI = pars.p_intermediate,
                             λ = pars.λ, cell_left = 1, cell_right = 30) #TODO: Don't hardcode end cell!                               
 
-numstages = 4
-forces = []
 
-append!(forces,Jutul.setup_forces(simulator.model, bc=d_press))
-append!(forces,Jutul.setup_forces(simulator.model, bc=d_ads))
-append!(forces,Jutul.setup_forces(simulator.model, bc=d_blow))
-append!(forces,Jutul.setup_forces(simulator.model, bc=d_evac))           
+# forces = Jutul.setup_forces(simulator.model, bc=d_evac)
 
+
+# numstages = 4
+bcs = [d_press, d_ads, d_blow, d_evac]
 
 # Set timesteps
 t_press = 15
@@ -58,7 +58,7 @@ maxdt = 1.0
 for i in eachindex(t_stage)
     numsteps = t_stage[i] / maxdt
     append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
-    append!(sim_forces,repeat([forces[i]],Int(floor(numsteps))))
+    append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bcs[i])],Int(floor(numsteps))))
 end
     
 
@@ -69,7 +69,7 @@ end
 
 # timesteps = times_matlab - times_matlab_zero[1:end-1]
 
-@show timesteps
+# @show timesteps
 
 # sim_forces = repeat([forces], length(timesteps))
 
