@@ -4,20 +4,20 @@ using Parameters
     PH::T
     PI::T
     λ::T
+    cell_left::Int
     cell_right::Int
     t_stage
 end
 
 
 function pressure_right(force::BlowdownBC, time)
-
-    @show "blowdown" #DEBUG
-
-    cycle_time = sum(force.t_stage)
-    numcycles = max(0,time - cycle_time)
+    
     step_end = cumsum(force.t_stage)
-    t =  mod(time, cycle_time) - step_end[3]
+    cycle_time = sum(force.t_stage)
+    cycle_no = floor(time/cycle_time)
 
+    t_0 = cycle_no*cycle_time + step_end[2]
+    t = time - t_0
 
     PH = force.PH
     PI = force.PI
@@ -128,6 +128,18 @@ function Jutul.apply_forces_to_equation!(
 
     pars = model.system.p
  
+    # left side
+    begin
+        cell_left = force.cell_left
+        trans_wall = calc_bc_wall_trans(model)
+
+        T = state.WallTemperature[cell_left]
+        T_bc = pars.T_a
+
+        bc_src = -(trans_wall * (T - T_bc))
+        acc[cell_left] -= bc_src
+    end
+
     # right side
     begin
         cell_right = force.cell_right
@@ -136,7 +148,7 @@ function Jutul.apply_forces_to_equation!(
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a
 
-        bc_src = -(trans_wall * (T_bc - T))
+        bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
-    end
+    end 
 end

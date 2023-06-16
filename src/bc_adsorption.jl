@@ -10,7 +10,6 @@ end
 
 
 function flux_left(model::AdsorptionFlowModel, force::AdsorptionBC)
-    @show "adsorpton" # DEBUG
     Af = compute_column_face_area(model)
     return -force.v_feed * Af
 end
