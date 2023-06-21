@@ -16,7 +16,7 @@ datapath = "VSA_Comparison_HAG_n30_nc1_julia_comp_all.mat"
 #     initialize_from_matlab("data/$datapath",
 #         forcing_term_coefficient=1.0)
 
-ncells = 100
+ncells = 200
 
 ## Intialise Haghpanah parameters
 simulator, state0, parameters =
@@ -35,11 +35,11 @@ t_evac= 40
 t_stage = [t_press, t_ads, t_blow, t_evac]
 
 
-numcycles = 1
+numcycles = 200
 
 timesteps = []
 sim_forces = []
-maxdt = 0.1
+maxdt = 1
 
 
 times_matlab = collect(Iterators.flatten(MAT.matread("data/$datapath")["results"]["time"]))
@@ -142,7 +142,7 @@ states, report = Jutul.simulate(
 
 # plot_pvars_spatial(model, states_all)
 
-outputfile = "mocca_jl_nc100_1cycle.mat"
+outputfile = "mocca_jl_nc200_100cycle.mat"
 
 states_jl = Dict()
 states_jl["times"] = timesteps
