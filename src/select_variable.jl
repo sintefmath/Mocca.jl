@@ -31,8 +31,8 @@ function Jutul.select_secondary_variables!(
     S[:ColumnConservedEnergy] = ColumnEnergy()
     S[:WallConservedEnergy] = WallEnergy()
     S[:ΔH] = EnthalpyChange()
-    S[:C_pa] = SpecificHeatCapasityAdsorbent()
-    S[:C_pg] = SpecificHeatCapasityFluid()
+    S[:C_pa] = SpecificHeatCapacityAdsorbent()
+    S[:C_pg] = SpecificHeatCapacityFluid()
 end
 
 function Jutul.select_equations!(
