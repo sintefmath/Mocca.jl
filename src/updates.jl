@@ -34,6 +34,22 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     end
 end
 
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
+    for cx in ix
+        column_energy[cx] = Temperature[cx]
+    end
+end
+
+Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
+    for cellindex in ix
+        wall_energy[cellindex] = WallTemperature[cellindex]
+    end
+end
+
+
+
+
+
 function compute_equilibrium(sys::AdsorptionFlowSystem, concentration, temperature)
     qstar = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
     b = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
@@ -88,17 +104,7 @@ end
 
 
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
-    for cx in ix
-        column_energy[cx] = Temperature[cx]
-    end
-end
 
-Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
-    for cellindex in ix
-        wall_energy[cellindex] = WallTemperature[cellindex]
-    end
-end
 
 Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, AdsorbedConcentration, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system

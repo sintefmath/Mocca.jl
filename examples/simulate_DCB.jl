@@ -4,7 +4,7 @@ import JutulDarcy
 import MAT
 
 
-ncells = 200
+ncells = 100
 
 ## Intialise Haghpanah parameters
 simulator, state0, parameters =
@@ -22,7 +22,7 @@ numcycles = 1
 
 timesteps = []
 sim_forces = []
-maxdt = 10
+maxdt = 1
 
 
 
@@ -51,4 +51,40 @@ states, report = Jutul.simulate(
     # max_timestep_cuts = 0
 )
 
+using CairoMakie
 
+key_to_label = Dict(
+    :y => "y",
+    :Pressure => "p",
+    :AdsorbedConcentration => "q",
+    :Temperature => "T",
+    :WallTemperature => "T_{wall}"
+)
+
+
+
+f = Figure()
+ax = Axis(f[1, 1])
+t = Float64.(cumsum(timesteps))
+
+
+
+for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
+    @show symbol
+
+    if size(states[end][symbol], 2) == 1
+        y = Float64.([result[symbol][end] for result in states])
+        ax = Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
+        lines!(ax, t, y, color=:darkgray)
+    else
+        for i in 1:size(states[end][symbol], 1)
+            y = Float64.([val[:y][i, end] for val in states])
+            ax = Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
+            lines!(ax, t, y, color=:darkgray)
+        end
+    end
+end
+
+
+resize!(f.scene, (2 * 400, 3 * 400))
+f
