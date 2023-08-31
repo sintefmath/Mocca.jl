@@ -4,7 +4,7 @@ import JutulDarcy
 import MAT
 
 
-ncells = 100
+ncells = 200
 
 ## Intialise Haghpanah parameters
 simulator, state0, parameters =
@@ -15,7 +15,7 @@ pars = simulator.model.system.p
 
 
 # Set timesteps
-t_ads = 5000
+t_ads = 300
 
 t_stage = [t_ads]
 numcycles = 1
