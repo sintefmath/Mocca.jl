@@ -29,7 +29,7 @@ function JutulDarcy.component_mass_fluxes!(
     C = favg(state.cTot)
 
     # TODO: FIXME. Should be per cell.
-    Δx = compute_dx(model, 1)
+    # Δx = compute_dx(model, 1)
 
     # D_l = axial_dispersion(sys)
     D_l = state.DiffusionTransmissibilities[face]
@@ -67,9 +67,13 @@ function Jutul.update_equation_in_entity!(
 
     ∂q∂t = (state.AdsorbedConcentration[:, self_cell] .- state0.AdsorbedConcentration[:, self_cell]) ./ Δt
 
-    for i in eachindex(eq_buf)
+    AC = state.AdsorbedConcentration
+    AC₀ = state0.AdsorbedConcentration
+    @inbounds V = state.solidVolume[self_cell]
+    @inbounds for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell] * ∂q∂t[i])
+        ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, self_cell)
+        eq_buf[i] = ∂M∂t + div_v[i] + (V * ∂q∂t)
     end
 end
 

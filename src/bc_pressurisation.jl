@@ -159,3 +159,49 @@ function Jutul.apply_forces_to_equation!(
         acc[cell_right] -= bc_src
     end    
 end
+
+function Jutul.vectorization_length(bc::PressurisationBC, variant)
+    # y_feed::SVector{N,T}
+    # PH::T
+    # PL::T
+    # λ::T
+    # T_feed::T
+    return 4 + length(bc.y_feed)
+end
+
+function Jutul.vectorize_force!(v, bc::PressurisationBC, variant)
+    if variant == :all
+        names = [:PH, :PL, :λ, :T_feed]
+        v[1] = bc.PH
+        v[2] = bc.PL
+        v[3] = bc.λ
+        v[4] = bc.T_feed
+        offset = length(names)
+        for (i, f_i) in enumerate(bc.y_feed)
+            offset += 1
+            v[offset] = f_i
+            push!(names, Symbol("y_feed$i"))
+        end
+    else
+        error("Variant $variant not supported")
+    end
+    return (names = names, )
+end
+
+function Jutul.devectorize_force(bc::PressurisationBC, X::AbstractVector{T}, meta, variant) where T
+    if variant == :all
+        PH = X[1]
+        PL = X[2]
+        λ = X[3]
+        T_feed = X[4]
+        N = length(bc.y_feed)
+        tmp = zeros(T, N)
+        for i = 1:N
+            tmp[i] = X[i + 4]
+        end
+        y_feed = SVector{N, T}(tmp)
+        return PressurisationBC(y_feed, PH, PL, λ, T_feed, bc.cell_left)
+    else
+        error("Variant $variant not supported")
+    end
+end
