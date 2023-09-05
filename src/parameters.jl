@@ -2,7 +2,7 @@ using Parameters
 import MAT
 
 
-@with_kw struct AdsorptionParameters
+@with_kw struct HaghpanahParameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1. 
@@ -111,7 +111,7 @@ function read_adsorption_parameters_from_matlab(filename::String)
     fluid = model["fluid"]
     separationsystem = model["separationSystem"]
 
-    parameters = AdsorptionParameters(
+    parameters = HaghpanahParameters(
         Φ=first(rock["poro"]),
         ρ_w=first(rock["rhoWall"]),
         ρ_s=first(rock["rhoAds"]),
@@ -164,6 +164,6 @@ end
 
 
 
-compute_permeability(p::AdsorptionParameters) = 4 / 150 * ((p.Φ / (1 - p.Φ))^2) * (p.d_p / 2)^2 * p.Φ
+compute_permeability(p::HaghpanahParameters) = 4 / 150 * ((p.Φ / (1 - p.Φ))^2) * (p.d_p / 2)^2 * p.Φ
 
-axial_dispersion(p::AdsorptionParameters) = 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p
+axial_dispersion(p::HaghpanahParameters) = 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p

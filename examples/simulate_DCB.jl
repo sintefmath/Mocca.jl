@@ -1,14 +1,118 @@
 using Mocca
 import Jutul
 import JutulDarcy
-import MAT
+
+
+## Setup parameters
+
+
+parameters = HaghpanahParameters()
+
+system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
+perm = compute_permeability(system)
+
+barsa = 1e5
+
+
+## Setup grid
+
+dx = sqrt(pi*parameters.r_in^2)
+
+mesh = Jutul.CartesianMesh((ncells, 1, 1), (parameters.L, dx, dx))
+
+domain = JutulDarcy.reservoir_domain(mesh, porosity=system.p.Φ, permeability=perm)
+domain[:diffusion_coefficient] = axial_dispersion(system)
+domain[:thermal_conductivity] = system.p.K_z # TODO: Check this and the one above
+
+
+# TODO: Figure out a better way to compute the volumes
+volumes = ones(ncells) * prod(mesh.deltas)
+@assert volumes == domain[:volumes]
+solid_volume = volumes * (1 - system.p.Φ)
+fluid_volume = volumes * system.p.Φ
+
+parameters = Jutul.setup_parameters(model,
+    solidVolume=solid_volume,
+    fluidVolume=fluid_volume
+)
+
+
+
+
+
+## Setup model
+
+
+
+model = Jutul.SimulationModel(domain, system, general_ad=general_ad)
+
+
+## Setup initial state
+
+
+
+# initPressure = 0.4*barsa 
+initPressure = 1*barsa   #DEBUG  
+initT = 298.15
+
+p_init = ones(ncells)*initPressure
+temperature_init = ones(ncells)*initT
+
+yCO2 = ones(ncells)*1e-10
+
+y_init = hcat(yCO2, 1 .- yCO2)
+
+cTot = p_init ./ (R * temperature_init)
+c = y_init .* cTot
+qN2 = ones(ncells)
+for i in 1:ncells
+    qstar = compute_equilibrium(system, c[i,:], temperature_init[i])
+    qN2[i] = qN2[i]*qstar[2]
+end
+
+
+qCO2 = ones(ncells)*0
+
+q_init = hcat(qCO2, qN2)
+
+walltemperature_init = ones(ncells)*parameters.T_a
+
+state0 = Jutul.setup_state(model,
+    Pressure = p_init,
+    y = y_init',
+    AdsorbedConcentration = q_init',
+    Temperature = temperature_init,
+    WallTemperature = walltemperature_init)
+
+
+
+# Make simulator
+
+# Make schedule
+
+# Simulate
+
+# Plot
+
+
+
+
+
+
+
+
 
 
 ncells = 200
 
 ## Intialise Haghpanah parameters
+
+
 simulator, state0, parameters =
 initialize_Haghpanah_model(forcing_term_coefficient=1.0, ncells = ncells)       
+
+
+sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
 
 ## Setup BCs
 pars = simulator.model.system.p
@@ -22,7 +126,7 @@ numcycles = 1
 
 timesteps = []
 sim_forces = []
-maxdt = 1
+maxdt = 1.0
 
 
 
@@ -51,40 +155,4 @@ states, report = Jutul.simulate(
     # max_timestep_cuts = 0
 )
 
-using CairoMakie
-
-key_to_label = Dict(
-    :y => "y",
-    :Pressure => "p",
-    :AdsorbedConcentration => "q",
-    :Temperature => "T",
-    :WallTemperature => "T_{wall}"
-)
-
-
-
-f = Figure()
-ax = Axis(f[1, 1])
-t = Float64.(cumsum(timesteps))
-
-
-
-for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
-    @show symbol
-
-    if size(states[end][symbol], 2) == 1
-        y = Float64.([result[symbol][end] for result in states])
-        ax = Axis(f[nsymb, 1], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])")
-        lines!(ax, t, y, color=:darkgray)
-    else
-        for i in 1:size(states[end][symbol], 1)
-            y = Float64.([val[:y][i, end] for val in states])
-            ax = Axis(f[nsymb, i], title=String(symbol), xlabel=CairoMakie.L"t", ylabel=CairoMakie.L"%$(key_to_label[symbol])_%$i")
-            lines!(ax, t, y, color=:darkgray)
-        end
-    end
-end
-
-
-resize!(f.scene, (2 * 400, 3 * 400))
-f
+Mocca.plot_outlet(model,states,timesteps)

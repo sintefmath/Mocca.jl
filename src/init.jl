@@ -83,7 +83,7 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
     ncells::Int = 30)
 
 
-    parameters = AdsorptionParameters()
+    parameters = HaghpanahParameters()
     R = parameters.R
     system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
     perm = compute_permeability(system)
@@ -146,7 +146,7 @@ function initialize_Haghpanah_model(; general_ad::Bool=true, forcing_term_coeffi
         Temperature = temperature_init,
         WallTemperature = walltemperature_init)
 
-    return (sim = Jutul.Simulator(model, state0=state0, parameters=parameters), state0 = state0, parameters = parameters)
+    return (model = model, state0 = state0, parameters = parameters)
 end
 
 

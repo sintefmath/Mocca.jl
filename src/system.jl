@@ -14,7 +14,7 @@ using Parameters
     forcing_term_coefficient::Float64 = 1.0
 
     "Contains all the relevant physical constants for the system"
-    p::AdsorptionParameters = AdsorptionParameters()
+    p::HaghpanahParameters = HaghpanahParameters()
 end
 const AdsorptionFlowModel = Jutul.SimulationModel{<:Any,<:AdsorptionFlowSystem,<:Any,<:Any}
 
