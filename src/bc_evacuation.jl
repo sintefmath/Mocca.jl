@@ -6,13 +6,23 @@ using Parameters
     λ::T
     cell_left::Int
     cell_right::Int
+    t_stage
 end
 
 function pressure_left(force::EvacuationBC, time)
+
+    step_end = cumsum(force.t_stage)
+    cycle_time = sum(force.t_stage)    
+    cycle_no = floor(time/cycle_time)
+ 
+    t_0 = cycle_no*cycle_time + step_end[3]
+    t = time - t_0
+
     PL = force.PL
     PI = force.PI
     λ = force.λ
-    return (PL + (PI - PL) * exp(-λ * time))
+
+    return (PL + (PI - PL) * exp(-λ * t))
 end
 
 
@@ -139,9 +149,10 @@ function Jutul.apply_forces_to_equation!(
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a
 
-        bc_src = -(trans_wall * (T_bc - T))
+        bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
     end
+
 
 
 end

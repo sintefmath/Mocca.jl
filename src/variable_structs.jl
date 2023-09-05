@@ -61,8 +61,8 @@ Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,Adsorptio
 Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
 
 abstract type SpecificHeatCapacity <: Jutul.ScalarVariable end
-struct SpecificHeatCapasityAdsorbent <: SpecificHeatCapacity end
-struct SpecificHeatCapasityFluid <: SpecificHeatCapacity end
+struct SpecificHeatCapacityAdsorbent <: SpecificHeatCapacity end
+struct SpecificHeatCapacityFluid <: SpecificHeatCapacity end
 
 struct ThermalConductivities <: Jutul.ScalarVariable end
 Jutul.variable_scale(::ThermalConductivities) = 1e-10

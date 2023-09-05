@@ -117,14 +117,14 @@ Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, 
     end
 end
 
-Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapasityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
     for cellindex in ix
         cpa[cellindex] = sum(y[:, cellindex] .* sys.p.C_pa)
     end
 end
 
-Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapasityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
     sys = model.system
     for cellindex in ix
         cpg[cellindex] = sum(y[:, cellindex] .* sys.p.C_pg)
