@@ -170,9 +170,10 @@ import DelimitedFiles
     
 # end
 
-function plot_outlet(model,states)
+function plot_outlet(model,states,timesteps)
     return MakiePublication.with_theme(MakiePublication.theme_web()) do
         f = CairoMakie.Figure()
+        t = Float64.(cumsum(timesteps))
         nc = size(states[end][:Pressure], 1)
         x = model.data_domain[:cell_centroids][1,:]
         key_to_label = Dict(
@@ -183,7 +184,7 @@ function plot_outlet(model,states)
             :WallTemperature => "T_{wall}"
         )
 
-        for (nsymb, symbol) in enumerate()
+        for (nsymb, symbol) in enumerate([:y, :Pressure, :AdsorbedConcentration, :Temperature, :WallTemperature])
             @show symbol
 
             if size(states[end][symbol], 2) == 1
