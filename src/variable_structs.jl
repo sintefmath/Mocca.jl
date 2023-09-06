@@ -6,31 +6,31 @@ function Jutul.minimum_value(::AdsorbedConcentration)
     return 1e-10
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
 
 struct AverageMolecularMass <: Jutul.ScalarVariable
 end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AverageMolecularMass) = 1
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AverageMolecularMass) = 1
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AverageMolecularMass) = 1
 
 struct Concentrations <: Jutul.VectorVariables end
 
 struct AdsorptionMassTransfer <: Jutul.VectorVariables end
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
 
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
-JutulDarcy.phase_names(::AdsorptionFlowSystem) = ["ouronlyphase"]
-JutulDarcy.number_of_phases(::AdsorptionFlowSystem) = 1
+JutulDarcy.phase_names(::AdsorptionSystem) = ["ouronlyphase"]
+JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
 
 struct GasMoleFractions <: JutulDarcy.CompositionalFractions
     dz_max::Float64
@@ -57,8 +57,8 @@ struct ColumnEnergy <: Energy end
 struct WallEnergy <: Energy end
 
 struct EnthalpyChange <: Jutul.VectorVariables end
-Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
+Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)
 
 abstract type SpecificHeatCapacity <: Jutul.ScalarVariable end
 struct SpecificHeatCapacityAdsorbent <: SpecificHeatCapacity end

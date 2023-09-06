@@ -2,7 +2,7 @@
 Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
-    model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
+    model::Jutul.SimulationModel{<:Any,AdsorptionSystem},
     concentrations,
     fluidVolume,
     ix
@@ -17,7 +17,7 @@ end
 Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     adsorption_mass_transfer,
     tv::AdsorptionMassTransfer,
-    model::Jutul.SimulationModel{<:Any,AdsorptionFlowSystem},
+    model::Jutul.SimulationModel{<:Any,AdsorptionSystem},
     concentrations,
     Temperature,
     AdsorbedConcentration,
@@ -34,13 +34,13 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     end
 end
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionSystem}
     for cx in ix
         column_energy[cx] = Temperature[cx]
     end
 end
 
-Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_wall_conserved_energy(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G,S}, WallTemperature, ix) where {G,S<:AdsorptionSystem}
     for cellindex in ix
         wall_energy[cellindex] = WallTemperature[cellindex]
     end
@@ -50,7 +50,7 @@ end
 
 
 
-function compute_equilibrium(sys::AdsorptionFlowSystem, concentration, temperature)
+function compute_equilibrium(sys::AdsorptionSystem, concentration, temperature)
     qstar = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
     b = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
     d = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
@@ -65,14 +65,14 @@ function compute_equilibrium(sys::AdsorptionFlowSystem, concentration, temperatu
     return qstar
 end
 
-function compute_ki(sys::AdsorptionFlowSystem, concentration, qstar)
+function compute_ki(sys::AdsorptionSystem, concentration, qstar)
     D_p = sys.p.D_m / sys.p.τ
     r_p = sys.p.d_p / 2.0
 
     return concentration ./ qstar .* 15 .* sys.p.ϵ_p .* D_p ./ r_p^2
 end
 
-Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G,S}, Pressure, Temperature, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G,S}, Pressure, Temperature, ix) where {G,S<:AdsorptionSystem}
     # Update cTot
     sys = model.system
 
@@ -81,7 +81,7 @@ Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, mod
     end
 end
 
-Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
     #println("Updating avm")
     for cellindex in ix
         # TODO: Fix masses such that they are single parameters for the whole grid
@@ -92,7 +92,7 @@ Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model
     end
 end
 
-Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G,S}, y, cTot, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G,S}, y, cTot, ix) where {G,S<:AdsorptionSystem}
     # println("Updating concentrations")
     for cellindex in ix
         # TODO: Fix masses such that they are single parameters for the whole grid
@@ -106,7 +106,7 @@ end
 
 
 
-Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, AdsorbedConcentration, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G,S}, AdsorbedConcentration, ix) where {G,S<:AdsorptionSystem}
     sys = model.system
 
     qsbi = sys.p.qsbi
@@ -123,14 +123,14 @@ Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, 
     end
 end
 
-Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
     sys = model.system
     for cellindex in ix
         cpa[cellindex] = sum(y[:, cellindex] .* sys.p.C_pa)
     end
 end
 
-Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionFlowSystem}
+Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
     sys = model.system
     for cellindex in ix
         cpg[cellindex] = sum(y[:, cellindex] .* sys.p.C_pg)

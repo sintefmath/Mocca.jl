@@ -1,6 +1,6 @@
 function Jutul.select_primary_variables!(
     S,
-    system::AdsorptionFlowSystem,
+    system::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
@@ -12,7 +12,7 @@ end
 
 function Jutul.select_secondary_variables!(
     S,
-    system::AdsorptionFlowSystem,
+    system::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     S[:cTot] = JutulDarcy.TotalMass()
@@ -37,7 +37,7 @@ end
 
 function Jutul.select_equations!(
     eqs,
-    sys::AdsorptionFlowSystem,
+    sys::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     fdisc = model.domain.discretizations.mass_flow
@@ -49,11 +49,11 @@ function Jutul.select_equations!(
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
-function Jutul.default_value(model::AdsorptionFlowModel, ::JutulDarcy.BulkVolume)
+function Jutul.default_value(model::AdsorptionModel, ::JutulDarcy.BulkVolume)
     Φ = model.system.p.Φ
     error()
 end
-function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
+function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.SimulationModel)
     S[:solidVolume] = JutulDarcy.BulkVolume()
     S[:fluidVolume] = JutulDarcy.FluidVolume()
     S[:ThermalConductivities] = ThermalConductivities()

@@ -3,7 +3,7 @@
     face,
     eq::Jutul.ConservationLaw{:WallConservedEnergy,<:Any},
     state,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     dt,
     disc,
     flow_disc, 
@@ -25,7 +25,7 @@ function Jutul.update_equation_in_entity!(
     state,
     state0,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}

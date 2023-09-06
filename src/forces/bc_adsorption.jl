@@ -9,7 +9,7 @@ end
 
 
 
-function flux_left(model::AdsorptionFlowModel, force::AdsorptionBC)
+function flux_left(model::AdsorptionModel, force::AdsorptionBC)
     Af = compute_column_face_area(model)
     return -force.v_feed * Af
 end
@@ -18,7 +18,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:TotalMasses},
     eq_s,
     force::AdsorptionBC,
@@ -85,7 +85,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
     eq_s,
     force::AdsorptionBC,
@@ -155,7 +155,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
     eq_s,
     force::AdsorptionBC,

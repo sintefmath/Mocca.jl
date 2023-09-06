@@ -31,7 +31,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:TotalMasses},
     eq_s,
     force::BlowdownBC,
@@ -73,7 +73,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
     eq_s,
     force::BlowdownBC,
@@ -117,7 +117,7 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
     eq_s,
     force::BlowdownBC,

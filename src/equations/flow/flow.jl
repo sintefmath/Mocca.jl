@@ -6,7 +6,7 @@ function JutulDarcy.component_mass_fluxes!(
     flux_type,
     kgrad,
     upw,
-) where {G<:Any,S<:AdsorptionFlowSystem}
+) where {G<:Any,S<:AdsorptionSystem}
     # This is defined for us:
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
@@ -31,7 +31,6 @@ function JutulDarcy.component_mass_fluxes!(
     # TODO: FIXME. Should be per cell.
     Δx = compute_dx(model, 1)
 
-    # D_l = axial_dispersion(sys)
     D_l = state.DiffusionTransmissibilities[face]
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
@@ -51,7 +50,7 @@ function Jutul.update_equation_in_entity!(
     state,
     state0,
     eq::Jutul.ConservationLaw{:TotalMasses},
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}

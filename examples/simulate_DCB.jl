@@ -8,7 +8,7 @@ import JutulDarcy
 
 parameters = HaghpanahParameters()
 
-system = AdsorptionFlowSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
+system = AdsorptionSystem(forcing_term_coefficient=forcing_term_coefficient, p=parameters)
 perm = compute_permeability(system)
 
 barsa = 1e5

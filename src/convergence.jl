@@ -1,6 +1,6 @@
 using LinearAlgebra
 using Tullio
-function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt=1) where {D,S<:AdsorptionFlowSystem}
+function Jutul.convergence_criterion(model::Jutul.SimulationModel{D,S}, storage, eq::Jutul.ConservationLaw, eq_s, r; dt=1) where {D,S<:AdsorptionSystem}
 
     # # TODO: Clean this up and fix it. 
     # M = Jutul.global_map(model.domain)
