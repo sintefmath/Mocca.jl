@@ -1,7 +1,9 @@
 __precompile__(true)
 
 module Mocca
-export AdsorptionSystem, AdsorptionModel, compute_equilibrium, compute_ki, initialize_from_matlab, plot_states, AdsorptionVelocityModel, AdsorptionDispersionModel
+export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
+export compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
+export  AdsorptionDispersionModel
 import Jutul
 import JutulDarcy
 using StaticArrays, ForwardDiff
@@ -11,7 +13,7 @@ const N2INDEX = 2 # TODO: We don't really need this
 include("parameters.jl")
 include("systems/AdsorptionSystem.jl")
 include("systems/TwoComponentAdsorption.jl")
-inlcude("VelocityModels.jl")
+include("VelocityModels.jl")
 include("variable_structs.jl")
 include("select_variable.jl")
 include("updates.jl")

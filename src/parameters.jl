@@ -1,6 +1,4 @@
 using Parameters
-import MAT
-
 
 @with_kw struct HaghpanahParameters
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole

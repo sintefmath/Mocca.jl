@@ -2,13 +2,14 @@ export initialise_state_AdsorptionColumn
 
 function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
 
-    ncells = model.ncells
-    R = model.parameters.R
+    g = JutulDarcy.physical_representation(model.data_domain)
+    ncells = prod(g.dims)
+    R = model.system.p.R
 
     p_init = ones(ncells)*P_init
     temperature_init = ones(ncells)*T_init
 
-    assert(sum.(y_init)==1)
+    # assert(sum.(y_init)==1) #TODO figure out how to do this
     
     # TODO: check  how this works in mrst and change it
     cTot = p_init ./ (R * temperature_init)
@@ -22,7 +23,7 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
 
     q_init = hcat(qCO2, qN2)
 
-    walltemperature_init = ones(ncells)*parameters.T_a
+    walltemperature_init = ones(ncells)*Tw_init
 
     state0 = Jutul.setup_state(model,
         Pressure = p_init,

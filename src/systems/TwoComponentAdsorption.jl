@@ -1,16 +1,12 @@
 using Parameters
 
 
-@with_kw struct TwoComponentAdsorptionSystem{vel_model,disp_model} <: AdsorptionSystem
+@with_kw struct TwoComponentAdsorptionSystem <: AdsorptionSystem
    
     number_of_components::Int64 = 2
    
-    velocity_model = vel_model
-    dispersion_model = disp_model
-   
-    permeability = velocity_model.permeability
-    dispersion = dispersion_model.dispersion
-
+    permeability::Float64
+    dispersion::Float64
 
     p::HaghpanahParameters = HaghpanahParameters() #TODO Move this out of here
 end

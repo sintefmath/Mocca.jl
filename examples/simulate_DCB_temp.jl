@@ -9,20 +9,18 @@
 # There is no heat transfer between the column and the column wall
 #-
 # First we load the necessary modules
-# import Jutul
-# import JutulDarcy
+import Jutul
+import JutulDarcy
 using Mocca
 
 # Then we define parameters which we want. We have defined a structure containing
-# parameters from Haghpanah et al. 2013 which we can load now:
-
-parameters = HaghpanahParameters()
-
+# parameters from Haghpanah et al. 2013 which we load now. 
 # As we are doing a DCB simulation we will set the heat transfer coefficient between 
 # the column and the wall and the wall and the outside to 0.
 
-parameters.h_in = 0
-parameters.h_out = 0
+parameters = Mocca.HaghpanahParameters(h_in=0,h_out=0)
+
+
 
 # Then we need to make the model. This model contains information about
 # the domain (mesh)) which we will solve the equations over and a information
@@ -32,10 +30,10 @@ parameters.h_out = 0
 # a two component adsorption system. This system type is associated with 
 # the appropriate equations and primary and secondary variables. We also 
 # add the parameters and the desired velocity model as an input.
-velocity_model = PlugFlow(parameters.Φ, parameters.d_p)
-dispersion_model = StandardDispersion(D_m, V0_inter, d_p)
+permeability = Mocca.calc_perm_plug_flow(parameters.Φ, parameters.d_p)
+axial_dispersion = Mocca.calc_dispersion(parameters.D_m, parameters.V0_inter, parameters.d_p)
 
-system = TwoComponentAdsorptionSystem(velocity_model,dispersion_model)
+system = TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion)
 
 # Jutul uses finite volume discretisation in space. To model a 1D cylindrical column
 # we setup a cartesian grid with ncells x 1 x 1 dimensions.
@@ -73,7 +71,7 @@ model = Jutul.SimulationModel(domain, system)
 # The final thing required to create the simulator is the intial state of the system
 # #WRITE
 # #TODO: can this be put in functions
-
+barsa = 1e5 #TODO: see if this exists
 P_init = 0.4*barsa 
 T_init = 298.15
 Tw_init = parameters.T_a
