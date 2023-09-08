@@ -3,13 +3,28 @@ abstract type AdsorptionSystem <: JutulDarcy.MultiComponentSystem end
 
 const AdsorptionModel = Jutul.SimulationModel{<:Any,<:AdsorptionSystem,<:Any,<:Any}
 
+export compute_permeability, calc_dispersion
+
+
+# Overload JutulDarcy functions
+
 JutulDarcy.number_of_components(sys::AdsorptionSystem) = sys.number_of_components
 JutulDarcy.has_other_phase(::AdsorptionSystem) = false
+JutulDarcy.phase_names(::AdsorptionSystem) = ["gas"]
+JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
 
 
 
-compute_permeability(sys::AdsorptionSystem) = compute_permeability(sys.p)
-axial_dispersion(sys::AdsorptionSystem) = axial_dispersion(sys.p)
+
+# Specific functions needed for Mocca
+
+function compute_permeability(p::ParameterStruct)
+    return 4 / 150 * ((p.Φ / (1 - p.Φ))^2) * (p.d_p / 2)^2 * p.Φ
+end
+
+function calc_dispersion(p::ParameterStruct)
+    return 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p
+end
 
 function compute_dx(model::AdsorptionModel, self_cell)\
     # TODO: We need to get dx in a nicer way
@@ -24,7 +39,7 @@ end
 
 
 function calc_bc_trans(model::AdsorptionModel)
-    k = compute_permeability(model.system.p)
+    k = compute_permeability(p)
     dx = compute_dx(model, 1) / 2
     A = (π * model.system.p.r_in^2)
     return k * A / dx
@@ -36,9 +51,6 @@ function calc_bc_wall_trans(model::AdsorptionModel)
     A = area_wall(model.system)
     return k * A / dx
 end
-
-
-
 
 
 "Area of column wall [m^2]"

@@ -1,6 +1,6 @@
 using Parameters
 
-
+export TwoComponentAdsorptionSystem 
 @with_kw struct TwoComponentAdsorptionSystem <: AdsorptionSystem
    
     number_of_components::Int64 = 2
@@ -10,4 +10,3 @@ using Parameters
 
     p::HaghpanahParameters = HaghpanahParameters() #TODO Move this out of here
 end
-

@@ -11,7 +11,8 @@
 # First we load the necessary modules
 import Jutul
 import JutulDarcy
-using Mocca
+
+import Mocca
 
 # Then we define parameters which we want. We have defined a structure containing
 # parameters from Haghpanah et al. 2013 which we load now. 
@@ -30,10 +31,10 @@ parameters = Mocca.HaghpanahParameters(h_in=0,h_out=0)
 # a two component adsorption system. This system type is associated with 
 # the appropriate equations and primary and secondary variables. We also 
 # add the parameters and the desired velocity model as an input.
-permeability = Mocca.calc_perm_plug_flow(parameters.Φ, parameters.d_p)
-axial_dispersion = Mocca.calc_dispersion(parameters.D_m, parameters.V0_inter, parameters.d_p)
+permeability = Mocca.compute_permeability(parameters)
+axial_dispersion = Mocca.calc_dispersion(parameters)
 
-system = TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion)
+system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion)
 
 # Jutul uses finite volume discretisation in space. To model a 1D cylindrical column
 # we setup a cartesian grid with ncells x 1 x 1 dimensions.
@@ -60,7 +61,7 @@ mesh = Jutul.CartesianMesh((ncells, 1, 1), (parameters.L, dx, dx))
 
 domain = JutulDarcy.reservoir_domain(mesh, porosity = parameters.Φ, permeability = system.permeability)
 domain[:diffusion_coefficient] = system.dispersion
-domain[:thermal_conductivity] = parameters.K_z  #TODO : do we need this here? And above?
+domain[:thermal_conductivity] = parameters.K_z  #TODO : do we need this here? And what about line above?
 
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
@@ -79,7 +80,7 @@ Tw_init = parameters.T_a
 yCO2 = ones(ncells)*1e-10
 y_init = hcat(yCO2, 1 .- yCO2)
 
-state0 = initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
+state0 = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
 
 # # Make the simulator and setup the timestepping and boundary conditions 
 

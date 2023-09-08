@@ -1,6 +1,7 @@
 using Parameters
-
-@with_kw struct HaghpanahParameters
+abstract type ParameterStruct end
+export ParameterStruct, HaghpanahParameters
+@with_kw struct HaghpanahParameters <: ParameterStruct
     molecularMassOfCO2::Float64 = 44.01e-3 # kg / mole
     molecularMassOfN2::Float64 = 28e-3 # kg/mole
     R::Float64 = 8.3144598 # J⋅mol^−1⋅K^−1. 
