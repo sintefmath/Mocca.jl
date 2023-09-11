@@ -65,7 +65,7 @@ domain[:thermal_conductivity] = parameters.K_z  #TODO : do we need this here? An
 
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
-model = Jutul.SimulationModel(domain, system)
+model = Jutul.SimulationModel(domain, system, general_ad = true)
 
 # # Setup the initial state
 
@@ -80,13 +80,13 @@ Tw_init = parameters.T_a
 yCO2 = ones(ncells)*1e-10
 y_init = hcat(yCO2, 1 .- yCO2)
 
-state0 = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
+state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
 
 # # Make the simulator and setup the timestepping and boundary conditions 
 
 # We combine everything into a Jutul.Simulator instance.
 
-sim = Jutul.Simulator(model, state0=state0, parameters=parameters)
+sim = Jutul.Simulator(model, state0=state0, parameters=prm)
 
 
 # # Setup schedule
@@ -101,19 +101,19 @@ maxdt = 1.0
 
 #WRITE : write
 
-bc = Mocca.AdsorptionBC(y_feed = pars.y_feed, PH = pars.p_high, v_feed = pars.v_feed,
-                                T_feed = pars.T_feed, cell_left = 1, cell_right = ncells) 
+bc = Mocca.AdsorptionBC(y_feed = parameters.y_feed, PH = parameters.p_high, v_feed = parameters.v_feed,
+                                T_feed = parameters.T_feed, cell_left = 1, cell_right = ncells) 
 
 
 numsteps = t_ads / maxdt
 append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
-append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bc)],Int(floor(numsteps))))
+append!(sim_forces,repeat([Jutul.setup_forces(sim.model,bc=bc)],Int(floor(numsteps))))
 
 
 # # Simulate
 #WRITE 
 states, report = Jutul.simulate(
-    simulator,
+    sim,
     timesteps,
     forces=sim_forces,
 )

@@ -39,7 +39,7 @@ end
 
 
 function calc_bc_trans(model::AdsorptionModel)
-    k = compute_permeability(p)
+    k = compute_permeability(model.system.p)
     dx = compute_dx(model, 1) / 2
     A = (π * model.system.p.r_in^2)
     return k * A / dx

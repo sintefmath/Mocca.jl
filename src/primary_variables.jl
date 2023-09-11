@@ -44,9 +44,9 @@ function Jutul.minimum_value(::AdsorbedConcentration)
     return 1e-10
 end
 
-function Jutul.degrees_of_freedom_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorbedConcentration)
+function Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::AdsorbedConcentration)
     JutulDarcy.number_of_components(model.system)
 end
-Jutul.values_per_entity(model::Jutul.SimulationModel{<:Any,AdsorptionSystem}, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
+Jutul.values_per_entity(model::AdsorptionModel, ::AdsorbedConcentration) = JutulDarcy.number_of_components(model.system)
 
 

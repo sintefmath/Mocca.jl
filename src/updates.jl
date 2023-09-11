@@ -2,7 +2,7 @@
 Jutul.@jutul_secondary function update_our_total_masses!(
     totmass,
     tv::JutulDarcy.TotalMasses,
-    model::Jutul.SimulationModel{<:Any,AdsorptionSystem},
+    model::AdsorptionModel,
     concentrations,
     fluidVolume,
     ix
@@ -17,7 +17,7 @@ end
 Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     adsorption_mass_transfer,
     tv::AdsorptionMassTransfer,
-    model::Jutul.SimulationModel{<:Any,AdsorptionSystem},
+    model::AdsorptionModel,
     concentrations,
     Temperature,
     AdsorbedConcentration,

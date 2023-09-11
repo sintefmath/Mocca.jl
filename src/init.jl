@@ -1,7 +1,7 @@
 export initialise_state_AdsorptionColumn
 
 function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
-
+    system = model.system
     g = JutulDarcy.physical_representation(model.data_domain)
     ncells = prod(g.dims)
     R = model.system.p.R
@@ -31,8 +31,15 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
         AdsorbedConcentration = q_init',
         Temperature = temperature_init,
         WallTemperature = walltemperature_init)
+    volumes = model.data_domain[:volumes]
+    solid_volume = volumes * (1 - system.p.Φ)
+    fluid_volume = volumes * system.p.Φ
 
-    return state0
+    parameters = Jutul.setup_parameters(model,
+        solidVolume=solid_volume,
+        fluidVolume=fluid_volume
+    )
+    return (state0, parameters)
 end
 
 
