@@ -27,9 +27,6 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
         qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
         k = compute_ki(model.system, concentrations[:, cell], qstar)
         force = k .* (qstar .- AdsorbedConcentration[:, cell])
-
-        # @info "cell $ix" qstar k concentrations AdsorbedConcentration force
-
         adsorption_mass_transfer[:, cell] = force
     end
 end

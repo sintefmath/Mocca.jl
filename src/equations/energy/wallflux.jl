@@ -15,7 +15,6 @@
     K_w = model.system.p.K_w
     T = state.WallTemperature
     q = K_w * JutulDarcy.gradient(T, kgrad)
-
     return q
 end
 
@@ -55,7 +54,6 @@ function Jutul.update_equation_in_entity!(
     #source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
     #this is from the matlab code:
     source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
-
     
     Δx = compute_dx(model, self_cell)
     for component in eachindex(eq_buf)

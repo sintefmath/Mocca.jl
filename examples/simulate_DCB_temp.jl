@@ -34,7 +34,7 @@ parameters = Mocca.HaghpanahParameters(h_in=0,h_out=0)
 permeability = Mocca.compute_permeability(parameters)
 axial_dispersion = Mocca.calc_dispersion(parameters)
 
-system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion)
+system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = parameters)
 
 # Jutul uses finite volume discretisation in space. To model a 1D cylindrical column
 # we setup a cartesian grid with ncells x 1 x 1 dimensions.
@@ -73,7 +73,7 @@ model = Jutul.SimulationModel(domain, system, general_ad = true)
 # #WRITE
 # #TODO: can this be put in functions
 barsa = 1e5 #TODO: see if this exists
-P_init = 0.4*barsa 
+P_init = 1.0*barsa 
 T_init = 298.15
 Tw_init = parameters.T_a
 
@@ -86,7 +86,7 @@ state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y
 
 # We combine everything into a Jutul.Simulator instance.
 
-sim = Jutul.Simulator(model, state0=state0, parameters=prm)
+# sim = Jutul.Simulator(model, state0=state0, parameters=prm)
 
 
 # # Setup schedule
@@ -105,17 +105,21 @@ bc = Mocca.AdsorptionBC(y_feed = parameters.y_feed, PH = parameters.p_high, v_fe
                                 T_feed = parameters.T_feed, cell_left = 1, cell_right = ncells) 
 
 
-numsteps = t_ads / maxdt
-append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
-append!(sim_forces,repeat([Jutul.setup_forces(sim.model,bc=bc)],Int(floor(numsteps))))
+numsteps = Int(floor(t_ads / maxdt))
+timesteps = fill(maxdt, numsteps)
+# append!(sim_forces,repeat([],Int(floor(numsteps))))
 
+sim_forces = Jutul.setup_forces(model,bc=bc)
 
 # # Simulate
 #WRITE 
 states, report = Jutul.simulate(
-    sim,
+    state0,
+    model,
     timesteps,
     forces=sim_forces,
+    parameters = prm,
+    info_level = 0
 )
 
 

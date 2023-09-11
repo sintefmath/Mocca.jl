@@ -7,6 +7,6 @@ export TwoComponentAdsorptionSystem
    
     permeability::Float64
     dispersion::Float64
+    p::ParameterStruct 
 
-    p::HaghpanahParameters = HaghpanahParameters() #TODO Move this out of here
 end

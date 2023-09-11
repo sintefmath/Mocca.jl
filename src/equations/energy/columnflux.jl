@@ -14,7 +14,6 @@
 
     T = state.Temperature
     q = state.ThermalConductivities[face] * JutulDarcy.gradient(T, kgrad)
-
     return q
 end
 

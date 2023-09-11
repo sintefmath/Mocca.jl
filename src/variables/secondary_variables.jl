@@ -1,33 +1,20 @@
-
-
 #### Secondary variables
 
-
 struct AverageMolecularMass <: Jutul.ScalarVariable end
-
-
 Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::AverageMolecularMass) = 1
 Jutul.values_per_entity(model::AdsorptionModel, ::AverageMolecularMass) = 1
 
-
-
 struct Concentrations <: Jutul.VectorVariables end
-
 Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 Jutul.values_per_entity(model::AdsorptionModel, ::Concentrations) = JutulDarcy.number_of_components(model.system)
 
-
 struct AdsorptionMassTransfer <: Jutul.VectorVariables end
-
 Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
 Jutul.values_per_entity(model::AdsorptionModel, ::AdsorptionMassTransfer) = JutulDarcy.number_of_components(model.system)
-
 
 abstract type Energy <: Jutul.ScalarVariable end
 struct ColumnEnergy <: Energy end
 struct WallEnergy <: Energy end
-
-
 
 struct EnthalpyChange <: Jutul.VectorVariables end
 Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::EnthalpyChange) = JutulDarcy.number_of_components(model.system)

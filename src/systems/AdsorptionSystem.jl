@@ -14,8 +14,6 @@ JutulDarcy.phase_names(::AdsorptionSystem) = ["gas"]
 JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
 
 
-
-
 # Specific functions needed for Mocca
 
 function compute_permeability(p::ParameterStruct)
