@@ -3,8 +3,6 @@ abstract type AdsorptionSystem <: JutulDarcy.MultiComponentSystem end
 
 const AdsorptionModel = Jutul.SimulationModel{<:Any,<:AdsorptionSystem,<:Any,<:Any}
 
-export compute_permeability, calc_dispersion
-
 
 # Overload JutulDarcy functions
 
@@ -16,11 +14,11 @@ JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
 
 # Specific functions needed for Mocca
 
-function compute_permeability(p::ParameterStruct)
+function compute_permeability(p::ConstantsStruct)
     return 4 / 150 * ((p.Φ / (1 - p.Φ))^2) * (p.d_p / 2)^2 * p.Φ
 end
 
-function calc_dispersion(p::ParameterStruct)
+function calc_dispersion(p::ConstantsStruct)
     return 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p
 end
 
