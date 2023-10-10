@@ -1,6 +1,6 @@
 # # Direct Column Breakthrough simulation
 # This example shows how to setup and run a direct column breakthrough simulation
-# as described in [Haghpanah et al. 2013](dx.doi.org/10.1021/ie302658y)
+# as described in [Haghpanah et al. 2013](http://dx.doi.org/10.1021/ie302658y)
 # This simulation inolves injection of a two component flue gas (CO2 and N2)
 # into a column of Zeolite 13X initially filled with N2. 
 # Adsorption onto Zeolite 13X is modelled with a dual-site Langumuir adsorption isotherm.
@@ -11,27 +11,49 @@
 # First we load the necessary modules
 import Jutul
 import JutulDarcy
-
 import Mocca
 
-# Then we define parameters which we want. We have defined a structure containing
-# parameters from Haghpanah et al. 2013 which we load now. 
-# As we are doing a DCB simulation we will set the heat transfer coefficient between 
-# the column and the wall and the wall and the outside to 0.
+#=
+Then we define parameters which we want. We have defined a structure containing
+parameters from Haghpanah et al. 2013 which we load now. 
+As we are doing a DCB simulation we will set the heat transfer coefficient between 
+the column and the wall and the wall and the outside to 0.
+=#
 
 constants = Mocca.HaghpanahConstants(h_in=0,h_out=0)
 
-
-# Then we need to make the model. This model contains information about
-# the domain (mesh)) which we will solve the equations over and a information
+# # Define the model
+# Next we need to make the model. This model contains information about
+# the domain (mesh) which we will solve the equations over and a information
 # about the system of equations which we are solving.
+#-
+# Because JutulDarcy has its roots in reservoir simulation we need to store some paramters 
 
-# In this instance we will use the same system as in Haghpanah, which is 
-# a two component adsorption system. This system type is associated with 
-# the appropriate equations and primary and secondary variables. We also 
-# add the parameters and the desired velocity model as an input.
+
+
+# we need to formulate 
+# our velocity equation in the following form:
+# ``q = -\frac{k}{\mu}\frac{\partial{P}\partial{x}}``
+# where `k` is known as the permeability. 
+# In this instance we use the pressure drop equation for plug flow in a packed 
+# bed:
+#
+# ``v=-\frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2 \frac{1}{\mu}(\nabla P)``
+#
+# In this case the permeability of the system is given by:
+# ```math
+# k = \frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2
+# ```
+# We add the parameters and the desired permeability as an input.
 permeability = Mocca.compute_permeability(constants)
 axial_dispersion = Mocca.calc_dispersion(constants)
+
+
+
+# -
+# In this instance we will use the same system as in Haghpanah, which is 
+# a two component adsorption system. This system type is associated with 
+# the appropriate equations and primary and secondary variables. 
 
 system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = constants)
 
@@ -46,13 +68,7 @@ ncells = 200
 dx = sqrt(pi*constants.r_in^2)
 mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
 
-# Because JutulDarcy has its roots in reservoir simulation we need to formulate 
-# our velocity equation in the following form:
-# ``q = -\frac{k}{\mu}\frac{\partial{P}\partial{x}}``
-# where `k` is known as the permeability. 
-# In this instance we use the pressure drop equation for plug flow in a packed 
-# bed. The velocity model specified when instantiating the system automatically
-# calculates the permeability required for input to the domain.
+
 #-
 # The domain also contains the mass diffusion coefficient to calculate mass 
 # transport between cells and the thermal conductivity to calculate heat 
