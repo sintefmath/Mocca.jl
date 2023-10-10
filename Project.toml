@@ -4,6 +4,7 @@ uuid = "eb14e3ba-90c8-11ed-0ecf-1dd2ea0d109c"
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
