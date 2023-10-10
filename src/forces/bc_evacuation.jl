@@ -1,21 +1,34 @@
 using Parameters
 
+
+"""
+Evacuation boundary condition #TODO add more description!
+
+# Fields:
+* `PL`: Low pressure [Pa]
+* `PI`: Intermediate pressure [Pa]
+* `λ`:  BC rampup parameter
+* `cell_left`: Cell where left bc is applied
+* `cell_right`: Cell where right bc is applied
+* `cycle_time`: Total time for one cycle
+* `previous_step_end`: Time at the end of all previous cycle steps
+"""
+
 @with_kw struct EvacuationBC{T}
     PL::T
     PI::T
     λ::T
     cell_left::Int
     cell_right::Int
-    t_stage
+    cycle_time::Float64
+    previous_step_end::Float64
 end
 
 function pressure_left(force::EvacuationBC, time)
 
-    step_end = cumsum(force.t_stage)
-    cycle_time = sum(force.t_stage)    
-    cycle_no = floor(time/cycle_time)
- 
-    t_0 = cycle_no*cycle_time + step_end[3]
+    cycle_no = floor(time/force.cycle_time)
+
+    t_0 = cycle_no*force.cycle_time + force.previous_step_end
     t = time - t_0
 
     PL = force.PL
