@@ -4,7 +4,7 @@ function units_dict()
     unit_label = Dict(
         :y => "[-]",
         :Pressure => "[Pa]",
-        :AdsorbedConcentration => "[mol m^{-3}]",
+        :AdsorbedConcentration => "[mol/m^{3}]",
         :Temperature => "[K]",
         :WallTemperature => "[K]"
     )
@@ -16,16 +16,25 @@ end
 function plot_cell(states, model, timesteps, cell)
 
     pvars = model.primary_variables.keys
+    comp_names = model.system.component_names
 
 
     units = units_dict()
     t = cumsum(timesteps)
 
-    j = range(;  stop = ceil(size(pvars)[1]/2))
+    f = Figure(resolution = (900, 600))
+    ga = f[2,3] = GridLayout()
+    r = 1
 
-    f = Figure()
     for (i, symbol) in enumerate(pvars)
-        ax = Axis(f[i, 1],
+
+        c = i
+        if i > 3
+            c = i - 3
+            r = 2
+        end
+
+        ax = Axis(f[r,c],
             title=String(symbol),
             xlabel=L"t",
             ylabel=L"%$(units[symbol])")
@@ -34,11 +43,14 @@ function plot_cell(states, model, timesteps, cell)
            lines!(ax, t, Float64.([result[symbol][cell] for result in states]))
         else
             for k in 1:size(states[end][symbol], 1)
-                lines!(ax, t, Float64.([result[symbol][k, cell] for result in states]))
+                lines!(ax, t, Float64.([result[symbol][k, cell] for result in states]), label = comp_names[k])
             end
+            leg = Legend(f[2,3], ax, tellwidth=false)
+            
         end
-    end
 
+        
+    end
 
     return f
 end
