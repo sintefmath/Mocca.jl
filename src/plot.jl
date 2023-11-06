@@ -20,7 +20,7 @@ function plot_cell(states, model, timesteps, cell)
 
 
     units = units_dict()
-    t = cumsum(timesteps)
+    t = Float64.(cumsum(timesteps))
 
     f = Figure(resolution = (900, 600))
     ga = f[2,3] = GridLayout()
@@ -34,14 +34,14 @@ function plot_cell(states, model, timesteps, cell)
         end
         ax = Axis(f[r,c],
             title=String(symbol),
-            xlabel=L"t [s]",
+            xlabel=L"t\; [s]",
             ylabel=L"%$(units[symbol])")
 
         if size(states[end][symbol], 2) == 1
-           lines!(ax, t, Float64.([result[symbol][cell] for result in states]))
+           lines!(ax, t, [result[symbol][cell] for result in states])
         else
             for k in 1:size(states[end][symbol], 1)
-                lines!(ax, t, Float64.([result[symbol][k, cell] for result in states]), label = comp_names[k])
+                lines!(ax, t, [result[symbol][k, cell] for result in states], label = comp_names[k])
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
             
@@ -74,7 +74,7 @@ function plot_state(state, model)
         end
         ax = Axis(f[r,c],
             title=String(symbol),
-            xlabel=L"x [m]",
+            xlabel=L"x\; [m]",
             ylabel=L"%$(units[symbol])")
 
         if size(state[symbol], 2) == 1

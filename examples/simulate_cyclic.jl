@@ -178,4 +178,10 @@ states, report = Jutul.simulate(
 
 # # Plot
 #WRITE : 
-Mocca.plot_outlet(model,states,timesteps)
+
+outlet_cell = ncells
+f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
+display(f_outlet)
+
+f_column = Mocca.plot_state(states[end], model)
+display(f_column)

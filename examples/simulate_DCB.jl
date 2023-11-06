@@ -24,14 +24,10 @@ constants = Mocca.HaghpanahConstants(h_in=0,h_out=0)
 
 # # Define the model
 # Next we need to make the model. This model contains information about
-# the domain (mesh) which we will solve the equations over and a information
+# the domain (grid) which we will solve the equations over and information
 # about the system of equations which we are solving.
 #-
-# Because JutulDarcy has its roots in reservoir simulation we need to store some paramters 
-
-
-
-# we need to formulate 
+# Because JutulDarcy has its roots in reservoir simulation we formulate 
 # our velocity equation in the following form:
 # ``q = -\frac{k}{\mu}\frac{\partial{P}\partial{x}}``
 # where `k` is known as the permeability. 
@@ -40,7 +36,7 @@ constants = Mocca.HaghpanahConstants(h_in=0,h_out=0)
 #
 # ``v=-\frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2 \frac{1}{\mu}(\nabla P)``
 #
-# In this case the permeability of the system is given by:
+# The permeability of the system is then given by:
 # ```math
 # k = \frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2
 # ```
@@ -130,31 +126,12 @@ states, report = Jutul.simulate(
     info_level = 0
 )
 
-
 # # Plot
 #WRITE : 
 
 outlet_cell = ncells
-Mocca.plot_cell(states,model,timesteps,outlet_cell)
+f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
+display(f_outlet)
 
-
-Mocca.plot_state(states[end], model)
-
-
-# Mocca.plot_outlet(model,states,timesteps)
-# pvars = [:Pressure]
-# cell = ncells
-# #Mocca.plot_cell(model,states,timesteps,cell,pvars)
-
-# nc = size(states[end][:Pressure], 1)
-# x = model.data_domain[:cell_centroids][1,:]
-# t = cumsum(timesteps)
-
-# # plot pressure
-# using CairoMakie
-# symbol = :Pressure
-# cell = nc
-# f = CairoMakie.Figure()
-# ax = CairoMakie.Axis(f, title=String(symbol), xlabel=CairoMakie.L"t")
-# CairoMakie.lines!(ax, t, Float64.([result[symbol][cell] for result in states]), color=:darkgray)
-# display(f)
+f_column = Mocca.plot_state(states[end], model)
+display(f_column)
