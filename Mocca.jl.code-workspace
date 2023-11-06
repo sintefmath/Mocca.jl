@@ -8,5 +8,6 @@
 		}
 	],
 	"settings": {
+		"julia.environmentPath": "c:\\Users\\francescaw\\FranFiles\\julia-projects\\Mocca.jl"
 	}
 }

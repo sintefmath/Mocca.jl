@@ -63,7 +63,7 @@ system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispe
 # ``dx = \sqrt(\pi*r_{in})``
 # where `r_{in}` is the inner radius of the column.
 
-ncells = 200
+ncells = 10
 
 dx = sqrt(pi*constants.r_in^2)
 mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
@@ -102,7 +102,7 @@ state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y
 # For the DCB we are only running the adsorption stage of a VSA process. 
 # We will use a total time of 5000 seconds with 1 second timesteps.
 
-t_ads = 5000
+t_ads = 50
 timesteps = []
 sim_forces = []
 maxdt = 1.0
@@ -133,4 +133,25 @@ states, report = Jutul.simulate(
 
 # # Plot
 #WRITE : 
-Mocca.plot_outlet(model,states,timesteps)
+
+cell = ncells
+Mocca.plot_cell(states,model,timesteps,cell)
+
+
+# Mocca.plot_outlet(model,states,timesteps)
+# pvars = [:Pressure]
+# cell = ncells
+# #Mocca.plot_cell(model,states,timesteps,cell,pvars)
+
+# nc = size(states[end][:Pressure], 1)
+# x = model.data_domain[:cell_centroids][1,:]
+# t = cumsum(timesteps)
+
+# # plot pressure
+# using CairoMakie
+# symbol = :Pressure
+# cell = nc
+# f = CairoMakie.Figure()
+# ax = CairoMakie.Axis(f, title=String(symbol), xlabel=CairoMakie.L"t")
+# CairoMakie.lines!(ax, t, Float64.([result[symbol][cell] for result in states]), color=:darkgray)
+# display(f)
