@@ -97,6 +97,7 @@ state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y
 # # Setup the timestepping and boundary conditions 
 
 
+
 # Set timesteps
 t_press = 15
 t_ads = 15
@@ -105,12 +106,9 @@ t_evac= 40
 
 t_stage = [t_press, t_ads, t_blow, t_evac]
 
+cycle_time = sum(t_stage)
+step_end = cumsum(t_stage)
 
-numcycles = 3
-
-timesteps = []
-sim_forces = []
-maxdt = 1
 
 # cell_right = simulator.model.data_domain
 
@@ -118,21 +116,24 @@ maxdt = 1
 # d_press: Optimize PL [0.05 - 0.5] bar but maybe go even lower (0.01?)
 d_press = Mocca.PressurisationBC(y_feed = constants.y_feed, PH = constants.p_high, PL = constants.p_low,
                                 λ = constants.λ, T_feed = constants.T_feed, cell_left = 1, cell_right = ncells,
-                                t_stage = t_stage)
+                                cycle_time = cycle_time, previous_step_end = 0)
 # d_ads: Optimize v_feed []
 d_ads = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
                                 T_feed = constants.T_feed, cell_left = 1, cell_right = ncells) #TODO: Don't hardcode end cell!                               
 # d_blow: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+
+
 d_blow = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
-                            t_stage = t_stage) #TODO: Don't hardcode end cell!                               
+                            cycle_time = cycle_time, previous_step_end = step_end[2]) 
+                            
+                            
+                            #TODO: Don't hardcode end cell!                               
 # d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
 d_evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
-                            t_stage = t_stage) #TODO: Don't hardcode end cell!                               
-
-
-# forces = Jutul.setup_forces(simulator.model, bc=d_evac)
+                            cycle_time = cycle_time, previous_step_end = step_end[3]) 
+                            #TODO: Don't hardcode end cell!                               
 
 
 # numstages = 4
@@ -140,64 +141,39 @@ bcs = [d_press, d_ads, d_blow, d_evac]
 
 
 
+
+
+
+numcycles = 3
+
+timesteps = []
+sim_forces = []
+maxdt = 1
+
+
+
+
+
 for j = 1:numcycles
     for i in eachindex(t_stage)
         numsteps = t_stage[i] / maxdt
         append!(timesteps,repeat([maxdt],Int(floor(numsteps))))
-        append!(sim_forces,repeat([Jutul.setup_forces(simulator.model,bc=bcs[i])],Int(floor(numsteps))))
+        append!(sim_forces,repeat([Jutul.setup_forces(model,bc=bcs[i])],Int(floor(numsteps))))
     end
 end
 
 
 
-
+# # Simulate
+#WRITE 
 states, report = Jutul.simulate(
-    simulator,
+    state0,
+    model,
     timesteps,
-    info_level=0,
     forces=sim_forces,
+    parameters = prm,
+    info_level = 0
 )
-#display(Mocca.plot_outlet(states))
-
-# display(Mocca.plot_against_matlab_mat(states, 
-#     "data/$datapath",
-#     cumsum(timesteps)[end], 
-#     cumsum(timesteps)))
-
-
-
-# ## Plotting
-# states_all = []
-# push!(states_all,states)
-
-# 
-
-# # plot_pvars_spatial(model, states_all)
-
-# outputfile = "mocca_jl_nc200_100cycle.mat"
-
-# states_jl = Dict()
-# states_jl["times"] = timesteps
-
-# for i in eachindex(states)
-#     state = states[i]
-#     state_new = Dict()  
-#     for (key, value) in state
-#         state_new[String(key)] = value
-#     end
-#     num = lpad(i,3,"0")
-#     statename = "s_$num"
-#     states_jl[statename] = state_new
-# end
-
-
-
-
-# MAT.matwrite("data/$outputfile",states_jl)
-
-
-
-model = simulator.model
 
 # (states_mat, times_mat) = Mocca.get_matlab_states("data/$datapath")
 
