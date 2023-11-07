@@ -25,7 +25,7 @@ end
 function compute_dx(model::AdsorptionModel, self_cell)\
     # TODO: We need to get dx in a nicer way
     g = JutulDarcy.physical_representation(model.data_domain)
-    return first(g.deltas)
+    return first(g.deltas)::Float64
 end
 
 function compute_column_face_area(model::AdsorptionModel)\
