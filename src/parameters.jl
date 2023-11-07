@@ -43,9 +43,9 @@ import MAT
     "Wall radius [m]"
     r_out::Float64 = 0.162
     "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]" # TODO: Review this
-    h_in::Float64 = 8.6
+    h_in::Float64 = 8.6*0 #DEBUG
     "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]" # TODO: Review this
-    h_out::Float64 = 2.5
+    h_out::Float64 = 2.5*0 #DEBUG
 
     "Density of wall medium [kg m^{-3}]"
     ρ_w::Float64 = 7800.0 # TODO: Review this value and its documentation

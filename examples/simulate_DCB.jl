@@ -22,7 +22,7 @@ numcycles = 1
 
 timesteps = []
 sim_forces = []
-maxdt = 10
+maxdt = 1
 
 
 
@@ -52,3 +52,5 @@ states, report = Jutul.simulate(
 )
 
 
+
+Mocca.plot_outlet(simulator.model,states,timesteps)
