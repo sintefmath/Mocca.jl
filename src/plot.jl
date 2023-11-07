@@ -70,6 +70,7 @@ function plot_state(state, model)
 
     pvars = model.primary_variables.keys
     comp_names = model.system.component_names
+    pretty_names = prettyVarNames(pvars)
 
     units = units_dict()
     x = model.data_domain[:cell_centroids][1,:]
@@ -85,7 +86,7 @@ function plot_state(state, model)
             r = 2
         end
         ax = Axis(f[r,c],
-            title=String(symb),
+            title = pretty_names[symb],
             xlabel=L"x\; [m]",
             ylabel=L"%$(units[symb])")
 
