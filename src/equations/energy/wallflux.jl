@@ -55,7 +55,7 @@ function Jutul.update_equation_in_entity!(
     #this is from the matlab code:
     source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
     
-    Δx = compute_dx(model, self_cell)
+    Δx = model.data_domain[:dx][self_cell]
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
