@@ -128,6 +128,7 @@ states, report = Jutul.simulate(
     state0,
     model,
     timesteps,
+    linear_solver = Jutul.LUSolver(),
     forces=sim_forces,
     parameters = prm,
     info_level = 0
