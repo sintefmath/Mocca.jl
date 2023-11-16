@@ -56,13 +56,21 @@ function compute_equilibrium(sys::AdsorptionSystem, concentration, temperature)
     qstar = @MVector zeros(T, N) # TODO: Use svector
     b = @MVector zeros(T, N) # TODO: Use svector
     d = @MVector zeros(T, N) # TODO: Use svector
-    for i in 1:JutulDarcy.number_of_components(sys)
-        b[i] = sys.p.b0[i] * exp(-sys.p.ΔUbi[i] / (sys.p.R * temperature))
-        d[i] = sys.p.d0[i] * exp(-sys.p.ΔUdi[i] / (sys.p.R * temperature))
+    bC_sum = zero(T)
+    dC_sum = zero(T)
+    @inbounds for i in 1:JutulDarcy.number_of_components(sys)
+        b_i = sys.p.b0[i] * exp(-sys.p.ΔUbi[i] / (sys.p.R * temperature))
+        d_i = sys.p.d0[i] * exp(-sys.p.ΔUdi[i] / (sys.p.R * temperature))
+
+        b[i] = b_i
+        d[i] = d_i
+
+        bC_sum += b_i*concentration[i]
+        dC_sum += d_i*concentration[i]
     end
 
-    for i in 1:N
-        qstar[i] = sys.p.qsbi[i] * b[i] * concentration[i] / (1 + sum(b .* concentration)) + sys.p.qsdi[i] * d[i] * concentration[i] / (1 + sum(d .* concentration))
+    @inbounds for i in 1:N
+        qstar[i] = sys.p.qsbi[i] * b[i] * concentration[i] / (one(T) + bC_sum) + sys.p.qsdi[i] * d[i] * concentration[i] / (one(T) + dC_sum)
     end
     return SVector{N, T}(qstar)
 end
