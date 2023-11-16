@@ -106,15 +106,14 @@ function Jutul.apply_forces_to_equation!(
 
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
-        y = state.y[:, cell_left] 
         T = state.Temperature[cell_left]
         C_pg = state.C_pg[cell_left]
-        avm = state.avm[cell_left]    
+        avm = state.avm[cell_left]
 
         q = flux_left(model,force)
 
         P_bc = q / trans / mob + P
-        y_bc = force.y_feed        
+        y_bc = force.y_feed
         T_bc = force.T_feed
 
 
@@ -131,12 +130,11 @@ function Jutul.apply_forces_to_equation!(
 
         cell_right = force.cell_right
         P = state.Pressure[cell_right]
-        y = state.y[:, cell_right] 
         C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]        
-        
+        avm = state.avm[cell_right]
+
         P_bc = force.PH
-        y_bc = force.y_feed        
+        y_bc = force.y_feed
         T_bc = force.T_feed
 
         q = -trans * mob * (P_bc - P)
