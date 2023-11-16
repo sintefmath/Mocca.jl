@@ -23,11 +23,14 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     AdsorbedConcentration,
     ix
 )
+    N = JutulDarcy.number_of_components(model.system) # Statically known.
     for cell in ix
-        qstar = compute_equilibrium(model.system, concentrations[:, cell], Temperature[cell])
-        k = compute_ki(model.system, concentrations[:, cell], qstar)
-        force = k .* (qstar .- AdsorbedConcentration[:, cell])
-        adsorption_mass_transfer[:, cell] = force
+        C = @view concentrations[:, cell]
+        qstar = compute_equilibrium(model.system, C, Temperature[cell])
+        k = compute_ki(model.system, C, qstar)
+        for i in 1:N
+            adsorption_mass_transfer[i, cell] = k[i] * (qstar[i] - AdsorbedConcentration[i, cell])
+        end
     end
 end
 
