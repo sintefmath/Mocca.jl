@@ -71,10 +71,7 @@ mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
 # transport between cells and the thermal conductivity to calculate heat 
 # transfer
 
-domain = JutulDarcy.reservoir_domain(mesh, porosity = constants.Φ, permeability = system.permeability)
-domain[:diffusion_coefficient] = system.dispersion
-domain[:thermal_conductivity] = constants.K_z  #TODO : do we need this here? And what about line above?
-
+domain = Mocca.mocca_domain(mesh, system)
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
 model = Jutul.SimulationModel(domain, system, general_ad = true)
@@ -126,8 +123,7 @@ d_ads = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_f
 d_blow = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
                             cycle_time = cycle_time, previous_step_end = step_end[2]) 
-                            
-                            
+
                             #TODO: Don't hardcode end cell!                               
 # d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
 d_evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,

@@ -71,9 +71,7 @@ mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
 # transport between cells and the thermal conductivity to calculate heat 
 # transfer
 
-domain = JutulDarcy.reservoir_domain(mesh, porosity = constants.Φ, permeability = system.permeability)
-domain[:diffusion_coefficient] = system.dispersion
-domain[:thermal_conductivity] = constants.K_z  #TODO : do we need this here? And what about line above?
+domain = Mocca.mocca_domain(mesh, system)
 
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
@@ -149,8 +147,6 @@ numcycles = 3
 timesteps = []
 sim_forces = []
 maxdt = 1
-
-
 
 
 

@@ -33,5 +33,6 @@ include("forces/forces.jl")
 include("select_variable.jl")
 include("updates.jl")
 include("convergence.jl")
+include("utils.jl")
 include("plot.jl")
 end
