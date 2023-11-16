@@ -83,8 +83,6 @@ function Jutul.update_equation_in_entity!(
 
     ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
 
-    ∂q∂t =
-        (state.AdsorbedConcentration[:, self_cell] - state0.AdsorbedConcentration[:, self_cell]) ./ Δt
 
     pv = state.FluidVolume
     sv = state.SolidVolume[self_cell]
@@ -94,10 +92,29 @@ function Jutul.update_equation_in_entity!(
     # HERE BE DRAGONS!
     #adsorption_term = state.SolidVolume[self_cell] * sum((state.C_pa[self_cell] * state.avm[self_cell] * state.Temperature[self_cell] .+ state.ΔH[:, self_cell]) .* ∂q∂t)
     # I think this should match now.
-    adsorption_term =
-        sum((C_pa * avm * T .* sv .* ∂q∂t)) + sum(state.ΔH[:, self_cell] .* sv .* ∂q∂t)
-    sq = sum(state.AdsorbedConcentration[:, self_cell])
-    accumulation_coeff = state.SolidVolume[self_cell] * (ρ_s * C_ps + C_pa * avm * sq)
+    # ∂q∂t =
+    # (state.AdsorbedConcentration[:, self_cell] - state0.AdsorbedConcentration[:, self_cell]) ./ Δt
+
+    # adsorption_term =
+    #     sum((C_pa * avm * T * sv .* ∂q∂t)) + sum(state.ΔH[:, self_cell] * sv .* ∂q∂t)
+    # sq = sum(state.AdsorbedConcentration[:, self_cell])
+    # Rewritten as a loop:
+    AC = state.AdsorbedConcentration
+    AC₀ = state0.AdsorbedConcentration
+    ΔH = state.ΔH
+
+    sq = zero(T_e)
+    adsorption_term = zero(T_e)
+    for i in eachindex(eq_buf)
+        ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, self_cell)
+
+        adsorption_term += (C_pa * avm * T + ΔH[i, self_cell]) * ∂q∂t
+        sq += AC[i, self_cell]
+    end
+    # Finally multiply by volume
+    adsorption_term *= sv
+
+    accumulation_coeff = sv * (ρ_s * C_ps + C_pa * avm * sq)
     coeff_pressure = C_pg * avm / R
 
     for component in eachindex(eq_buf)
