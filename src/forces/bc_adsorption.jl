@@ -32,7 +32,7 @@ function Jutul.apply_forces_to_equation!(
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
+    trans = calc_bc_trans(model, state)
 
 
     # left side
@@ -96,11 +96,11 @@ function Jutul.apply_forces_to_equation!(
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
+    trans = calc_bc_trans(model, state)
 
 
     # left side
-    begin
+    @inbounds begin
 
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
@@ -122,9 +122,9 @@ function Jutul.apply_forces_to_equation!(
         acc[cell_left] -= bc_src
 
     end
-   
+
     # right side
-    begin
+    @inbounds begin
 
         cell_right = force.cell_right
         P = state.Pressure[cell_right]
@@ -165,7 +165,7 @@ function Jutul.apply_forces_to_equation!(
     # left side
     begin
         cell_left = force.cell_left
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_left]
         T_bc = pars.T_a
@@ -177,7 +177,7 @@ function Jutul.apply_forces_to_equation!(
     # right side
     begin
         cell_right = force.cell_right
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a

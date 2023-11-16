@@ -29,16 +29,16 @@ function compute_column_face_area(model::AdsorptionModel)\
 end
 
 
-function calc_bc_trans(model::AdsorptionModel)
+function calc_bc_trans(model::AdsorptionModel, state)
     k = compute_permeability(model.system.p)
-    dx = model.data_domain[:dx][1] / 2
+    dx = state.CellDx[1] / 2.0
     A = (π * model.system.p.r_in^2)
     return k * A / dx
 end
 
-function calc_bc_wall_trans(model::AdsorptionModel)
+function calc_bc_wall_trans(model::AdsorptionModel, state)
     k = model.system.p.K_w
-    dx = model.data_domain[:dx][1] / 2
+    dx = state.CellDx[1] / 2.0
     A = area_wall(model.system)
     return k * A / dx
 end
