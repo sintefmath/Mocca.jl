@@ -23,9 +23,9 @@ function calc_dispersion(p::ConstantsStruct)
 end
 
 
-function compute_column_face_area(model::AdsorptionModel)\
-    g = Jutul.physical_representation(model.data_domain)
-    return g.deltas[2] * g.deltas[3]
+function compute_column_face_area(model::AdsorptionModel, state)
+    g = Jutul.physical_representation(model.data_domain)::Jutul.CartesianMesh
+    return (g.deltas[2] * g.deltas[3])::Float64
 end
 
 

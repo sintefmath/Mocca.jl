@@ -9,8 +9,8 @@ end
 
 
 
-function flux_left(model::AdsorptionModel, force::AdsorptionBC)
-    Af = compute_column_face_area(model)
+function flux_left(model::AdsorptionModel, state, force::AdsorptionBC)
+    Af = compute_column_face_area(model, state)
     return -force.v_feed * Af
 end
 
@@ -36,14 +36,14 @@ function Jutul.apply_forces_to_equation!(
 
 
     # left side
-    begin
+    @inbounds begin
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
 
-        q = flux_left(model,force)
+        q = flux_left(model, state, force)
 
         P_bc = q / trans / mob + P
-        y_bc = force.y_feed        
+        y_bc = force.y_feed
         T_bc = force.T_feed
 
         cTot = P_bc / (T_bc * R)
@@ -56,7 +56,7 @@ function Jutul.apply_forces_to_equation!(
     end
 
     # right side
-    begin
+    @inbounds begin
         cell_right = force.cell_right
         P = state.Pressure[cell_right]
         T = state.Temperature[cell_right]
@@ -108,7 +108,7 @@ function Jutul.apply_forces_to_equation!(
         C_pg = state.C_pg[cell_left]
         avm = state.avm[cell_left]
 
-        q = flux_left(model,force)
+        q = flux_left(model, state, force)
 
         P_bc = q / trans / mob + P
         y_bc = force.y_feed
