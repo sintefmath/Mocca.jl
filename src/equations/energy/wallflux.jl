@@ -42,6 +42,7 @@ function Jutul.update_equation_in_entity!(
     T_w = state.WallTemperature[self_cell]
     aw_in = state.WallAreaIn[self_cell]
     aw_out = state.WallAreaOut[self_cell]
+    Δx = state.CellDx[self_cell]
 
     h_in = model.system.p.h_in
     h_out = model.system.p.h_out
@@ -56,7 +57,6 @@ function Jutul.update_equation_in_entity!(
     #this is from the matlab code:
     source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
 
-    Δx = model.data_domain[:dx][self_cell]
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)

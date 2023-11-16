@@ -72,3 +72,9 @@ function Jutul.default_parameter_values(data_domain, model, param::WallArea{T}, 
     end
     return F.(dx)
 end
+
+struct CellDx <: Jutul.ScalarVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::CellDx, symb)
+    return copy(data_domain[:dx])
+end
