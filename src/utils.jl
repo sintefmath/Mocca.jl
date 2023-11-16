@@ -20,3 +20,7 @@ function mocca_domain(mesh, system::AdsorptionSystem; kwarg...)
     end
     return domain
 end
+
+function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
+    return Jutul.LUSolver(; kwarg...)
+end
