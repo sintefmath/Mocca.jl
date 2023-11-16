@@ -60,11 +60,14 @@ function Jutul.update_equation_in_entity!(
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
 
-    ∂q∂t = (state.AdsorbedConcentration[:, self_cell] .- state0.AdsorbedConcentration[:, self_cell]) ./ Δt
+    AC = state.AdsorbedConcentration
+    AC₀ = state0.AdsorbedConcentration
 
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        eq_buf[i] = ∂M∂t + div_v[i] + (state.SolidVolume[self_cell] * ∂q∂t[i])
+        ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, self_cell)
+        V = state.SolidVolume[self_cell]
+        eq_buf[i] = ∂M∂t + div_v[i] + (V * ∂q∂t)
     end
 end
 
