@@ -65,7 +65,7 @@ function Jutul.update_equation_in_entity!(
 
     for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
-        eq_buf[i] = ∂M∂t + div_v[i] + (state.solidVolume[self_cell] * ∂q∂t[i])
+        eq_buf[i] = ∂M∂t + div_v[i] + (state.SolidVolume[self_cell] * ∂q∂t[i])
     end
 end
 

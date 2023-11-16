@@ -17,7 +17,7 @@ function Jutul.update_equation_in_entity!(
 
     forcing_term = state[:AdsorptionMassTransfer]
     ϵ = model.system.p.Φ
-    solid_volume = state[:solidVolume]
+    solid_volume = state[:SolidVolume]
 
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)

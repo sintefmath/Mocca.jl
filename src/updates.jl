@@ -4,13 +4,13 @@ Jutul.@jutul_secondary function update_our_total_masses!(
     tv::JutulDarcy.TotalMasses,
     model::AdsorptionModel,
     concentrations,
-    fluidVolume,
+    FluidVolume,
     ix
 )
     sys = model.system
     for cell in ix
-        totmass[1, cell] = concentrations[1, cell] * fluidVolume[cell]
-        totmass[2, cell] = concentrations[2, cell] * fluidVolume[cell]
+        totmass[1, cell] = concentrations[1, cell] * FluidVolume[cell]
+        totmass[2, cell] = concentrations[2, cell] * FluidVolume[cell]
     end
 end
 
@@ -31,7 +31,7 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     end
 end
 
-Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, solidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G,S}, SolidVolume, C_pa, ΔH, AdsorbedConcentration, Temperature, C_pg, Pressure, avm, ix) where {G,S<:AdsorptionSystem}
     for cx in ix
         column_energy[cx] = Temperature[cx]
     end

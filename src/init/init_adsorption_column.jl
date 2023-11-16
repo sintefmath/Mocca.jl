@@ -34,8 +34,8 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
     fluid_volume = volumes * system.p.Φ
 
     parameters = Jutul.setup_parameters(model,
-        solidVolume=solid_volume,
-        fluidVolume=fluid_volume
+        SolidVolume=solid_volume,
+        FluidVolume=fluid_volume
     )
     return (state0, parameters)
 end
