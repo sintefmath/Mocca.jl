@@ -72,7 +72,7 @@ function Jutul.update_equation_in_entity!(
     T = state.Temperature[self_cell]
     T_w = state.WallTemperature[self_cell]
 
-    A_win = area_wall_in(model, self_cell)
+    A_win = state.WallAreaIn[self_cell]
     h_in = model.system.p.h_in
     R = model.system.p.R
     source_term = A_win * h_in * (T - T_w)

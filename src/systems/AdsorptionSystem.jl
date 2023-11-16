@@ -46,9 +46,5 @@ end
 
 "Area of column wall [m^2]"
 area_wall(sys::AdsorptionSystem) = (π * (sys.p.r_out^2 - sys.p.r_in^2))::Float64
-
 area_wall_in(sys::AdsorptionSystem, Δx) = (π * sys.p.r_in * 2 * Δx)::Float64
-area_wall_in(model::AdsorptionModel, self_cell) = area_wall_in(model.system, model.data_domain[:dx][self_cell])
-
 area_wall_out(sys::AdsorptionSystem, Δx) = (π * sys.p.r_out * 2 * Δx)::Float64
-area_wall_out(model::AdsorptionModel, self_cell) = area_wall_out(model.system, model.data_domain[:dx][self_cell])
