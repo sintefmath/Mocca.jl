@@ -24,8 +24,10 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer(
     ix
 )
     N = JutulDarcy.number_of_components(model.system) # Statically known.
+    T = eltype(adsorption_mass_transfer)
     for cell in ix
         C = @view concentrations[:, cell]
+        C = SVector{N, T}(C)
         qstar = compute_equilibrium(model.system, C, Temperature[cell])
         k = compute_ki(model.system, C, qstar)
         for i in 1:N
@@ -127,7 +129,7 @@ Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, 
     R = sys.p.R
     T0 = sys.p.T0 # TODO: Review
     for cellindex in ix
-        for i in eachindex(ΔH[:, cellindex])
+        for i in axes(ΔH, 1)
             ΔH[i, cellindex] = (qsbi[i] * (ΔUbi[i] - R * T0) + qsdi[i] * (ΔUdi[i] - R * T0)) / sumq
         end
     end
@@ -135,14 +137,28 @@ end
 
 Jutul.@jutul_secondary function update_cpa(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
     sys = model.system
+    N = JutulDarcy.number_of_components(sys)
+    T = eltype(cpa)
     for cellindex in ix
-        cpa[cellindex] = sum(y[:, cellindex] .* sys.p.C_pa)
+        cpa_i = zero(T)
+        for i in 1:N
+            cpa_i += y[i, cellindex]*sys.p.C_pa[i]
+        end
+        cpa[cellindex] = cpa_i
+        # cpa[cellindex] = sum(y[:, cellindex] .* sys.p.C_pa)
     end
 end
 
 Jutul.@jutul_secondary function update_cpg(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
     sys = model.system
+    N = JutulDarcy.number_of_components(sys)
+    T = eltype(cpg)
     for cellindex in ix
-        cpg[cellindex] = sum(y[:, cellindex] .* sys.p.C_pg)
+        cpg_i = zero(T)
+        for i in 1:N
+            cpg_i += y[i, cellindex]*sys.p.C_pg[i]
+        end
+        cpg[cellindex] = cpg_i
+        # cpg[cellindex] = sum(y[:, cellindex] .* sys.p.C_pg)
     end
 end
