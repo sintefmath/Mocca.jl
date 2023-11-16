@@ -20,7 +20,7 @@ As we are doing a DCB simulation we will set the heat transfer coefficient betwe
 the column and the wall and the wall and the outside to 0.
 =#
 
-constants = Mocca.HaghpanahConstants(h_in=0,h_out=0)
+constants = Mocca.HaghpanahConstants{Float64}(h_in=0.0,h_out=0.0)
 
 # # Define the model
 # Next we need to make the model. This model contains information about

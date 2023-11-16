@@ -1,12 +1,9 @@
 using Parameters
 
-@with_kw struct TwoComponentAdsorptionSystem <: AdsorptionSystem
-   
+@with_kw struct TwoComponentAdsorptionSystem{T} <: AdsorptionSystem where T<:ConstantsStruct
     number_of_components::Int64 = 2
     component_names::Vector{String} = ["CO2","N2"]
-   
     permeability::Float64
     dispersion::Float64
-    p::ConstantsStruct 
-
+    p::T
 end
