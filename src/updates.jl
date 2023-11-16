@@ -48,18 +48,20 @@ end
 
 
 function compute_equilibrium(sys::AdsorptionSystem, concentration, temperature)
-    qstar = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
-    b = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
-    d = zeros(eltype(concentration), JutulDarcy.number_of_components(sys)) # TODO: Use svector
+    N = JutulDarcy.number_of_components(sys)
+    T = eltype(concentration)
+    qstar = @MVector zeros(T, N) # TODO: Use svector
+    b = @MVector zeros(T, N) # TODO: Use svector
+    d = @MVector zeros(T, N) # TODO: Use svector
     for i in 1:JutulDarcy.number_of_components(sys)
         b[i] = sys.p.b0[i] * exp(-sys.p.ΔUbi[i] / (sys.p.R * temperature))
         d[i] = sys.p.d0[i] * exp(-sys.p.ΔUdi[i] / (sys.p.R * temperature))
     end
 
-    for i in 1:JutulDarcy.number_of_components(sys)
+    for i in 1:N
         qstar[i] = sys.p.qsbi[i] * b[i] * concentration[i] / (1 + sum(b .* concentration)) + sys.p.qsdi[i] * d[i] * concentration[i] / (1 + sum(d .* concentration))
     end
-    return qstar
+    return SVector{N, T}(qstar)
 end
 
 function compute_ki(sys::AdsorptionSystem, concentration, qstar)
