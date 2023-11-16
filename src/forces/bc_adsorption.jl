@@ -27,6 +27,7 @@ function Jutul.apply_forces_to_equation!(
 
     state = storage.state
 
+    y = state.y
     pars = model.system.p
     R = pars.R
     μ = pars.fluid_viscosity
@@ -38,7 +39,6 @@ function Jutul.apply_forces_to_equation!(
     begin
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
-        y = state.y[:, cell_left]
 
         q = flux_left(model,force)
 
@@ -49,8 +49,8 @@ function Jutul.apply_forces_to_equation!(
         cTot = P_bc / (T_bc * R)
         c = y_bc .* cTot
 
-        for i in eachindex(y)
-            mysource = -(cTot * q * (y_bc[i] - y[i]) + q * c[i])
+        for i in axes(y, 1)
+            mysource = -(cTot * q * (y_bc[i] - y[i, cell_left]) + q * c[i])
             acc[i, cell_left] -= mysource
         end
     end
@@ -60,19 +60,17 @@ function Jutul.apply_forces_to_equation!(
         cell_right = force.cell_right
         P = state.Pressure[cell_right]
         T = state.Temperature[cell_right]
-        y = state.y[:, cell_right] 
-        
 
         P_bc = force.PH
-        y_bc = force.y_feed        
+        y_bc = force.y_feed
         T_bc = force.T_feed
 
         q = -trans * mob * (P_bc - P)
 
         cTot = P / (T * R)
 
-        for i in eachindex(y)
-            c = y[i] *cTot
+        for i in axes(y, 1)
+            c = y[i, cell_right] *cTot
             mysource =  -(q * c)
             acc[i, cell_right] -= mysource
         end

@@ -10,13 +10,11 @@ function JutulDarcy.component_mass_fluxes!(
     # This is defined for us:
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
-    # TODO: Implement me
 
     sys = model.system
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
-    # @show T_f
-    # @show ∇p
+
     c = state.concentrations
     μ = sys.p.fluid_viscosity
     q_darcy = -T_f * ∇p
@@ -25,8 +23,9 @@ function JutulDarcy.component_mass_fluxes!(
     L = kgrad.left
     R = kgrad.right
 
-    favg(X) = (X[L] + X[R]) / 2
-    C = favg(state.cTot)
+    cL = state.cTot[L]
+    cR = state.cTot[R]
+    C = (cL + cR)/2.0
 
     D_l = state.DiffusionTransmissibilities[face]
     for component in eachindex(q)
