@@ -57,7 +57,7 @@ system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispe
 # To ensure we have the correct interface area between cells we set each dimension 
 # to the square root of the inner column area.
 
-ncells = 10
+ncells = 200
 dx = sqrt(pi*constants.r_in^2)
 mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
 
@@ -96,7 +96,7 @@ state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y
 # For the DCB we are only running the adsorption stage of a VSA process. 
 # We will use a total time of 5000 seconds with 1 second timesteps.
 
-t_ads = 50
+t_ads = 5000
 maxdt = 1.0
 
 
@@ -138,6 +138,6 @@ outlet_cell = ncells
 f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
 f_outlet
 
-# We plot primary variables along the column at the end of the simulation
-f_column = Mocca.plot_state(states[end], model)
-f_column
+# # We plot primary variables along the column at the end of the simulation
+# f_column = Mocca.plot_state(states[end], model)
+# f_column

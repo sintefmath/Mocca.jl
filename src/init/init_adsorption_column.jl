@@ -31,11 +31,11 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
         WallTemperature = walltemperature_init)
     volumes = model.data_domain[:volumes]
     solid_volume = volumes * (1 - system.p.Φ)
-    fluid_volume = volumes * system.p.Φ
+    fluid_vol = volumes * system.p.Φ
 
     parameters = Jutul.setup_parameters(model,
         SolidVolume=solid_volume,
-        FluidVolume=fluid_volume
+        FluidVolume=fluid_vol
     )
     return (state0, parameters)
 end

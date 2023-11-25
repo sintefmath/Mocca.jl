@@ -52,7 +52,7 @@ function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.Simulation
     S[:CellDx] = CellDx()
     S[:ThermalConductivities] = ThermalConductivities()
     S[:DiffusionTransmissibilities] = DiffusionTransmissibilities()
-    S[:solidVolume] = JutulDarcy.BulkVolume()
-    S[:fluidVolume] = JutulDarcy.FluidVolume()
+    # S[:solidVolume] = JutulDarcy.BulkVolume()
+    # S[:fluidVolume] = JutulDarcy.FluidVolume()
 end
 

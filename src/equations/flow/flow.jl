@@ -65,7 +65,7 @@ function Jutul.update_equation_in_entity!(
 
     AC = state.AdsorbedConcentration
     AC₀ = state0.AdsorbedConcentration
-    @inbounds V = state.solidVolume[self_cell]
+    @inbounds V = state.SolidVolume[self_cell]
     @inbounds for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, self_cell)
