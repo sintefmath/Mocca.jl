@@ -3,7 +3,7 @@
     face,
     eq::Jutul.ConservationLaw{:WallConservedEnergy,<:Any},
     state,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     dt,
     disc,
     flow_disc, 
@@ -15,7 +15,6 @@
     K_w = model.system.p.K_w
     T = state.WallTemperature
     q = K_w * JutulDarcy.gradient(T, kgrad)
-
     return q
 end
 
@@ -25,7 +24,7 @@ function Jutul.update_equation_in_entity!(
     state,
     state0,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}
@@ -41,23 +40,23 @@ function Jutul.update_equation_in_entity!(
 
     T = state.Temperature[self_cell]
     T_w = state.WallTemperature[self_cell]
+    aw_in = state.WallAreaIn[self_cell]
+    aw_out = state.WallAreaOut[self_cell]
+    Δx = state.CellDx[self_cell]
+
     h_in = model.system.p.h_in
     h_out = model.system.p.h_out
     r_in = model.system.p.r_in
     r_out = model.system.p.r_out
     T_a = model.system.p.T_a
-    aw_in = area_wall_in(model, self_cell)
-    aw_out = area_wall_out(model, self_cell)
     C_pw = model.system.p.C_pw
     ρ_w = model.system.p.ρ_w
-    
+
     # This is from the paper:
     #source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
     #this is from the matlab code:
     source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
 
-    
-    Δx = compute_dx(model, self_cell)
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)

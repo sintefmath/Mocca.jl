@@ -1,6 +1,6 @@
 function Jutul.select_primary_variables!(
     S,
-    system::AdsorptionFlowSystem,
+    system::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     S[:Pressure] = JutulDarcy.Pressure(minimum=π) # FIXME: Proper lower value 
@@ -12,20 +12,15 @@ end
 
 function Jutul.select_secondary_variables!(
     S,
-    system::AdsorptionFlowSystem,
+    system::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     S[:cTot] = JutulDarcy.TotalMass()
     S[:concentrations] = Concentrations()
-    # Not using AVM at the moment, so disabling. 
-    # TODO: Renable AVM
     S[:avm] = AverageMolecularMass()
     S[:TotalMasses] = JutulDarcy.TotalMasses()
     S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
-    # 🙏 # Might still need this.
-    # Hope this works... Should provide uniqueness for system. We don't seem to need this anymore
-    #nph = JutulDarcy.number_of_phases(system)
-    #S[:PhaseMassDensities] = JutulDarcy.ConstantCompressibilityDensities(nph)
+
 
     # For the energy equations
     S[:ColumnConservedEnergy] = ColumnEnergy()
@@ -37,23 +32,24 @@ end
 
 function Jutul.select_equations!(
     eqs,
-    sys::AdsorptionFlowSystem,
+    sys::AdsorptionSystem,
     model::Jutul.SimulationModel,
 )
     fdisc = model.domain.discretizations.mass_flow
     nc = JutulDarcy.number_of_components(sys)
+
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :TotalMasses, nc)
     eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :AdsorbedConcentration, nc)
-
     eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
-function Jutul.default_value(model::AdsorptionFlowModel, ::JutulDarcy.BulkVolume)
-    Φ = model.system.p.Φ
-    error()
-end
-function Jutul.select_parameters!(S, ::AdsorptionFlowSystem, model::Jutul.SimulationModel)
+function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.SimulationModel)
+    S[:SolidVolume] = JutulDarcy.BulkVolume()
+    S[:FluidVolume] = JutulDarcy.FluidVolume()
+    S[:WallAreaOut] = WallArea{:out}()
+    S[:WallAreaIn] = WallArea{:in}()
+    S[:CellDx] = CellDx()
     S[:ThermalConductivities] = ThermalConductivities()
     S[:DiffusionTransmissibilities] = DiffusionTransmissibilities()
     S[:solidVolume] = JutulDarcy.BulkVolume()

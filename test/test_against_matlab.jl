@@ -13,7 +13,7 @@ nc = size(field("qCO2"), 1)
 
 initial_temperature = field("T")
 # timesteps = tstep*3600*24 # Convert time-steps from days to seconds
-sys = AdsorptionFlowSystem(forcing_term_coefficient = 0.0)
+sys = AdsorptionSystem(forcing_term_coefficient = 0.0)
 
 bar = 1e5
 p0 = 0.4 * bar

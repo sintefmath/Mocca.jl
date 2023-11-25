@@ -72,7 +72,6 @@ mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
 # transfer
 
 domain = Mocca.mocca_domain(mesh, system)
-
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
 model = Jutul.SimulationModel(domain, system, general_ad = true)
@@ -124,8 +123,7 @@ d_ads = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_f
 d_blow = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
                             cycle_time = cycle_time, previous_step_end = step_end[2]) 
-                            
-                            
+
                             #TODO: Don't hardcode end cell!                               
 # d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
 d_evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
@@ -150,6 +148,8 @@ maxdt = 1
 
 
 
+
+
 for j = 1:numcycles
     for i in eachindex(t_stage)
         numsteps = t_stage[i] / maxdt
@@ -171,13 +171,56 @@ states, report = Jutul.simulate(
     info_level = 0
 )
 
+# (states_mat, times_mat) = Mocca.get_matlab_states("data/$datapath")
 
-# # Plot
-#WRITE : 
+# sims_all = [(states, timesteps)]
+# Mocca.plot_pvars_outlet(model, sims_all)
 
-outlet_cell = ncells
-f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
-display(f_outlet)
 
-f_column = Mocca.plot_state(states[end], model)
-display(f_column)
+##
+# using GLMakie, Jutul
+# GLMakie.activate!(inline = false)
+# plot_interactive(simulator.model, states)
+
+##
+function mocca_purity_objective(model, state, dt, step_no, forces)
+    function local_purity(bc::Mocca.EvacuationBC)
+        y = state[:y]
+        p = state[:Pressure][1]
+        
+        time = 0.0
+        for i in 1:step_no
+            time += timesteps[i]
+        end
+        q = Mocca.pressure_left(bc, time)
+        y_co2 = y[1, 1]
+        y_n2 = y[2, 1]
+        return q*(y_co2/(y_co2 + y_n2))
+    end
+
+    function local_purity(bc)
+        0.0
+    end
+
+    return local_purity(forces.bc)
+end
+
+function mocca_recovery_objective(model, state, dt, step_no, forces)
+    0
+end
+# function mocca_objective(model, state, dt, step_no, forces; purity = true, recovery = true)
+#     obj = 0
+#     if purity
+#         obj += mocca_purity_objective(model, state, dt, step_no, forces)
+#     end
+#     if recovery
+#         obj += mocca_recovery_objective(model, state, dt, step_no, forces)
+#     end
+#     return obj
+# end
+
+obj = 0.0
+for (i, state) in enumerate(states)
+    global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i])
+end
+obj

@@ -1,40 +1,53 @@
 using Parameters
 
-@with_kw struct BlowdownBC{T}
-    PH::T
+
+"""
+Evacuation boundary condition #TODO add more description!
+
+# Fields:
+* `PL`: Low pressure [Pa]
+* `PI`: Intermediate pressure [Pa]
+* `λ`:  BC rampup parameter
+* `cell_left`: Cell where left bc is applied
+* `cell_right`: Cell where right bc is applied
+* `cycle_time`: Total time for one cycle
+* `previous_step_end`: Time at the end of all previous cycle steps
+"""
+
+@with_kw struct EvacuationBC{T}
+    PL::T
     PI::T
     λ::T
     cell_left::Int
     cell_right::Int
-    t_stage
+    cycle_time::Float64
+    previous_step_end::Float64
 end
 
+function pressure_left(force::EvacuationBC, time)
 
-function pressure_right(force::BlowdownBC, time)
-    
-    step_end = cumsum(force.t_stage)
-    cycle_time = sum(force.t_stage)
-    cycle_no = floor(time/cycle_time)
+    cycle_no = floor(time/force.cycle_time)
 
-    t_0 = cycle_no*cycle_time + step_end[2]
+    t_0 = cycle_no*force.cycle_time + force.previous_step_end
     t = time - t_0
 
-    PH = force.PH
+    PL = force.PL
     PI = force.PI
     λ = force.λ
 
-    return (PI + (PH - PI) * exp(-λ * t))
+    return (PL + (PI - PL) * exp(-λ * t))
 end
+
 
 
 
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:TotalMasses},
     eq_s,
-    force::BlowdownBC,
+    force::EvacuationBC,
     time,
 )
 
@@ -44,16 +57,16 @@ function Jutul.apply_forces_to_equation!(
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
+    trans = calc_bc_trans(model, state)
 
-    # right side
+    # left side
     begin
-        cell_right = force.cell_right
-        P = state.Pressure[cell_right]
-        T = state.Temperature[cell_right]
-        y = state.y[:, cell_right] 
+        cell_left = force.cell_left
+        P = state.Pressure[cell_left]
+        T = state.Temperature[cell_left]
+        y = state.y[:, cell_left] 
 
-        P_bc = pressure_right(force, time)
+        P_bc = pressure_left(force, time)
 
         q = -trans * mob * (P_bc - P)
 
@@ -62,7 +75,7 @@ function Jutul.apply_forces_to_equation!(
         for i in eachindex(y)
             c = y[i] * cTot
             mysource =  -(q * c)
-            acc[i, cell_right] -= mysource
+            acc[i, cell_left] -= mysource
         end
 
     end
@@ -73,10 +86,10 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
     eq_s,
-    force::BlowdownBC,
+    force::EvacuationBC,
     time,
 )
 
@@ -88,24 +101,24 @@ function Jutul.apply_forces_to_equation!(
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
+    trans = calc_bc_trans(model, state)
 
-    # right side
+    # left side
     begin
-        cell_right = force.cell_right
-        P = state.Pressure[cell_right]
+        cell_left = force.cell_left
+        P = state.Pressure[cell_left]
 
-        C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]        
+        C_pg = state.C_pg[cell_left]
+        avm = state.avm[cell_left]        
 
-        P_bc = pressure_right(force, time)
+        P_bc = pressure_left(force, time)
 
 
         q = -trans * mob * (P_bc - P)
 
 
         bc_src = -(q * P / R * C_pg * avm)
-        acc[cell_right] -= bc_src
+        acc[cell_left] -= bc_src
 
     end
 
@@ -117,10 +130,10 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
     eq_s,
-    force::BlowdownBC,
+    force::EvacuationBC,
     time,
 )
 
@@ -128,10 +141,11 @@ function Jutul.apply_forces_to_equation!(
 
     pars = model.system.p
  
+
     # left side
     begin
         cell_left = force.cell_left
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_left]
         T_bc = pars.T_a
@@ -143,28 +157,30 @@ function Jutul.apply_forces_to_equation!(
     # right side
     begin
         cell_right = force.cell_right
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a
 
         bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
-    end 
+    end
+
+
+
 end
 
-
-function Jutul.vectorization_length(bc::BlowdownBC, variant)
-    # PH::T
+function Jutul.vectorization_length(bc::EvacuationBC, variant)
+    # PL::T
     # PI::T
     # λ::T
     return 3
 end
 
-function Jutul.vectorize_force!(v, bc::BlowdownBC, variant)
+function Jutul.vectorize_force!(v, bc::EvacuationBC, variant)
     if variant == :all
-        names = [:PH, :PI, :λ]
-        v[1] = bc.PH
+        names = [:PL, :PI, :λ]
+        v[1] = bc.PL
         v[2] = bc.PI
         v[3] = bc.λ
     else
@@ -173,12 +189,12 @@ function Jutul.vectorize_force!(v, bc::BlowdownBC, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::BlowdownBC, X, meta, variant)
+function Jutul.devectorize_force(bc::EvacuationBC, X, meta, variant)
     if variant == :all
-        PH = X[1]
+        PL = X[1]
         PI = X[2]
         λ = X[3]
-        return BlowdownBC(PH, PI, λ, bc.cell_right)
+        return EvacuationBC(PL, PI, λ, bc.cell_left, bc.cell_right)
     else
         error("Variant $variant not supported")
     end

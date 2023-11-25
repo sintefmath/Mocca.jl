@@ -1,24 +1,38 @@
 __precompile__(true)
 
 module Mocca
-export AdsorptionFlowSystem, AdsorptionFlowModel, compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
+
+export initialise_state_AdsorptionColumn
+export ConstantsStruct, HaghpanahConstants
+
+export compute_permeability, calc_dispersion
+
+
+export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
+export compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
+
+
+
 import Jutul
 import JutulDarcy
 using StaticArrays, ForwardDiff
 
 const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this
-include("parameters.jl")
-include("system.jl")
-include("variable_structs.jl")
+
+
+
+include("init/init.jl")
+
+
+include("systems/systems.jl")
+include("variables/variables.jl")
+include("equations/equations.jl")
+include("forces/forces.jl")
+
 include("select_variable.jl")
 include("updates.jl")
-include("flux/flux.jl")
 include("convergence.jl")
-include("bc_pressurisation.jl")
-include("bc_adsorption.jl")
-include("bc_blowdown.jl")
-include("bc_evacuation.jl")
-include("init.jl")
+include("utils.jl")
 include("plot.jl")
 end

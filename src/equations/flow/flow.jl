@@ -6,17 +6,15 @@ function JutulDarcy.component_mass_fluxes!(
     flux_type,
     kgrad,
     upw,
-) where {G<:Any,S<:AdsorptionFlowSystem}
+) where {G<:Any,S<:AdsorptionSystem}
     # This is defined for us:
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
-    # TODO: Implement me
 
     sys = model.system
     disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
     (∇p, T_f, gΔz) = disc
-    # @show T_f
-    # @show ∇p
+
     c = state.concentrations
     μ = sys.p.fluid_viscosity
     q_darcy = -T_f * ∇p
@@ -25,19 +23,16 @@ function JutulDarcy.component_mass_fluxes!(
     L = kgrad.left
     R = kgrad.right
 
-    favg(X) = (X[L] + X[R]) / 2
-    C = favg(state.cTot)
+    cL = state.cTot[L]
+    cR = state.cTot[R]
+    y = state.y
+    C = (cL + cR)/2.0
 
-    # TODO: FIXME. Should be per cell.
-    # Δx = compute_dx(model, 1)
-
-    # D_l = axial_dispersion(sys)
     D_l = state.DiffusionTransmissibilities[face]
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
         c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
-        y_i = view(state.y, component, :)
-        q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y_i, kgrad)
+        q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y, component, kgrad)
 
         q = setindex(q, q_i, component)
     end
@@ -51,7 +46,7 @@ function Jutul.update_equation_in_entity!(
     state,
     state0,
     eq::Jutul.ConservationLaw{:TotalMasses},
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}
@@ -65,7 +60,8 @@ function Jutul.update_equation_in_entity!(
     flux(face) = Jutul.face_flux(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_v = ldisc.div(flux)
 
-    ∂q∂t = (state.AdsorbedConcentration[:, self_cell] .- state0.AdsorbedConcentration[:, self_cell]) ./ Δt
+    AC = state.AdsorbedConcentration
+    AC₀ = state0.AdsorbedConcentration
 
     AC = state.AdsorbedConcentration
     AC₀ = state0.AdsorbedConcentration
@@ -73,6 +69,7 @@ function Jutul.update_equation_in_entity!(
     @inbounds for i in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, i, self_cell)
         ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, self_cell)
+        V = state.SolidVolume[self_cell]
         eq_buf[i] = ∂M∂t + div_v[i] + (V * ∂q∂t)
     end
 end

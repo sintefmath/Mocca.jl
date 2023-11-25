@@ -1,27 +1,54 @@
-@with_kw struct AdsorptionBC{T, N}
+using Parameters
+
+"""
+Pressurisation boundary condition #TODO add more description!
+
+# Fields:
+* `y_feed`: Composition of feed gas
+* `PH`: High pressure [Pa]
+* `PI`: Intermediate pressure [Pa]
+* `λ`:  BC rampup parameter
+* `cell_left`: Cell where left bc is applied
+* `cell_right`: Cell where right bc is applied
+* `cycle_time`: Total time for one cycle
+* `previous_step_end`: Time at the end of all previous cycle steps
+"""
+@with_kw struct PressurisationBC{T, N}
     y_feed::SVector{N,T}
     PH::T
-    v_feed::T
+    PL::T
+    λ::T
     T_feed::T
     cell_left::Int
-    cell_right::Int
+    cell_right::Int    
+    cycle_time::Float64
+    previous_step_end::Float64
+end
+
+function pressure_left(force::PressurisationBC, time)
+
+    cycle_no = floor(time/force.cycle_time)
+
+    t_0 = cycle_no*force.cycle_time + force.previous_step_end
+    t = time - t_0
+
+    PH = force.PH
+    PL = force.PL
+    λ = force.λ
+
+    return (PH - (PH - PL) * exp(-λ * t))
 end
 
 
-
-function flux_left(model::AdsorptionFlowModel, force::AdsorptionBC)
-    Af = compute_column_face_area(model)
-    return -force.v_feed * Af
-end
 
 
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:TotalMasses},
     eq_s,
-    force::AdsorptionBC,
+    force::PressurisationBC,
     time,
 )
 
@@ -31,51 +58,28 @@ function Jutul.apply_forces_to_equation!(
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
-
+    trans = calc_bc_trans(model, state)
 
     # left side
     begin
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
-        y = state.y[:, cell_left]
+        y = state.y[:, cell_left] 
 
-        q = flux_left(model,force)
-
-        P_bc = q / trans / mob + P
+        P_bc = pressure_left(force, time)
         y_bc = force.y_feed        
         T_bc = force.T_feed
+
+        q = -trans * mob * (P - P_bc)
 
         cTot = P_bc / (T_bc * R)
         c = y_bc .* cTot
 
         for i in eachindex(y)
-            mysource = -(cTot * q * (y_bc[i] - y[i]) + q * c[i])
-            acc[i, cell_left] -= mysource
+            mysource = cTot * q * (y_bc[i] - y[i]) + q * c[i]
+            acc[i, cell_left] += mysource
         end
-    end
 
-    # right side
-    begin
-        cell_right = force.cell_right
-        P = state.Pressure[cell_right]
-        T = state.Temperature[cell_right]
-        y = state.y[:, cell_right] 
-        
-
-        P_bc = force.PH
-        y_bc = force.y_feed        
-        T_bc = force.T_feed
-
-        q = -trans * mob * (P_bc - P)
-
-        cTot = P / (T * R)
-
-        for i in eachindex(y)
-            c = y[i] *cTot
-            mysource =  -(q * c)
-            acc[i, cell_right] -= mysource
-        end
     end
   
 end
@@ -85,38 +89,37 @@ end
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:ColumnConservedEnergy},
     eq_s,
-    force::AdsorptionBC,
+    force::PressurisationBC,
     time,
 )
+
     state = storage.state
+
 
     pars = model.system.p
     ρ_g = pars.ρ_g
     R = pars.R
     μ = pars.fluid_viscosity
     mob = 1.0 / μ
-    trans = calc_bc_trans(model)
-
+    trans = calc_bc_trans(model, state)
 
     # left side
     begin
-
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
         y = state.y[:, cell_left] 
         T = state.Temperature[cell_left]
         C_pg = state.C_pg[cell_left]
-        avm = state.avm[cell_left]    
+        avm = state.avm[cell_left]        
 
-        q = flux_left(model,force)
-
-        P_bc = q / trans / mob + P
+        P_bc = pressure_left(force, time)
         y_bc = force.y_feed        
         T_bc = force.T_feed
 
+        q = -trans * mob * (P - P_bc)
 
         cTot = P_bc / (T_bc * pars.R)
         c = y_bc .* cTot
@@ -125,51 +128,30 @@ function Jutul.apply_forces_to_equation!(
         acc[cell_left] -= bc_src
 
     end
-   
-    # right side
-    begin
-
-        cell_right = force.cell_right
-        P = state.Pressure[cell_right]
-        y = state.y[:, cell_right] 
-        C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]        
-        
-        P_bc = force.PH
-        y_bc = force.y_feed        
-        T_bc = force.T_feed
-
-        q = -trans * mob * (P_bc - P)
-
-        bc_src = -(q * P / R * C_pg * avm)
-        acc[cell_right] -= bc_src
-
-    end
-
-
 
 end
+
 
 
 
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
-    model::AdsorptionFlowModel,
+    model::AdsorptionModel,
     eq::Jutul.ConservationLaw{:WallConservedEnergy},
     eq_s,
-    force::AdsorptionBC,
+    force::PressurisationBC,
     time,
 )
 
     state = storage.state
 
     pars = model.system.p
-
+ 
     # left side
     begin
         cell_left = force.cell_left
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_left]
         T_bc = pars.T_a
@@ -181,33 +163,32 @@ function Jutul.apply_forces_to_equation!(
     # right side
     begin
         cell_right = force.cell_right
-        trans_wall = calc_bc_wall_trans(model)
+        trans_wall = calc_bc_wall_trans(model, state)
 
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a
 
-        bc_src = -(trans_wall * (T_bc - T))
+        bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
-    end
-
-  
+    end    
 end
 
-function Jutul.vectorization_length(bc::AdsorptionBC, variant)
+function Jutul.vectorization_length(bc::PressurisationBC, variant)
     # y_feed::SVector{N,T}
     # PH::T
-    # v_feed::T
+    # PL::T
+    # λ::T
     # T_feed::T
-
-    return 3 + length(bc.y_feed)
+    return 4 + length(bc.y_feed)
 end
 
-function Jutul.vectorize_force!(v, bc::AdsorptionBC, variant)
+function Jutul.vectorize_force!(v, bc::PressurisationBC, variant)
     if variant == :all
-        names = [:PH, :v_feed, :T_feed]
+        names = [:PH, :PL, :λ, :T_feed]
         v[1] = bc.PH
-        v[2] = bc.v_feed
-        v[3] = bc.T_feed
+        v[2] = bc.PL
+        v[3] = bc.λ
+        v[4] = bc.T_feed
         offset = length(names)
         for (i, f_i) in enumerate(bc.y_feed)
             offset += 1
@@ -220,18 +201,19 @@ function Jutul.vectorize_force!(v, bc::AdsorptionBC, variant)
     return (names = names, )
 end
 
-function Jutul.devectorize_force(bc::AdsorptionBC, X::AbstractVector{T}, meta, variant) where T
+function Jutul.devectorize_force(bc::PressurisationBC, X::AbstractVector{T}, meta, variant) where T
     if variant == :all
         PH = X[1]
-        v_feed = X[2]
-        T_feed = X[3]
+        PL = X[2]
+        λ = X[3]
+        T_feed = X[4]
         N = length(bc.y_feed)
         tmp = zeros(T, N)
         for i = 1:N
-            tmp[i] = X[i + 3]
+            tmp[i] = X[i + 4]
         end
         y_feed = SVector{N, T}(tmp)
-        return AdsorptionBC(y_feed, PH, v_feed, T_feed, bc.cell_left, bc.cell_right)
+        return PressurisationBC(y_feed, PH, PL, λ, T_feed, bc.cell_left)
     else
         error("Variant $variant not supported")
     end
