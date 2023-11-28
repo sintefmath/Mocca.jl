@@ -136,8 +136,8 @@ states, report = Jutul.simulate(
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
 f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
-f_outlet
+display(f_outlet)
 
-# # We plot primary variables along the column at the end of the simulation
-# f_column = Mocca.plot_state(states[end], model)
-# f_column
+# We plot primary variables along the column at the end of the simulation
+f_column = Mocca.plot_state(states[end], model)
+display(f_column)

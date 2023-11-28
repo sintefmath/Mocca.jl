@@ -16,16 +16,18 @@ function build_mocca_docs(; build_examples = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
-        "Simulate DCB" => "simulate_DCB"
+         "Simulate DCB" => "simulate_DCB"
+         "Simulate cyclic" => "simulate_cyclic"
     ]
 
     examples_markdown = []
 
-    if build_examples
-        for (ex, pth) in examples
-            in_pth = joinpath(mocca_dir, "examples", "$pth.jl")
-            out_dir = joinpath(mocca_dir, "docs", "src", "examples")
-            push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
+
+    for (ex, pth) in examples
+        in_pth = joinpath(mocca_dir, "examples", "$pth.jl")
+        out_dir = joinpath(mocca_dir, "docs", "src", "examples")
+        push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
+        if build_examples
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd, flavor = Literate.DocumenterFlavor())
         end
@@ -38,8 +40,10 @@ function build_mocca_docs(; build_examples = true)
         sitename="Mocca.jl",
         pages=[
             "Home" => "index.md",
-            "Examples" => examples_markdown,
+            "Installation" => "installation.md",
+            "Examples" => examples_markdown
         ]
+
     )
 
     ## Deploy docs
@@ -50,4 +54,4 @@ function build_mocca_docs(; build_examples = true)
     # )
 end
 
-build_mocca_docs()
+build_mocca_docs(build_examples=true)
