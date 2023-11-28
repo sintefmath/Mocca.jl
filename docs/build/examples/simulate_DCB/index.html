@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Simulate DCB · Mocca.jl</title><meta name="title" content="Simulate DCB · Mocca.jl"/><meta property="og:title" content="Simulate DCB · Mocca.jl"/><meta property="twitter:title" content="Simulate DCB · Mocca.jl"/><meta name="description" content="Documentation for Mocca.jl."/><meta property="og:description" content="Documentation for Mocca.jl."/><meta property="twitter:description" content="Documentation for Mocca.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Mocca.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../installation/">Installation</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Simulate DCB</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Define-the-model"><span>Define the model</span></a></li><li class="toplevel"><a class="tocitem" href="#Create-the-model"><span>Create the model</span></a></li><li class="toplevel"><a class="tocitem" href="#Setup-the-initial-state"><span>Setup the initial state</span></a></li><li class="toplevel"><a class="tocitem" href="#Setup-the-timestepping-and-boundary-conditions"><span>Setup the timestepping and boundary conditions</span></a></li><li class="toplevel"><a class="tocitem" href="#Simulate"><span>Simulate</span></a></li><li class="toplevel"><a class="tocitem" href="#Plot"><span>Plot</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../simulate_cyclic/">Simulate cyclic</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Simulate DCB</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Simulate DCB</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl/blob/master/examples/simulate_DCB.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Direct-Column-Breakthrough-simulation"><a class="docs-heading-anchor" href="#Direct-Column-Breakthrough-simulation">Direct Column Breakthrough simulation</a><a id="Direct-Column-Breakthrough-simulation-1"></a><a class="docs-heading-anchor-permalink" href="#Direct-Column-Breakthrough-simulation" title="Permalink"></a></h1><p>This example shows how to setup and run a direct column breakthrough simulation as described in <a href="http://dx.doi.org/10.1021/ie302658y">Haghpanah et al. 2013</a> This simulation inolves injection of a two component flue gas (CO2 and N2) into a column of Zeolite 13X initially filled with N2. Adsorption onto Zeolite 13X is modelled with a dual-site Langumuir adsorption isotherm. Injection flow rate is fixed at the rhs of the column and the lhs of the column is open. There is no heat transfer between the column and the column wall</p><p>First we load the necessary modules</p><pre><code class="language-julia hljs">import Jutul
+import JutulDarcy
+import Mocca</code></pre><p>Then we define parameters which we want. We have defined a structure containing parameters from Haghpanah et al. 2013 which we load now. As we are doing a DCB simulation we will set the heat transfer coefficient between the column and the wall and the wall and the outside to 0.</p><pre><code class="language-julia hljs">constants = Mocca.HaghpanahConstants{Float64}(h_in=0.0,h_out=0.0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">HaghpanahConstants{Float64}
+  molecularMassOfCO2: Float64 0.04401
+  molecularMassOfN2: Float64 0.028
+  R: Float64 8.3144598
+  Φ: Float64 0.37
+  b0: StaticArraysCore.SVector{2, Float64}
+  d0: StaticArraysCore.SVector{2, Float64}
+  ΔUbi: StaticArraysCore.SVector{2, Float64}
+  ΔUdi: StaticArraysCore.SVector{2, Float64}
+  qsbi: StaticArraysCore.SVector{2, Float64}
+  qsdi: StaticArraysCore.SVector{2, Float64}
+  ϵ_p: Float64 0.35
+  D_m: Float64 1.6e-5
+  τ: Float64 3.0
+  d_p: Float64 0.002
+  V0_inter: Float64 1.0
+  fluid_viscosity: Float64 1.72e-5
+  K_z: Float64 0.0903
+  K_w: Float64 16.0
+  ρ_s: Float64 1130.0
+  ρ_g: Float64 1.22638310956
+  C_pg: StaticArraysCore.SVector{2, Float64}
+  C_pa: StaticArraysCore.SVector{2, Float64}
+  C_ps: Float64 1070.0
+  r_in: Float64 0.1445
+  r_out: Float64 0.162
+  h_in: Float64 0.0
+  h_out: Float64 0.0
+  ρ_w: Float64 7800.0
+  C_pw: Float64 502.0
+  T0: Float64 298.15
+  T_a: Float64 298.15
+  v_feed: Float64 0.37
+  y_feed: StaticArraysCore.SVector{2, Float64}
+  p_high: Float64 100000.0
+  p_intermediate: Float64 20000.0
+  p_low: Float64 10000.0
+  λ: Float64 0.5
+  T_feed: Float64 298.15
+  L: Float64 1.0
+</code></pre><h1 id="Define-the-model"><a class="docs-heading-anchor" href="#Define-the-model">Define the model</a><a id="Define-the-model-1"></a><a class="docs-heading-anchor-permalink" href="#Define-the-model" title="Permalink"></a></h1><p>Next we need to make the model. This model contains information about the domain (grid) over which we will solve the equations and information about the system of equations which we are solving.</p><p>Because JutulDarcy has its roots in reservoir simulation we formulate our velocity equation in the following form: <span>$q = -\frac{k}{\mu}\frac{\partial{P}\partial{x}}$</span> where <code>k</code> is known as the permeability. In this instance we use the pressure drop equation for plug flow in a packed bed:</p><p><span>$v=-\frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2 \frac{1}{\mu}(\nabla P)$</span></p><p>The permeability of the system is then given by:</p><p class="math-container">\[k = \frac{4}{150}\left(\frac{\epsilon}{1-\epsilon}\right)^2 r_{i n}^2\]</p><p>We add the parameters and the desired permeability as an input.</p><pre><code class="language-julia hljs">permeability = Mocca.compute_permeability(constants)
+axial_dispersion = Mocca.calc_dispersion(constants)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0010112</code></pre><ul><li></li></ul><p>We setup a two component adsorption system. This system type is associated with the appropriate equations and primary and secondary variables.</p><pre><code class="language-julia hljs">system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = constants)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">TwoComponentAdsorptionSystem{HaghpanahConstants{Float64}}
+  component_names: Array{String}((2,))
+  permeability: Float64 3.403241790543378e-9
+  dispersion: Float64 0.0010112
+  p: HaghpanahConstants{Float64}
+</code></pre><p>Jutul uses finite volume discretisation in space. To model a 1D cylindrical column we setup a cartesian grid with ncells x 1 x 1 dimensions. To ensure we have the correct interface area between cells we set each dimension to the square root of the inner column area.</p><pre><code class="language-julia hljs">ncells = 200
+dx = sqrt(pi*constants.r_in^2)
+mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">CartesianMesh (3D) with 200x1x1=200 cells</code></pre><p>The domain also contains the mass diffusion coefficient to calculate mass transport between cells and the thermal conductivity to calculate heat transfer.</p><pre><code class="language-julia hljs">domain = Mocca.mocca_domain(mesh, system)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 200x1x1=200 cells with 17 data fields added:
+  200 Jutul.Cells
+    :permeability =&gt; 200 Vector{Float64}
+    :porosity =&gt; 200 Vector{Float64}
+    :cell_centroids =&gt; 3×200 Matrix{Float64}
+    :volumes =&gt; 200 Vector{Float64}
+    :diffusion_coefficient =&gt; 200 Vector{Float64}
+    :thermal_conductivity =&gt; 200 Vector{Float64}
+    :dx =&gt; 200 Vector{Float64}
+  199 Jutul.Faces
+    :neighbors =&gt; 2×199 Matrix{Int64}
+    :areas =&gt; 199 Vector{Float64}
+    :normals =&gt; 3×199 Matrix{Float64}
+    :face_centroids =&gt; 3×199 Matrix{Float64}
+  398 Jutul.HalfFaces
+    :half_face_cells =&gt; 398 Vector{Int64}
+    :half_face_faces =&gt; 398 Vector{Int64}
+  802 Jutul.BoundaryFaces
+    :boundary_areas =&gt; 802 Vector{Float64}
+    :boundary_centroids =&gt; 3×802 Matrix{Float64}
+    :boundary_normals =&gt; 3×802 Matrix{Float64}
+    :boundary_neighbors =&gt; 802 Vector{Int64}
+</code></pre><h1 id="Create-the-model"><a class="docs-heading-anchor" href="#Create-the-model">Create the model</a><a id="Create-the-model-1"></a><a class="docs-heading-anchor-permalink" href="#Create-the-model" title="Permalink"></a></h1><p>Now we can assemble the model which contains the domain and the system of equations.</p><pre><code class="language-julia hljs">model = Jutul.SimulationModel(domain, system, general_ad = true)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimulationModel:
+  domain:
+    DiscretizedDomain with MinimalTPFATopology (200 cells, 199 faces) and discretizations for mass_flow, heat_flow
+
+  system:
+    TwoComponentAdsorptionSystem{HaghpanahConstants{Float64}}
+  component_names: Array{String}((2,))
+  permeability: Float64 3.403241790543378e-9
+  dispersion: Float64 0.0010112
+  p: HaghpanahConstants{Float64}
+
+
+  context:
+    Jutul.DefaultContext(Jutul.EquationMajorLayout(false), 1000, 1)
+
+  formulation:
+    Jutul.FullyImplicitFormulation()
+
+  data_domain:
+    DataDomain wrapping CartesianMesh (3D) with 200x1x1=200 cells with 17 data fields added:
+  200 Jutul.Cells
+    :permeability =&gt; 200 Vector{Float64}
+    :porosity =&gt; 200 Vector{Float64}
+    :cell_centroids =&gt; 3×200 Matrix{Float64}
+    :volumes =&gt; 200 Vector{Float64}
+    :diffusion_coefficient =&gt; 200 Vector{Float64}
+    :thermal_conductivity =&gt; 200 Vector{Float64}
+    :dx =&gt; 200 Vector{Float64}
+  199 Jutul.Faces
+    :neighbors =&gt; 2×199 Matrix{Int64}
+    :areas =&gt; 199 Vector{Float64}
+    :normals =&gt; 3×199 Matrix{Float64}
+    :face_centroids =&gt; 3×199 Matrix{Float64}
+  398 Jutul.HalfFaces
+    :half_face_cells =&gt; 398 Vector{Int64}
+    :half_face_faces =&gt; 398 Vector{Int64}
+  802 Jutul.BoundaryFaces
+    :boundary_areas =&gt; 802 Vector{Float64}
+    :boundary_centroids =&gt; 3×802 Matrix{Float64}
+    :boundary_normals =&gt; 3×802 Matrix{Float64}
+    :boundary_neighbors =&gt; 802 Vector{Int64}
+
+  primary_variables:
+   1) Pressure              ∈ 200 Jutul.Cells: 1 dof each
+   2) y                     ∈ 200 Jutul.Cells: 1 dof, 2 values each
+   3) AdsorbedConcentration ∈ 200 Jutul.Cells: 2 dof each
+   4) Temperature           ∈ 200 Jutul.Cells: 1 dof each
+   5) WallTemperature       ∈ 200 Jutul.Cells: 1 dof each
+
+  secondary_variables:
+   1) cTot                   ∈ 200 Jutul.Cells: Scalar
+      -&gt; JutulDarcy.TotalMass as evaluator
+   2) concentrations         ∈ 200 Jutul.Cells: 2 values each
+      -&gt; Mocca.Concentrations as evaluator
+   3) avm                    ∈ 200 Jutul.Cells: Scalar
+      -&gt; Mocca.AverageMolecularMass as evaluator
+   4) TotalMasses            ∈ 200 Jutul.Cells: 2 values each
+      -&gt; JutulDarcy.TotalMasses as evaluator
+   5) AdsorptionMassTransfer ∈ 200 Jutul.Cells: 2 values each
+      -&gt; Mocca.AdsorptionMassTransfer as evaluator
+   6) ColumnConservedEnergy  ∈ 200 Jutul.Cells: Scalar
+      -&gt; Mocca.ColumnEnergy as evaluator
+   7) WallConservedEnergy    ∈ 200 Jutul.Cells: Scalar
+      -&gt; Mocca.WallEnergy as evaluator
+   8) ΔH                     ∈ 200 Jutul.Cells: 2 values each
+      -&gt; Mocca.EnthalpyChange as evaluator
+   9) C_pa                   ∈ 200 Jutul.Cells: Scalar
+      -&gt; Mocca.SpecificHeatCapacityAdsorbent as evaluator
+   10) C_pg                   ∈ 200 Jutul.Cells: Scalar
+      -&gt; Mocca.SpecificHeatCapacityFluid as evaluator
+
+  parameters:
+   1) Transmissibilities          ∈ 199 Jutul.Faces: Scalar
+   2) TwoPointGravityDifference   ∈ 199 Jutul.Faces: Scalar
+   3) SolidVolume                 ∈ 200 Jutul.Cells: Scalar
+   4) FluidVolume                 ∈ 200 Jutul.Cells: Scalar
+   5) WallAreaOut                 ∈ 200 Jutul.Cells: Scalar
+   6) WallAreaIn                  ∈ 200 Jutul.Cells: Scalar
+   7) CellDx                      ∈ 200 Jutul.Cells: Scalar
+   8) ThermalConductivities       ∈ 199 Jutul.Faces: Scalar
+   9) DiffusionTransmissibilities ∈ 199 Jutul.Faces: Scalar
+
+  equations:
+   1) mass_conservation ∈ 200 Jutul.Cells: 2 values each
+      -&gt; Jutul.ConservationLaw{:TotalMasses, Jutul.PotentialFlow{Vector{Jutul.TPFA{Int64}}, Vector{Jutul.SPU{Int64}}, NamedTuple{(:cells, :faces, :face_pos, :face_sign), NTuple{4, Vector{Int64}}}}, Jutul.DefaultFlux, 2}
+   2) mass_transfer ∈ 200 Jutul.Cells: 2 values each
+      -&gt; Jutul.ConservationLaw{:AdsorbedConcentration, Jutul.PotentialFlow{Vector{Jutul.TPFA{Int64}}, Vector{Jutul.SPU{Int64}}, NamedTuple{(:cells, :faces, :face_pos, :face_sign), NTuple{4, Vector{Int64}}}}, Jutul.DefaultFlux, 2}
+   3) energy_column ∈ 200 Jutul.Cells: 1 values each
+      -&gt; Jutul.ConservationLaw{:ColumnConservedEnergy, Jutul.PotentialFlow{Vector{Jutul.TPFA{Int64}}, Vector{Jutul.SPU{Int64}}, NamedTuple{(:cells, :faces, :face_pos, :face_sign), NTuple{4, Vector{Int64}}}}, Jutul.DefaultFlux, 1}
+   4) energy_wall ∈ 200 Jutul.Cells: 1 values each
+      -&gt; Jutul.ConservationLaw{:WallConservedEnergy, Jutul.PotentialFlow{Vector{Jutul.TPFA{Int64}}, Vector{Jutul.SPU{Int64}}, NamedTuple{(:cells, :faces, :face_pos, :face_sign), NTuple{4, Vector{Int64}}}}, Jutul.DefaultFlux, 1}
+
+  output_variables:
+    Pressure, y, AdsorbedConcentration, Temperature, WallTemperature, TotalMasses
+
+  extra:
+    OrderedCollections.OrderedDict{Symbol, Any}()
+
+</code></pre><h1 id="Setup-the-initial-state"><a class="docs-heading-anchor" href="#Setup-the-initial-state">Setup the initial state</a><a id="Setup-the-initial-state-1"></a><a class="docs-heading-anchor-permalink" href="#Setup-the-initial-state" title="Permalink"></a></h1><p>The final thing required to create the simulator is the intial state of the system.</p><pre><code class="language-julia hljs">bar = 1e5
+P_init = 1.0*bar
+T_init = 298.15
+Tw_init = constants.T_a</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">298.15</code></pre><p>To avoid numerical errors we set the initial CO2 concentration to be very small instead of 0.</p><pre><code class="language-julia hljs">yCO2 = ones(ncells)*1e-10
+y_init = hcat(yCO2, 1 .- yCO2)
+
+state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Dict{Symbol, Any}(:AdsorbedConcentration =&gt; [1.0e-10 1.0e-10 … 1.0e-10 1.0e-10; 369.15019609545607 369.15019609545607 … 369.15019609545607 369.15019609545607], :WallConservedEnergy =&gt; [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], :Temperature =&gt; [298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15  …  298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15, 298.15], :avm =&gt; [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], :C_pg =&gt; [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], :ΔH =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0], :ColumnConservedEnergy =&gt; [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], :concentrations =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0], :y =&gt; [1.0e-10 1.0e-10 … 1.0e-10 1.0e-10; 0.9999999999 0.9999999999 … 0.9999999999 0.9999999999], :AdsorptionMassTransfer =&gt; [0.0 0.0 … 0.0 0.0; 0.0 0.0 … 0.0 0.0]…), Dict{Symbol, Any}(:ThermalConductivities =&gt; [1.1846861544924363, 1.184686154492436, 1.1846861544924367, 1.1846861544924359, 1.1846861544924359, 1.1846861544924359, 1.1846861544924352, 1.1846861544924367, 1.1846861544924367, 1.1846861544924352  …  1.1846861544924352, 1.1846861544924352, 1.1846861544924616, 1.1846861544924352, 1.1846861544924352, 1.1846861544924352, 1.1846861544924352, 1.1846861544924352, 1.1846861544924352, 1.1846861544924352], :Transmissibilities =&gt; [4.46486537059445e-8, 4.4648653705944486e-8, 4.464865370594451e-8, 4.4648653705944486e-8, 4.4648653705944486e-8, 4.4648653705944486e-8, 4.4648653705944446e-8, 4.464865370594451e-8, 4.464865370594451e-8, 4.4648653705944446e-8  …  4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594544e-8, 4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594445e-8, 4.464865370594445e-8], :FluidVolume =&gt; [0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882  …  0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882, 0.00012135489400946882], :TwoPointGravityDifference =&gt; [-0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0  …  -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0], :SolidVolume =&gt; [0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258  …  0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258, 0.00020663130601612258], :WallAreaIn =&gt; [0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251  …  0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251, 0.004539601384437251], :DiffusionTransmissibilities =&gt; [0.013266385818635124, 0.013266385818635118, 0.013266385818635129, 0.013266385818635118, 0.013266385818635118, 0.013266385818635118, 0.013266385818635108, 0.013266385818635129, 0.013266385818635129, 0.013266385818635108  …  0.01326638581863511, 0.01326638581863511, 0.013266385818635406, 0.01326638581863511, 0.01326638581863511, 0.01326638581863511, 0.01326638581863511, 0.01326638581863511, 0.01326638581863511, 0.01326638581863511], :WallAreaOut =&gt; [0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465  …  0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465, 0.005089380098815465], :CellDx =&gt; [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005  …  0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005]))</code></pre><h1 id="Setup-the-timestepping-and-boundary-conditions"><a class="docs-heading-anchor" href="#Setup-the-timestepping-and-boundary-conditions">Setup the timestepping and boundary conditions</a><a id="Setup-the-timestepping-and-boundary-conditions-1"></a><a class="docs-heading-anchor-permalink" href="#Setup-the-timestepping-and-boundary-conditions" title="Permalink"></a></h1><p>For the DCB we are only running the adsorption stage of a VSA process. We will use a total time of 5000 seconds with 1 second timesteps.</p><pre><code class="language-julia hljs">t_ads = 5000
+maxdt = 1.0
+
+
+numsteps = Int(floor(t_ads / maxdt))
+timesteps = fill(maxdt, numsteps)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5000-element Vector{Float64}:
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ ⋮
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0
+ 1.0</code></pre><p>We setup boundary conditions for an adsorption stage. AdsorptionBC sets a fixed velocity and concentration and temperature at the inlet and fixed pressure at the outlet. By convention we assume the inlet bc is applied on the left hand side and the outlet bc is applied on the right hand side.</p><pre><code class="language-julia hljs">bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
+                                T_feed = constants.T_feed, cell_left = 1, cell_right = ncells)
+
+
+sim_forces = Jutul.setup_forces(model,bc=bc)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(sources = nothing, bc = Mocca.AdsorptionBC{Float64, 2}
+  y_feed: StaticArraysCore.SVector{2, Float64}
+  PH: Float64 100000.0
+  v_feed: Float64 0.37
+  T_feed: Float64 298.15
+  cell_left: Int64 1
+  cell_right: Int64 200
+)</code></pre><h1 id="Simulate"><a class="docs-heading-anchor" href="#Simulate">Simulate</a><a id="Simulate-1"></a><a class="docs-heading-anchor-permalink" href="#Simulate" title="Permalink"></a></h1><p>Now we are ready to run the simulation. For more verbose simulation output info_level can be set to a number higher than 0.</p><pre><code class="language-julia hljs">states, report = Jutul.simulate(
+    state0,
+    model,
+    timesteps,
+    linear_solver = Jutul.LUSolver(),
+    forces=sim_forces,
+    parameters = prm,
+    info_level = 0
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimResult with 5000 entries:
+
+  states (model variables)
+    :AdsorbedConcentration =&gt; Matrix{Float64} of size (2, 200)
+    :y =&gt; Matrix{Float64} of size (2, 200)
+    :Pressure =&gt; Vector{Float64} of size (200,)
+    :Temperature =&gt; Vector{Float64} of size (200,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 200)
+    :WallTemperature =&gt; Vector{Float64} of size (200,)
+
+  reports (timing/debug information)
+    :ministeps =&gt; Vector{Any} of size (1,)
+    :total_time =&gt; Float64
+    :output_time =&gt; Float64
+
+  Completed at Nov. 28 2023 21:11 after 1 minute, 9 seconds, 607 milliseconds.</code></pre><h1 id="Plot"><a class="docs-heading-anchor" href="#Plot">Plot</a><a id="Plot-1"></a><a class="docs-heading-anchor-permalink" href="#Plot" title="Permalink"></a></h1><p>We plot primary variables at the outlet through time</p><pre><code class="language-julia hljs">outlet_cell = ncells
+f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
+display(f_outlet)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">CairoMakie.Screen{IMAGE}
+</code></pre><p>We plot primary variables along the column at the end of the simulation</p><pre><code class="language-julia hljs">f_column = Mocca.plot_state(states[end], model)
+display(f_column)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">CairoMakie.Screen{IMAGE}
+</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../installation/">« Installation</a><a class="docs-footer-nextpage" href="../simulate_cyclic/">Simulate cyclic »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Tuesday 28 November 2023 21:45">Tuesday 28 November 2023</span>. Using Julia version 1.9.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
