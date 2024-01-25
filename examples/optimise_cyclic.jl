@@ -182,24 +182,67 @@ states, report = Jutul.simulate(
 # GLMakie.activate!(inline = false)
 # plot_interactive(simulator.model, states)
 
+# ##
+# function mocca_purity_objective(model, state, dt, step_no, forces)
+#     function local_purity(bc::Mocca.EvacuationBC)
+#         y = state[:y]
+#         p = state[:Pressure][1]
+        
+#         time = 0.0
+#         for i in 1:step_no
+#             time += timesteps[i]
+#         end
+#         q = Mocca.pressure_left(bc, time)
+#         y_co2 = y[1, 1]
+#         y_n2 = y[2, 1]
+#         return q*(y_co2/(y_co2 + y_n2))
+#     end
+
+#     function local_purity(bc)
+#         0.0
+#     end
+
+#     return local_purity(forces.bc)
+# end
+
+function mocca_recovery_objective(model, state, dt, step_no, forces)
+    0
+end
+# function mocca_objective(model, state, dt, step_no, forces; purity = true, recovery = true)
+#     obj = 0
+#     if purity
+#         obj += mocca_purity_objective(model, state, dt, step_no, forces)
+#     end
+#     if recovery
+#         obj += mocca_recovery_objective(model, state, dt, step_no, forces)
+#     end
+#     return obj
+# end
+
 ##
-function mocca_purity_objective(model, state, dt, step_no, forces)
+function mocca_purity_objective(model, state, dt, step_no, forces; timesteps)
     function local_purity(bc::Mocca.EvacuationBC)
         y = state[:y]
-        p = state[:Pressure][1]
-        
         time = 0.0
         for i in 1:step_no
             time += timesteps[i]
         end
-        q = Mocca.pressure_left(bc, time)
+        # q = Mocca.pressure_left(bc, time)
+        q = 1e-5
         y_co2 = y[1, 1]
         y_n2 = y[2, 1]
-        return q*(y_co2/(y_co2 + y_n2))
+        obj = q*(y_co2/(y_co2 + y_n2))
+        # @info "??" q y_co2 obj
+        return obj
     end
 
     function local_purity(bc)
-        0.0
+        return 0.0
+        # q = 1e-3
+        # y = state[:y]
+        # y_co2 = y[1, 1]
+        # y_n2 = y[2, 1]
+        # return q*(y_co2/(y_co2 + y_n2))
     end
 
     return local_purity(forces.bc)
@@ -221,6 +264,44 @@ end
 
 obj = 0.0
 for (i, state) in enumerate(states)
-    global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i])
+    global obj += mocca_purity_objective(model, state, timesteps[i], i, sim_forces[i], timesteps = timesteps)
 end
 obj
+
+G = (arg...) -> mocca_purity_objective(arg...; timesteps = timesteps)
+opt_config = Jutul.forces_optimization_config(model, sim_forces, timesteps, :all, active = false)
+
+# d_press: Optimize PL [0.05 - 0.5] bar but maybe go even lower (0.01?)
+d_press_PL = opt_config.configs[1][:bc][:PL]
+d_press_PL[:abs_min] = 0.01e5
+d_press_PL[:abs_max] = 0.5e5
+d_press_PL[:active] = true
+# d_ads: Optimize v_feed []
+d_ads_vfeed = opt_config.configs[2][:bc][:v_feed]
+d_ads_vfeed[:abs_min] = 0.1
+d_ads_vfeed[:abs_max] = 2.0
+d_ads_vfeed[:active] = true
+# d_blow: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+d_blow_pi = opt_config.configs[3][:bc][:PI]
+d_blow_pi[:abs_min] = 0.01e5
+d_blow_pi[:abs_max] = 0.5e5
+d_blow_pi[:active] = true
+
+# d_evac: Optimize PI [0.05 - 0.5] bar (should be 0.01 bar diff between d_press and d_blow)
+# Also optimize PL as well lower than PI
+# Should all be lower than 1 bar
+d_evac_pi = opt_config.configs[4][:bc][:PI]
+d_evac_pi[:abs_min] = 0.26e5
+d_evac_pi[:abs_max] = 0.5e5
+d_evac_pi[:active] = true
+
+d_evac_pl = opt_config.configs[4][:bc][:PL]
+d_evac_pl[:abs_min] = 0.01e5
+d_evac_pl[:abs_max] = 0.25e5
+d_evac_pl[:active] = true
+
+
+case = Jutul.JutulCase(model, timesteps, sim_forces, state0 = state0, parameters = prm)
+x0, xmin, xmax, f, g!, out = Jutul.setup_force_optimization(case, G, opt_config)
+using LBFGSB
+fout, xout = lbfgsb(f, g!, x0, lb=xmin, ub=xmax, m=5, pgtol=1e-5, iprint=101, maxfun=100, maxiter=100)
