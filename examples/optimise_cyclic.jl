@@ -1,7 +1,7 @@
 #=
 # Cyclic Vacuum Swing Adsorption simulation
 This example shows how to setup and run a cyclic vacuum swing adsorption 
-simulation as described in [Haghpanah et al. 2013](dx.doi.org/10.1021/ie302658y)
+simulation as described in [Haghpanah et al. 2013](http://dx.doi.org/10.1021/ie302658y)
 -
 This simulation inolves injection of a two component flue gas (CO2 and N2)
 into a column of Zeolite 13X. The CO2 is preferentially adsorbed onto the zeolite.
