@@ -88,9 +88,9 @@ abstract type ConstantsStruct end
 
 end
 
-function HaghpanahConstants(; kwarg...)
-    HaghpanahConstants{Float64}(; kwarg...)
-end
+#function HaghpanahConstants(; kwarg...)
+#    HaghpanahConstants{Float64}(; kwarg...)
+#end
 
 
 # axial_dispersion(p::HaghpanahConstants) = 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p
