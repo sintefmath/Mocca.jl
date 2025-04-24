@@ -34,7 +34,7 @@ function plot_cell(states, model, timesteps, cell)
     units = units_dict()
     t = Float64.(cumsum(timesteps))
 
-    f = Figure(resolution = (900, 600))
+    f = Figure(size = (900, 600))
     ga = f[2,3] = GridLayout()
     r = 1
 
@@ -75,7 +75,7 @@ function plot_state(state, model)
     units = units_dict()
     x = model.data_domain[:cell_centroids][1,:]
 
-    f = Figure(resolution = (900, 600))
+    f = Figure(size = (900, 600))
     ga = f[2,3] = GridLayout()
     r = 1
 
