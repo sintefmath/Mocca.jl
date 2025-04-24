@@ -87,11 +87,11 @@ d_ads = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_f
 d_blow = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
                             cycle_time = cycle_time, previous_step_end = step_end[2]) 
-                            
-                            
- _evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
+
+
+d_evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
                             λ = constants.λ, cell_left = 1, cell_right = ncells,
-                            cycle_time = cycle_time, previous_step_end = step_end[3])                          
+                            cycle_time = cycle_time, previous_step_end = step_end[3])
 
 
 # Now we add them all to the bcs in the sequence that we want to use them.
