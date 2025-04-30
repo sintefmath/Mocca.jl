@@ -63,7 +63,7 @@ system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispe
 # To ensure we have the correct interface area between cells we set each dimension 
 # to the square root of the inner column area.
 
-ncells = 50;
+ncells = 200;
 dx = sqrt(pi*constants.r_in^2);
 mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx));
 
@@ -102,7 +102,7 @@ state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y
 # We will use a total time of 5000 seconds with 1 second timesteps.
 
 t_ads = 5000;
-maxdt = 1.0;
+maxdt = 5000.0;
 
 
 numsteps = Int(floor(t_ads / maxdt));
@@ -123,22 +123,34 @@ sim_forces = Jutul.setup_forces(model,bc=bc);
 # Now we are ready to run the simulation. For more verbose simulation output 
 # info_level can be set to a number higher than 0.
 
+# Set up timesteppers based on target changes
+t_c = Jutul.VariableChangeTimestepSelector(:y, 0.01, relative = false)
+t_t = Jutul.VariableChangeTimestepSelector(:Temperature, 10.0, relative = false)
+t_p = Jutul.VariableChangeTimestepSelector(:Pressure, 10.0, relative = false)
+# Initial timestep of 1 day
+t_base = Jutul.TimestepSelector(initial_absolute = 1.0)
+timesteppers = [t_base, t_c, t_t, t_p]
 
-states, report = Jutul.simulate(
-    state0,
-    model,
-    timesteps,
+sim = Jutul.Simulator(model, state0 = state0, parameters = prm)
+
+cfg = Jutul.simulator_config(sim,
+    timestep_selectors = timesteppers,
+    output_substates = true,
     linear_solver = Jutul.LUSolver(),
-    forces=sim_forces,
-    parameters = prm,
     info_level = 0
 )
 
+result = Jutul.simulate!(sim, timesteps,
+    config = cfg,
+    forces = sim_forces,
+)
 # # Plot
+# Get the substates and subtimesteps used inside the simulator
 
+substates, subtimesteps = Jutul.expand_to_ministeps(result)
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
-f_outlet = Mocca.plot_cell(states,model,timesteps,outlet_cell)
+f_outlet = Mocca.plot_cell(substates,model, subtimesteps,outlet_cell)
 
 # We plot primary variables along the column at the end of the simulation
-f_column = Mocca.plot_state(states[end], model)
+# f_column = Mocca.plot_state(states[end], model)
