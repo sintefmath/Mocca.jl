@@ -133,10 +133,13 @@ timesteppers = [t_base, t_c, t_t, t_p]
 
 sim = Jutul.Simulator(model, state0 = state0, parameters = prm)
 
+lsolve = Jutul.LUSolver()
+# lsolve = Jutul.GenericKrylov(preconditioner = Jutul.ILUZeroPreconditioner(), rtol = 1e-4)
+
 cfg = Jutul.simulator_config(sim,
     timestep_selectors = timesteppers,
     output_substates = true,
-    linear_solver = Jutul.LUSolver(),
+    linear_solver = lsolve,
     info_level = 0
 )
 
