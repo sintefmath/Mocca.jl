@@ -23,9 +23,9 @@ abstract type ConstantsStruct end
 
     fluid_viscosity::RealT = 1.72e-5
     "[W/m/K]"
-    K_z::RealT = 0.0903 # TODO: Double check
+    K_z::RealT = 0.0903 # Haghpanah et al. use 0.09
     "[W/m/K]"
-    K_w::RealT = 16.0 # TODO: Triple check!!
+    K_w::RealT = 16.0
     "Density of adsorbent, [kg m^{-3}]"
     ρ_s::RealT = 1130.0
     "Density of gas, [kg m^{-3}]"
@@ -41,21 +41,21 @@ abstract type ConstantsStruct end
     r_in::RealT = 0.1445
     "Wall radius [m]"
     r_out::RealT = 0.162
-    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]" # TODO: Review this
+    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]"
     h_in::RealT = 8.6
-    "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]" # TODO: Review this
+    "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]"
     h_out::RealT = 2.5
 
     "Density of wall medium [kg m^{-3}]"
-    ρ_w::RealT = 7800.0 # TODO: Review this value and its documentation
+    ρ_w::RealT = 7800.0
 
     "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
-    C_pw::RealT = 502.0  # TODO: Review this value and its documentation
+    C_pw::RealT = 502.0
 
     "Initial temperature [K]"
-    T0::RealT = 298.15 # TODO: this value and its documentation
+    T0::RealT = 298.15
     "Ambient temperature [K]"
-    T_a::RealT = 298.15 # TODO: this value and its documentation
+    T_a::RealT = 298.15
 
     # BC Stuff
     "Fluid velocity of feed gas [m s^{-1}]"
@@ -64,20 +64,16 @@ abstract type ConstantsStruct end
     "Mole fraction of the components [-]"
     y_feed::SVector{2,RealT} = [0.15, 0.85]
 
-    # TODO: Check unit
     "p_high High pressure [Pa]"
     p_high::RealT = 1e5
 
-    # TODO: Check unit
     "Intermediate pressure [Pa]"
     p_intermediate::RealT = 0.2e5
 
-    # TODO: Check unit
     "Low pressure [Pa]"
     p_low::RealT = 0.1e5
 
-    # TODO: Double check this
-    "Pressure BC parameter [-]"
+    "Pressure BC parameter [s^{-1}]"
     λ::RealT = 0.5
 
     "Feed temperature [K]"

@@ -7,9 +7,6 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
     p_init = ones(ncells)*P_init
     temperature_init = ones(ncells)*T_init
 
-    # assert(sum.(y_init)==1) #TODO figure out how to do this
-    
-    # TODO: check  how this works in mrst and change it
     cTot = p_init ./ (R * temperature_init)
     c = y_init .* cTot
     qN2 = ones(ncells)

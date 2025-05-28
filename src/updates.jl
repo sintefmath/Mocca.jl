@@ -55,9 +55,9 @@ end
 function compute_equilibrium(sys::AdsorptionSystem, concentration, temperature)
     N = JutulDarcy.number_of_components(sys)
     T = eltype(concentration)
-    qstar = @MVector zeros(T, N) # TODO: Use svector
-    b = @MVector zeros(T, N) # TODO: Use svector
-    d = @MVector zeros(T, N) # TODO: Use svector
+    qstar = @MVector zeros(T, N)
+    b = @MVector zeros(T, N)
+    d = @MVector zeros(T, N)
     bC_sum = zero(T)
     dC_sum = zero(T)
     @inbounds for i in 1:JutulDarcy.number_of_components(sys)
@@ -85,7 +85,6 @@ function compute_ki(sys::AdsorptionSystem, concentration, qstar)
 end
 
 Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G,S}, Pressure, Temperature, ix) where {G,S<:AdsorptionSystem}
-    # Update cTot
     sys = model.system
 
     for cellindex in ix
@@ -94,9 +93,7 @@ Jutul.@jutul_secondary function update_cTot!(ctot, tv::JutulDarcy.TotalMass, mod
 end
 
 Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G,S}, y, ix) where {G,S<:AdsorptionSystem}
-    #println("Updating avm")
     for cellindex in ix
-        # TODO: Fix masses such that they are single parameters for the whole grid
         sys = model.system
         molecularMassOfCO2 = sys.p.molecularMassOfCO2
         molecularMassOfN2 = sys.p.molecularMassOfN2
@@ -105,9 +102,7 @@ Jutul.@jutul_secondary function update_avm!(avm, tv::AverageMolecularMass, model
 end
 
 Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G,S}, y, cTot, ix) where {G,S<:AdsorptionSystem}
-    # println("Updating concentrations")
     for cellindex in ix
-        # TODO: Fix masses such that they are single parameters for the whole grid
         for component in 1:JutulDarcy.number_of_components(model.system)
             concentrations[component, cellindex] = y[component, cellindex] * cTot[cellindex]
         end
@@ -127,7 +122,7 @@ Jutul.@jutul_secondary function update_enthalpy_change(ΔH, tv::EnthalpyChange, 
     ΔUbi = sys.p.ΔUbi
     ΔUdi = sys.p.ΔUdi
     R = sys.p.R
-    T0 = sys.p.T0 # TODO: Review
+    T0 = sys.p.T0
     for cellindex in ix
         for i in axes(ΔH, 1)
             ΔH[i, cellindex] = (qsbi[i] * (ΔUbi[i] - R * T0) + qsdi[i] * (ΔUdi[i] - R * T0)) / sumq

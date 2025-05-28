@@ -46,12 +46,12 @@ model = Jutul.SimulationModel(domain, system, general_ad = true)
 
 # # Setup the initial state
 
-barsa = 1e5 #TODO: see if this exists
-P_init = 1.0*barsa 
+bar = Jutul.si_unit(:bar)
+P_init = 1*bar
 T_init = 298.15
 Tw_init = constants.T_a
 
-yCO2 = ones(ncells)*1e-10
+yCO2 = fill(1e-10, ncells)
 y_init = hcat(yCO2, 1 .- yCO2)
 
 state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
