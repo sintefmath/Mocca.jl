@@ -17,6 +17,7 @@ import Jutul
 import JutulDarcy
 using StaticArrays, ForwardDiff
 
+# TODO: Remove these when n-component systems are implemented
 const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this
 
