@@ -9,10 +9,8 @@ function mocca_domain(mesh, system::AdsorptionSystem; kwarg...)
     domain[:diffusion_coefficient] = system.dispersion
     domain[:thermal_conductivity] = system.p.K_z
     nc = Jutul.number_of_cells(mesh)
-    dx = zeros(nc)
-    for i in 1:nc
-        dx[i] = first(Jutul.cell_dims(mesh, i))
-    end
+
+    dx = map(i -> first(Jutul.cell_dims(mesh, i)), 1:nc)
     domain[:dx] = dx
 
     for (k, v) in kwarg
@@ -21,6 +19,8 @@ function mocca_domain(mesh, system::AdsorptionSystem; kwarg...)
     return domain
 end
 
+# TODO: This causes problem for adjoint simulation. Is it needed?
 function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
-    return Jutul.LUSolver(; kwarg...)
+    #return Jutul.LUSolver(; kwarg...)
+    return nothing
 end
