@@ -32,8 +32,8 @@ end
     kgrad, upw = flow_disc.face_disc(face)
 
     sys = model.system
-    disc = JutulDarcy.kgrad_common(face, state, model, kgrad)
-    (∇p, T_f, gΔz) = disc
+    T_f = JutulDarcy.effective_transmissibility(state, face, kgrad)
+    ∇p = JutulDarcy.pressure_gradient(state, kgrad)
     μ = sys.p.fluid_viscosity
     v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
