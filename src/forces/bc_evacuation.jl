@@ -25,8 +25,11 @@ Evacuation boundary condition #TODO add more description!
 end
 
 function pressure_left(force::EvacuationBC, time)
-
-    cycle_no = floor(time/force.cycle_time)
+    # NB: Since this is the last stage of the cycle,
+    # some care is needed when using floor to determine the descrete cycle number.
+    # Using a small ϵ to avoid that last time step of evacuation tips cycle_no.
+    ϵ = 1e-6
+    cycle_no = floor(time/(force.cycle_time+ϵ))
 
     t_0 = cycle_no*force.cycle_time + force.previous_step_end
     t = time - t_0
