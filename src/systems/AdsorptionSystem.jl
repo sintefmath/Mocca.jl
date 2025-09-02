@@ -25,7 +25,7 @@ end
 
 function compute_column_face_area(model::AdsorptionModel, state)
     g = Jutul.physical_representation(model.data_domain)::Jutul.CartesianMesh
-    return (g.deltas[2] * g.deltas[3])::Float64
+    return (g.deltas[2] * g.deltas[3])
 end
 
 
@@ -45,6 +45,6 @@ end
 
 
 "Area of column wall [m^2]"
-area_wall(sys::AdsorptionSystem) = (π * (sys.p.r_out^2 - sys.p.r_in^2))::Float64
-area_wall_in(sys::AdsorptionSystem, Δx) = (π * sys.p.r_in * 2 * Δx)::Float64
-area_wall_out(sys::AdsorptionSystem, Δx) = (π * sys.p.r_out * 2 * Δx)::Float64
+area_wall(sys::AdsorptionSystem) = (π * (sys.p.r_out^2 - sys.p.r_in^2))
+area_wall_in(sys::AdsorptionSystem, Δx) = (π * sys.p.r_in * 2 * Δx)
+area_wall_out(sys::AdsorptionSystem, Δx) = (π * sys.p.r_out * 2 * Δx)

@@ -4,21 +4,22 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
     ncells = prod(g.dims)
     R = model.system.p.R
 
-    p_init = ones(ncells)*P_init
-    temperature_init = ones(ncells)*T_init
+    p_init = fill(P_init, ncells)
+    temperature_init = fill(T_init, ncells)
 
     cTot = p_init ./ (R * temperature_init)
     c = y_init .* cTot
-    qN2 = ones(ncells)
-    for i in 1:ncells
+
+    qN2 = map(1:ncells) do i
         qstar = compute_equilibrium(model.system, c[i,:], temperature_init[i])
-        qN2[i] = qN2[i]*qstar[2]
+        qstar[2]
     end
-    qCO2 = ones(ncells)*0
+
+    qCO2 = zeros(eltype(qN2), ncells)
 
     q_init = hcat(qCO2, qN2)
 
-    walltemperature_init = ones(ncells)*Tw_init
+    walltemperature_init = fill(Tw_init, ncells)
 
     state0 = Jutul.setup_state(model,
         Pressure = p_init,

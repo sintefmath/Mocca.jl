@@ -18,6 +18,7 @@ function build_mocca_docs(; build_examples = true)
     examples = [
          "Simulate DCB" => "simulate_DCB"
          "Simulate cyclic" => "simulate_cyclic"
+         "History matching" => "history_matching"
     ]
 
     examples_markdown = []

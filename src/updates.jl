@@ -55,9 +55,15 @@ end
 function compute_equilibrium(sys::AdsorptionSystem, concentration, temperature)
     N = JutulDarcy.number_of_components(sys)
     T = eltype(concentration)
-    qstar = @MVector zeros(T, N)
-    b = @MVector zeros(T, N)
-    d = @MVector zeros(T, N)
+    if isbitstype(T)
+        qstar = @MVector zeros(T, N)
+        b = @MVector zeros(T, N)
+        d = @MVector zeros(T, N)
+    else
+        qstar = zeros(T, N)
+        b = zeros(T, N)
+        d = zeros(T, N)
+    end
     bC_sum = zero(T)
     dC_sum = zero(T)
     @inbounds for i in 1:JutulDarcy.number_of_components(sys)
