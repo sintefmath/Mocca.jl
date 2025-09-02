@@ -51,7 +51,7 @@ function Jutul.default_parameter_values(data_domain, model, param::DiffusionTran
     if haskey(data_domain, :diffusion_coefficient, Jutul.Cells())
         U = data_domain[:diffusion_coefficient]
         g = Jutul.physical_representation(data_domain)
-        T = Jutul.compute_face_trans(g, U)
+        T = Jutul.compute_face_trans(g, model.system.p.Φ .* U)
     else
         error(":diffusion_coefficient symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
