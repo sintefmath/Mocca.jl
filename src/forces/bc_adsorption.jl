@@ -14,6 +14,27 @@ function flux_left(model::AdsorptionModel, state, force::AdsorptionBC)
     return -force.v_feed * Af
 end
 
+function mass_flux_left(state, model, time, force::AdsorptionBC)
+    pars = model.system.p
+    R = pars.R
+    mob = 1.0 / pars.fluid_viscosity
+    trans = calc_bc_trans(model, state)
+
+    cell_left = force.cell_left
+    P = state.Pressure[cell_left]
+    y = state.y[:, cell_left]
+    y_bc = force.y_feed
+    T_bc = force.T_feed
+
+    q = flux_left(model, state, force)
+    P_bc = q / (trans * mob) + P
+
+    c_tot = P_bc / (T_bc * R)
+    c = y_bc .* c_tot
+
+    mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+    return mass_flux
+end
 
 function Jutul.apply_forces_to_equation!(
     acc,
@@ -36,23 +57,10 @@ function Jutul.apply_forces_to_equation!(
 
 
     # left side
-    @inbounds begin
-        cell_left = force.cell_left
-        P = state.Pressure[cell_left]
-
-        q = flux_left(model, state, force)
-
-        P_bc = q / trans / mob + P
-        y_bc = force.y_feed
-        T_bc = force.T_feed
-
-        cTot = P_bc / (T_bc * R)
-        c = y_bc .* cTot
-
-        for i in axes(y, 1)
-            mysource = -(cTot * q * (y_bc[i] - y[i, cell_left]) + q * c[i])
-            acc[i, cell_left] -= mysource
-        end
+    cell_left = force.cell_left
+    mass_flux = mass_flux_left(state, model, time, force)
+    for i in axes(y, 1)
+        acc[i, cell_left] += mass_flux[i]
     end
 
     # right side
