@@ -27,10 +27,12 @@ function build_mocca_docs(; build_examples = true)
     for (ex, pth) in examples
         in_pth = joinpath(mocca_dir, "examples", "$pth.jl")
         out_dir = joinpath(mocca_dir, "docs", "src", "examples")
+        out_dir_notebooks = joinpath(mocca_dir, "docs", "src", "notebooks")
         push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
         if build_examples
             upd(content) = update_footer(content, pth)
             Literate.markdown(in_pth, out_dir, preprocess = upd, flavor = Literate.DocumenterFlavor())
+            Literate.notebook(in_pth, out_dir_notebooks, preprocess = upd, flavor = Literate.DocumenterFlavor())
         end
     end
 

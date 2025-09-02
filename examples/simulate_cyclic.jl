@@ -110,7 +110,7 @@ end
 states, report = Jutul.simulate(state0, model, timesteps;
     forces=sim_forces,
     parameters = prm,
-    info_level = -1
+    info_level = 0
 );
 
 

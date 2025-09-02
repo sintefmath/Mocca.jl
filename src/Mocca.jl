@@ -36,4 +36,5 @@ include("updates.jl")
 include("convergence.jl")
 include("utils.jl")
 include("plot.jl")
+include("simple_api/simple_api.jl")
 end
