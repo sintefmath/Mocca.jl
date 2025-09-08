@@ -88,7 +88,7 @@ qCO2_ref_by_time = Jutul.get_1d_interpolator(times_ref, qCO2_ref);
 # We define a suitable objective function to quantify the match between our simulations and the reference solution.
 # Here we choose deviation of adsorbed CO2 in the last grid cell.
 function objective_function(model, state, dt, step_info, forces)
-    current_time = step_info[:time] + dt
+    current_time = step_info[:time]
     q_co2 = getindex(state[:AdsorbedConcentration], 1, last_cell_idx)
     q_co2_ref = qCO2_ref_by_time(current_time)
     v = dt/total_time*(q_co2 - q_co2_ref)^2
@@ -104,6 +104,7 @@ Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; rel_min = 0.
 prm_opt = Jutul.DictOptimization.optimize(dprm, objective_function, setup_case_v_feed;
     config = cfg,
     max_it = 10,
+    obj_change_tol = 1e-3
 );
 
 # We can see a clear reduction of the objective function value throughout the optimization iterations,
