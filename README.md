@@ -8,6 +8,6 @@ To get started, you will have to add the necessary packages. From the base of th
 ```julia
 ]          # Enter package mode
 activate . # Activate the darcy subfolder environment
-dev https://github.com/sintefmath/JutulViz.jl.git # Not registered, manual URL
+dev Jutul JutulDarcy
 instantiate # This will take some time
 ```
