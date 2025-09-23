@@ -1,13 +1,26 @@
-# Mocca.jl
-CO2 capture modules in Julia. Name subject to change.
+# Mocca
 
-## Installing dependencies
+Mocca [Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture.
 
-To get started, you will have to add the necessary packages. From the base of this repository, do
-    
+Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Direct Column Breakthrough simulation](@ref) and [Cyclic Vacuum Swing Adsorption simulation](@ref).
+
+In the future we hope to implement examples of other systems and isotherms e.g. temperature swing adsorption for Direct Air Capture (DAC).
+
+# Installation
+
+First install Julia from [here](https://julialang.org/downloads/). 
+
+Mocca can be downloaded by cloning the Mocca.jl repository.
+
+We recommend running in a specific environment (similar to a virtual environment in python). More information on environments in Julia can be found [here](https://pkgdocs.julialang.org/v1/environments/).
+
+To create an environment in Mocca.jl navigate to the Mocca.jl folder, start the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/) and type the following at the Julia prompt:
+
 ```julia
-]          # Enter package mode
-activate . # Activate the darcy subfolder environment
-dev Jutul JutulDarcy
-instantiate # This will take some time
+Pkg.activate(".")
+Pkg.instantiate()
 ```
+
+This will activate the environment in the current directory and install all necessary dependencies. Mocca is now installed and ready to use.
+
+A good starting example to try is [Direct Column Breakthrough simulation](@ref). Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
