@@ -84,6 +84,90 @@ abstract type ConstantsStruct end
 
 end
 
+@with_kw struct PSAConstants{RealT} <: ConstantsStruct
+    molecularMassOfCO2::RealT
+    molecularMassOfN2::RealT
+    R::RealT
+    Φ::RealT
+    b0::SVector{2,RealT}
+    d0::SVector{2,RealT}
+    ΔUbi::SVector{2,RealT}
+    ΔUdi::SVector{2,RealT}
+    qsbi::SVector{2,RealT}
+    qsdi::SVector{2,RealT}
+    ϵ_p::RealT
+    D_m::RealT
+    τ::RealT
+
+    "Particle diameter [m]"
+    d_p::RealT
+
+    V0_inter::RealT
+
+    fluid_viscosity::RealT
+    "[W/m/K]"
+    K_z::RealT
+    "[W/m/K]"
+    K_w::RealT
+    "Density of adsorbent, [kg m^{-3}]"
+    ρ_s::RealT
+    "Density of gas, [kg m^{-3}]"
+    ρ_g::RealT
+
+    "Specific heat capacity per component for fluid phase [J kg^{-1}K^{-1}]"
+    C_pg::SVector{2,RealT}
+    "Specific heat capacity per component for adsorbent phase [J kg^{-1}K^{-1}]"
+    C_pa::SVector{2,RealT}
+    "Specific heat capacity of solid adsorbent [J kg^[-1} K^{-1}]"
+    C_ps::RealT
+    "Column radius [m]"
+    r_in::RealT
+    "Wall radius [m]"
+    r_out::RealT
+    "Heat transfer coefficient from column to wall [Wm^{-2}K^{-1}]"
+    h_in::RealT
+    "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]"
+    h_out::RealT
+
+    "Density of wall medium [kg m^{-3}]"
+    ρ_w::RealT
+
+    "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
+    C_pw::RealT
+
+    "Initial temperature [K]"
+    T0::RealT
+    "Ambient temperature [K]"
+    T_a::RealT
+
+    # BC Stuff
+    "Fluid velocity of feed gas [m s^{-1}]"
+    v_feed::RealT
+
+    "Mole fraction of the components [-]"
+    y_feed::SVector{2,RealT}
+
+    "p_high High pressure [Pa]"
+    p_high::RealT
+
+    "Intermediate pressure [Pa]"
+    p_intermediate::RealT
+
+    "Low pressure [Pa]"
+    p_low::RealT
+
+    "Pressure BC parameter [s^{-1}]"
+    λ::RealT
+
+    "Feed temperature [K]"
+    T_feed::RealT
+
+    "Column length [m]"
+    L::RealT
+
+end
+
+
 #function HaghpanahConstants(; kwarg...)
 #    HaghpanahConstants{Float64}(; kwarg...)
 #end
