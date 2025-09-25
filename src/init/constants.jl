@@ -84,7 +84,7 @@ abstract type ConstantsStruct end
 
 end
 
-@with_kw struct PSAConstants{RealT} <: ConstantsStruct
+@with_kw mutable struct PSAConstants{RealT} <: ConstantsStruct
     molecularMassOfCO2::RealT
     molecularMassOfN2::RealT
     R::RealT
