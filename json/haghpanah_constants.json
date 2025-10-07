@@ -1,243 +1,284 @@
 {
   "title": "HaghpanahConstants",
-  "type": "object",
-  "properties": {
-    "molecularMassOfCO2": {
-      "name": "Molecular mass of CO2",
-      "symbol": "M_CO2",
-      "units": "kg/mol",
-      "value": 44.01e-3
+    "physicalConstants": {
+
+        "molecularMassOfCO2": {
+          "name": "Molecular mass of CO2",
+          "symbol": "M_CO2",
+          "units": "kg/mol",
+          "value": 44.01e-3
+        },
+        "molecularMassOfN2": {
+          "name": "Molecular mass of N2",
+          "symbol": "M_N2",
+          "units": "kg/mol",
+          "value": 28e-3
+        },
+        "R": {
+          "name": "Universal gas constant",
+          "symbol": "R",
+          "units": "J/(mol·K)",
+          "value": 8.3144598
+        }
+      },
+    "dslPars": {
+      "b0": {
+        "name": "Langmuir constant b0",
+        "symbol": "b0",
+        "units": "dimensionless",
+        "value": [
+          8.65e-7,
+          2.5e-6
+        ]
+      },
+      "d0": {
+        "name": "Langmuir constant d0",
+        "symbol": "d0",
+        "units": "dimensionless",
+        "value": [
+          2.63e-8,
+          0.0
+        ]
+      },
+      "ΔUbi": {
+        "name": "Heat of adsorption (b)",
+        "symbol": "ΔUbi",
+        "units": "J/mol",
+        "value": [
+          -36641.21,
+          -15800.0
+        ]
+      },
+      "ΔUdi": {
+        "name": "Heat of adsorption (d)",
+        "symbol": "ΔUdi",
+        "units": "J/mol",
+        "value": [
+          -35690.66,
+          0.0
+        ]
+      },
+      "qsbi": {
+        "name": "Saturation capacity (b)",
+        "symbol": "qsbi",
+        "units": "mol/kg",
+        "value": [
+          3489.44,
+          6613.551
+        ]
+      },
+      "qsdi": {
+        "name": "Saturation capacity (d)",
+        "symbol": "qsdi",
+        "units": "mol/kg",
+        "value": [
+          2872.35,
+          0.0
+        ]
+      }
     },
-    "molecularMassOfN2": {
-      "name": "Molecular mass of N2",
-      "symbol": "M_N2",
-      "units": "kg/mol",
-      "value": 28e-3
+    "adsorbentProps":{
+      "ϵ_p": {
+        "name": "Particle porosity",
+        "symbol": "ϵ_p",
+        "units": "dimensionless",
+        "value": 0.35
+      },
+      "D_m": {
+        "name": "Molecular diffusivity",
+        "symbol": "D_m",
+        "units": "m^2/s",
+        "value": 1.6e-5
+      },
+      "τ": {
+        "name": "Tortuosity",
+        "symbol": "τ",
+        "units": "dimensionless",
+        "value": 3.0
+      },
+      "d_p": {
+        "name": "Particle diameter",
+        "symbol": "d_p",
+        "units": "m",
+        "value": 2e-3
+      },
+      "V0_inter": {
+        "name": "Interstitial particle velocity",
+        "symbol": "V0_inter",
+        "units": "dimensionless",
+        "value": 1.0
+      },
+      "ρ_s": {
+        "name": "Density of adsorbent",
+        "symbol": "ρ_s",
+        "units": "kg/m^3",
+        "value": 1130.0
+      },
+      "C_pa": {
+        "name": "Specific heat capacity (adsorbent phase)",
+        "symbol": "C_pa",
+        "units": "J/(kg·K)",
+        "value": [
+          697.5687,
+          1096.4
+        ]
+      },
+      "C_ps": {
+        "name": "Specific heat capacity (solid adsorbent)",
+        "symbol": "C_ps",
+        "units": "J/(kg·K)",
+        "value": 1070.0
+      }
     },
-    "R": {
-      "name": "Universal gas constant",
-      "symbol": "R",
-      "units": "J/(mol·K)",
-      "value": 8.3144598
+    "columnProps": {
+      "Φ": {
+        "name": "Bed Porosity",
+        "symbol": "Φ",
+        "units": "dimensionless",
+        "value": 0.37
+      },
+      "K_z": {
+        "name": "Axial thermal conductivity",
+        "symbol": "K_z",
+        "units": "W/(m·K)",
+        "value": 0.0903
+      },
+      "K_w": {
+        "name": "Wall thermal conductivity",
+        "symbol": "K_w",
+        "units": "W/(m·K)",
+        "value": 16.0
+      },
+      "r_in": {
+        "name": "Column radius",
+        "symbol": "r_in",
+        "units": "m",
+        "value": 0.1445
+      },
+      "r_out": {
+        "name": "Wall radius",
+        "symbol": "r_out",
+        "units": "m",
+        "value": 0.162
+      },
+      "h_in": {
+        "name": "Heat transfer coefficient (column to wall)",
+        "symbol": "h_in",
+        "units": "W/(m^2·K)",
+        "value": 8.6
+      },
+      "h_out": {
+        "name": "Heat transfer coefficient (wall to outside)",
+        "symbol": "h_out",
+        "units": "W/(m^2·K)",
+        "value": 2.5
+      },
+      "ρ_w": {
+        "name": "Density of wall medium",
+        "symbol": "ρ_w",
+        "units": "kg/m^3",
+        "value": 7800.0
+      },
+      "C_pw": {
+        "name": "Specific heat capacity (wall)",
+        "symbol": "C_pw",
+        "units": "J/(kg·K)",
+        "value": 502.0
+      },
+      "L": {
+        "name": "Column length",
+        "symbol": "L",
+        "units": "m",
+        "value": 1.0
+      }
+
     },
-    "Φ": {
-      "name": "Porosity",
-      "symbol": "Φ",
-      "units": "dimensionless",
-      "value": 0.37
+    "feedProps": {
+      "fluid_viscosity": {
+        "name": "Fluid viscosity",
+        "symbol": "μ",
+        "units": "kg/(m·s)",
+        "value": 1.72e-5
+      },
+      "ρ_g": {
+        "name": "Density of gas",
+        "symbol": "ρ_g",
+        "units": "kg/m^3",
+        "value": 1.22638310956
+      },
+      "C_pg": {
+        "name": "Specific heat capacity (fluid)",
+        "symbol": "C_pg",
+        "units": "J/(kg·K)",
+        "value": [
+          697.5687,
+          1096.4
+        ]
+      },
+      "T_feed": {
+        "name": "Feed temperature",
+        "symbol": "T_feed",
+        "units": "K",
+        "value": 298.15
+      }
     },
-    "b0": {
-      "name": "Langmuir constant b0",
-      "symbol": "b0",
-      "units": "dimensionless",
-      "value": [8.65e-7, 2.5e-6]
+    "cycleSteps": {
+
     },
-    "d0": {
-      "name": "Langmuir constant d0",
-      "symbol": "d0",
-      "units": "dimensionless",
-      "value": [2.63e-8, 0.0]
+    "boundaryConditions": {
+      "T_a": {
+        "name": "Ambient temperature",
+        "symbol": "T_a",
+        "units": "K",
+        "value": 298.15
+      },
+      "v_feed": {
+        "name": "Fluid velocity of feed gas",
+        "symbol": "v_feed",
+        "units": "m/s",
+        "value": 0.37
+      },
+      "y_feed": {
+        "name": "Mole fraction of components",
+        "symbol": "y_feed",
+        "units": "dimensionless",
+        "value": [
+          0.15,
+          0.85
+        ]
+      },
+      "p_high": {
+        "name": "High pressure",
+        "symbol": "p_high",
+        "units": "Pa",
+        "value": 1e5
+      },
+      "p_intermediate": {
+        "name": "Intermediate pressure",
+        "symbol": "p_intermediate",
+        "units": "Pa",
+        "value": 0.2e5
+      },
+      "p_low": {
+        "name": "Low pressure",
+        "symbol": "p_low",
+        "units": "Pa",
+        "value": 0.1e5
+      },
+      "λ": {
+        "name": "Pressure BC parameter",
+        "symbol": "λ",
+        "units": "1/s",
+        "value": 0.5
+      }
+
     },
-    "ΔUbi": {
-      "name": "Heat of adsorption (b)",
-      "symbol": "ΔUbi",
-      "units": "J/mol",
-      "value": [-36641.21, -15800.0]
-    },
-    "ΔUdi": {
-      "name": "Heat of adsorption (d)",
-      "symbol": "ΔUdi",
-      "units": "J/mol",
-      "value": [-35690.66, 0.0]
-    },
-    "qsbi": {
-      "name": "Saturation capacity (b)",
-      "symbol": "qsbi",
-      "units": "mol/kg",
-      "value": [3489.44, 6613.551]
-    },
-    "qsdi": {
-      "name": "Saturation capacity (d)",
-      "symbol": "qsdi",
-      "units": "mol/kg",
-      "value": [2872.35, 0.0]
-    },
-    "ϵ_p": {
-      "name": "Particle porosity",
-      "symbol": "ϵ_p",
-      "units": "dimensionless",
-      "value": 0.35
-    },
-    "D_m": {
-      "name": "Molecular diffusivity",
-      "symbol": "D_m",
-      "units": "m^2/s",
-      "value": 1.6e-5
-    },
-    "τ": {
-      "name": "Tortuosity",
-      "symbol": "τ",
-      "units": "dimensionless",
-      "value": 3.0
-    },
-    "d_p": {
-      "name": "Particle diameter",
-      "symbol": "d_p",
-      "units": "m",
-      "value": 2e-3
-    },
-    "V0_inter": {
-      "name": "Interparticle volume",
-      "symbol": "V0_inter",
-      "units": "dimensionless",
-      "value": 1.0
-    },
-    "fluid_viscosity": {
-      "name": "Fluid viscosity",
-      "symbol": "μ",
-      "units": "kg/(m·s)",
-      "value": 1.72e-5
-    },
-    "K_z": {
-      "name": "Axial thermal conductivity",
-      "symbol": "K_z",
-      "units": "W/(m·K)",
-      "value": 0.0903
-    },
-    "K_w": {
-      "name": "Wall thermal conductivity",
-      "symbol": "K_w",
-      "units": "W/(m·K)",
-      "value": 16.0
-    },
-    "ρ_s": {
-      "name": "Density of adsorbent",
-      "symbol": "ρ_s",
-      "units": "kg/m^3",
-      "value": 1130.0
-    },
-    "ρ_g": {
-      "name": "Density of gas",
-      "symbol": "ρ_g",
-      "units": "kg/m^3",
-      "value": 1.22638310956
-    },
-    "C_pg": {
-      "name": "Specific heat capacity (fluid)",
-      "symbol": "C_pg",
-      "units": "J/(kg·K)",
-      "value": [697.5687, 1096.4]
-    },
-    "C_pa": {
-      "name": "Specific heat capacity (adsorbent phase)",
-      "symbol": "C_pa",
-      "units": "J/(kg·K)",
-      "value": [697.5687, 1096.4]
-    },
-    "C_ps": {
-      "name": "Specific heat capacity (solid adsorbent)",
-      "symbol": "C_ps",
-      "units": "J/(kg·K)",
-      "value": 1070.0
-    },
-    "r_in": {
-      "name": "Column radius",
-      "symbol": "r_in",
-      "units": "m",
-      "value": 0.1445
-    },
-    "r_out": {
-      "name": "Wall radius",
-      "symbol": "r_out",
-      "units": "m",
-      "value": 0.162
-    },
-    "h_in": {
-      "name": "Heat transfer coefficient (column to wall)",
-      "symbol": "h_in",
-      "units": "W/(m^2·K)",
-      "value": 8.6
-    },
-    "h_out": {
-      "name": "Heat transfer coefficient (wall to outside)",
-      "symbol": "h_out",
-      "units": "W/(m^2·K)",
-      "value": 2.5
-    },
-    "ρ_w": {
-      "name": "Density of wall medium",
-      "symbol": "ρ_w",
-      "units": "kg/m^3",
-      "value": 7800.0
-    },
-    "C_pw": {
-      "name": "Specific heat capacity (wall)",
-      "symbol": "C_pw",
-      "units": "J/(kg·K)",
-      "value": 502.0
-    },
-    "T0": {
-      "name": "Initial temperature",
-      "symbol": "T0",
-      "units": "K",
-      "value": 298.15
-    },
-    "T_a": {
-      "name": "Ambient temperature",
-      "symbol": "T_a",
-      "units": "K",
-      "value": 298.15
-    },
-    "v_feed": {
-      "name": "Fluid velocity of feed gas",
-      "symbol": "v_feed",
-      "units": "m/s",
-      "value": 0.37
-    },
-    "y_feed": {
-      "name": "Mole fraction of components",
-      "symbol": "y_feed",
-      "units": "dimensionless",
-      "value": [0.15, 0.85]
-    },
-    "p_high": {
-      "name": "High pressure",
-      "symbol": "p_high",
-      "units": "Pa",
-      "value": 1e5
-    },
-    "p_intermediate": {
-      "name": "Intermediate pressure",
-      "symbol": "p_intermediate",
-      "units": "Pa",
-      "value": 0.2e5
-    },
-    "p_low": {
-      "name": "Low pressure",
-      "symbol": "p_low",
-      "units": "Pa",
-      "value": 0.1e5
-    },
-    "λ": {
-      "name": "Pressure BC parameter",
-      "symbol": "λ",
-      "units": "1/s",
-      "value": 0.5
-    },
-    "T_feed": {
-      "name": "Feed temperature",
-      "symbol": "T_feed",
-      "units": "K",
-      "value": 298.15
-    },
-    "L": {
-      "name": "Column length",
-      "symbol": "L",
-      "units": "m",
-      "value": 1.0
+    "initialConditions": {
+  "T0": {
+    "name": "Initial temperature",
+    "symbol": "T0",
+    "units": "K",
+    "value": 298.15
+  }
     }
-  },
-  "required": [
-    "molecularMassOfCO2", "molecularMassOfN2", "R", "Φ", "b0", "d0", "ΔUbi", "ΔUdi", "qsbi", "qsdi", "ϵ_p", "D_m", "τ", "d_p", "V0_inter", "fluid_viscosity", "K_z", "K_w", "ρ_s", "ρ_g", "C_pg", "C_pa", "C_ps", "r_in", "r_out", "h_in", "h_out", "ρ_w", "C_pw", "T0", "T_a", "v_feed", "y_feed", "p_high", "p_intermediate", "p_low", "λ", "T_feed", "L"
-  ]
 }

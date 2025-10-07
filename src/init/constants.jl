@@ -19,6 +19,7 @@ abstract type ConstantsStruct end
     "Particle diameter [m]"
     d_p::RealT = 2e-3
 
+    "Interstitial velocity"
     V0_inter::RealT = 1.0
 
     fluid_viscosity::RealT = 1.72e-5
@@ -85,32 +86,41 @@ abstract type ConstantsStruct end
 end
 
 @with_kw mutable struct PSAConstants{RealT} <: ConstantsStruct
+    
+    # Physical constants
     molecularMassOfCO2::RealT
     molecularMassOfN2::RealT
-    R::RealT
-    Φ::RealT
+    R::RealT #
+    Φ::RealT # Porosity of the bed
+
+    # Dual-site Langmuir adsorption isotherm parameters
     b0::SVector{2,RealT}
     d0::SVector{2,RealT}
     ΔUbi::SVector{2,RealT}
     ΔUdi::SVector{2,RealT}
     qsbi::SVector{2,RealT}
     qsdi::SVector{2,RealT}
+
+    # Adsorbent properties
     ϵ_p::RealT
     D_m::RealT
     τ::RealT
-
     "Particle diameter [m]"
     d_p::RealT
-
+    "Density of adsorbent, [kg m^{-3}]"
+    ρ_s::RealT
+    "Specific heat capacity of solid adsorbent [J kg^{-1}K^{-1}]"
+    C_ps::RealT
+    "Interstitial velocity"
     V0_inter::RealT
 
+    # Feed parameters
     fluid_viscosity::RealT
     "[W/m/K]"
     K_z::RealT
     "[W/m/K]"
     K_w::RealT
-    "Density of adsorbent, [kg m^{-3}]"
-    ρ_s::RealT
+
     "Density of gas, [kg m^{-3}]"
     ρ_g::RealT
 
@@ -118,8 +128,7 @@ end
     C_pg::SVector{2,RealT}
     "Specific heat capacity per component for adsorbent phase [J kg^{-1}K^{-1}]"
     C_pa::SVector{2,RealT}
-    "Specific heat capacity of solid adsorbent [J kg^[-1} K^{-1}]"
-    C_ps::RealT
+   
     "Column radius [m]"
     r_in::RealT
     "Wall radius [m]"
@@ -128,10 +137,8 @@ end
     h_in::RealT
     "Heat transfer coefficient from wall to outside [Wm^{-2}K^{-1}]"
     h_out::RealT
-
     "Density of wall medium [kg m^{-3}]"
     ρ_w::RealT
-
     "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
     C_pw::RealT
 

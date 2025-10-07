@@ -1,9 +1,5 @@
-function haghpanah_DCB()
-    filepath = joinpath(@__DIR__, "../../../json/haghpanah_constants.json")
-    constants = parse_PSA_constants(filepath)
+function haghpanah_DCB(constants)
 
-    constants.h_in = 0.0
-    constants.h_out = 0.0
     
     # We calculate the permability and dispersion which are used to specify the model
     permeability = Mocca.compute_permeability(constants);

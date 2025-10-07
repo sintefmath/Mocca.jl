@@ -154,4 +154,4 @@ outlet_cell = ncells
 f_outlet = Mocca.plot_cell(substates, model, subtimesteps, outlet_cell)
 
 # We also plot primary variables along the column at the end of the simulation
-f_column = Mocca.plot_state(substates[end], model)
+#f_column = Mocca.plot_state(substates[end], model)
