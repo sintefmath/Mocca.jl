@@ -12,3 +12,4 @@ result = Mocca.simulate_case(case);
 
 f = Mocca.plot_outlet(case,result)
 
+Mocca.export_cell_results("testout.csv", case, result; format="csv")
