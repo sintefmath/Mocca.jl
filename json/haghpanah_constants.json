@@ -1,7 +1,6 @@
 {
   "title": "HaghpanahConstants",
     "physicalConstants": {
-
         "molecularMassOfCO2": {
           "name": "Molecular mass of CO2",
           "symbol": "M_CO2",
