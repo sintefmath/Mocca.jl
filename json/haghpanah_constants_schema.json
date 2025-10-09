@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HaghpanahConstantsSchema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "physicalConstants": {
+      "type": "object",
+      "properties": {
+        "molecularMassOfCO2": {
+          "$ref": "#/definitions/parameter"
+        },
+        "molecularMassOfN2": {
+          "$ref": "#/definitions/parameter"
+        },
+        "R": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["molecularMassOfCO2", "molecularMassOfN2", "R"]
+    },
+    "dslPars": {
+      "type": "object",
+      "properties": {
+        "b0": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "d0": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "ΔUbi": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "ΔUdi": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "qsbi": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "qsdi": {
+          "$ref": "#/definitions/parameterArray"
+        }
+      },
+      "required": ["b0", "d0", "ΔUbi", "ΔUdi", "qsbi", "qsdi"]
+    },
+    "adsorbentProps": {
+      "type": "object",
+      "properties": {
+        "ϵ_p": {
+          "$ref": "#/definitions/parameter"
+        },
+        "D_m": {
+          "$ref": "#/definitions/parameter"
+        },
+        "τ": {
+          "$ref": "#/definitions/parameter"
+        },
+        "d_p": {
+          "$ref": "#/definitions/parameter"
+        },
+        "V0_inter": {
+          "$ref": "#/definitions/parameter"
+        },
+        "ρ_s": {
+          "$ref": "#/definitions/parameter"
+        },
+        "C_pa": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "C_ps": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["ϵ_p", "D_m", "τ", "d_p", "V0_inter", "ρ_s", "C_pa", "C_ps"]
+    },
+    "columnProps": {
+      "type": "object",
+      "properties": {
+        "Φ": {
+          "$ref": "#/definitions/parameter"
+        },
+        "K_z": {
+          "$ref": "#/definitions/parameter"
+        },
+        "K_w": {
+          "$ref": "#/definitions/parameter"
+        },
+        "r_in": {
+          "$ref": "#/definitions/parameter"
+        },
+        "r_out": {
+          "$ref": "#/definitions/parameter"
+        },
+        "h_in": {
+          "$ref": "#/definitions/parameter"
+        },
+        "h_out": {
+          "$ref": "#/definitions/parameter"
+        },
+        "ρ_w": {
+          "$ref": "#/definitions/parameter"
+        },
+        "C_pw": {
+          "$ref": "#/definitions/parameter"
+        },
+        "L": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["Φ", "K_z", "K_w", "r_in", "r_out", "h_in", "h_out", "ρ_w", "C_pw", "L"]
+    },
+    "feedProps": {
+      "type": "object",
+      "properties": {
+        "fluid_viscosity": {
+          "$ref": "#/definitions/parameter"
+        },
+        "ρ_g": {
+          "$ref": "#/definitions/parameter"
+        },
+        "C_pg": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "T_feed": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["fluid_viscosity", "ρ_g", "C_pg", "T_feed"]
+    },
+    "boundaryConditions": {
+      "type": "object",
+      "properties": {
+        "T_a": {
+          "$ref": "#/definitions/parameter"
+        },
+        "v_feed": {
+          "$ref": "#/definitions/parameter"
+        },
+        "y_feed": {
+          "$ref": "#/definitions/parameterArray"
+        },
+        "p_high": {
+          "$ref": "#/definitions/parameter"
+        },
+        "p_intermediate": {
+          "$ref": "#/definitions/parameter"
+        },
+        "p_low": {
+          "$ref": "#/definitions/parameter"
+        },
+        "λ": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["T_a", "v_feed", "y_feed", "p_high", "p_intermediate", "p_low", "λ"]
+    },
+    "initialConditions": {
+      "type": "object",
+      "properties": {
+        "T0": {
+          "$ref": "#/definitions/parameter"
+        }
+      },
+      "required": ["T0"]
+    }
+  },
+  "required": [
+    "title",
+    "physicalConstants",
+    "dslPars",
+    "adsorbentProps",
+    "columnProps",
+    "feedProps",
+    "boundaryConditions",
+    "initialConditions"
+  ],
+  "definitions": {
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "symbol": { "type": "string" },
+        "units": { "type": "string" },
+        "value": { "type": ["number", "integer"] }
+      },
+      "required": ["name", "symbol", "units", "value"]
+    },
+    "parameterArray": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "symbol": { "type": "string" },
+        "units": { "type": "string" },
+        "value": {
+          "type": "array",
+          "items": { "type": ["number", "integer"] }
+        }
+      },
+      "required": ["name", "symbol", "units", "value"]
+    }
+  }
+}

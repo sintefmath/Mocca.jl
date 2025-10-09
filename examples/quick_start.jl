@@ -6,10 +6,13 @@ filepath = joinpath(@__DIR__, "../json/haghpanah_constants.json")
 constants = Mocca.parse_PSA_constants(filepath)
 constants.h_in = 0.0
 constants.h_out = 0.0
-
 case = Mocca.haghpanah_DCB(constants);
+
+case = setup_case(filepath);
+
+# case = Mocca.import_case()
 result = Mocca.simulate_case(case);
 
 f = Mocca.plot_outlet(case,result)
 
-Mocca.export_cell_results("testout.csv", case, result; format="csv")
+# Mocca.export_cell_results("testout.csv", case, result; format="csv")

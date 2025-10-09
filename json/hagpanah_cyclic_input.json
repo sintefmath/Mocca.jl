@@ -1,5 +1,6 @@
 {
-  "constants": {
+   "title": "HaghpanahCyclic",
+    "constants": {
     "molecularMassOfCO2": 0.04401,
     "molecularMassOfN2": 0.028,
     "R": 8.3144598,
@@ -41,8 +42,8 @@
     "L": 1.0
   },
   "simulation": {
-    "ncells": 200,
-    "t_press": 15,
+    "ncells": 200, # number of discretisation points in the axial dimension, type Int
+    "t_press": 15, # duration of pressurisation step in seconds, type Float64
     "t_ads": 15,
     "t_blow": 30,
     "t_evac": 40,
@@ -62,28 +63,74 @@
         "cell_left": 1,
         "cell_right": 200
       },
-      "adsorption": {
-        "y_feed": [0.15, 0.85],
-        "PH": 100000.0,
-        "v_feed": 0.37,
-        "T_feed": 298.15,
-        "cell_left": 1,
-        "cell_right": 200
+"adsorption": {
+  "y_feed": {
+    "description": { "name": "Mole fraction of components", "symbol": "y_feed", "units": "dimensionless" },
+    "value": [0.15, 0.85]
+  },
+  "PH": {
+    "description": { "name": "High pressure", "symbol": "PH", "units": "Pa" },
+    "value": 100000.0
+  },
+  "v_feed": {
+    "description": { "name": "Fluid velocity of feed gas", "symbol": "v_feed", "units": "m/s" },
+    "value": 0.37
+  },
+  "T_feed": {
+    "description": { "name": "Feed temperature", "symbol": "T_feed", "units": "K" },
+    "value": 298.15
+  },
+  "cell_left": {
+    "description": { "name": "Left boundary cell index", "symbol": "cell_left", "units": "index" },
+    "value": 1
+  },
+  "cell_right": {
+    "description": { "name": "Right boundary cell index", "symbol": "cell_right", "units": "index" },
+    "value": 200
+  }
       },
       "blowdown": {
-        "PH": 100000.0,
-        "PI": 20000.0,
-        "λ": 0.5,
-        "cell_left": 1,
-        "cell_right": 200
+        "PH": {
+          "description": { "name": "High pressure", "symbol": "PH", "units": "Pa" },
+          "value": 100000.0
+        },
+        "PI": {
+          "description": { "name": "Intermediate pressure", "symbol": "PI", "units": "Pa" },
+          "value": 20000.0
+        },
+        "λ": {
+          "description": { "name": "Pressure BC parameter", "symbol": "λ", "units": "1/s" },
+          "value": 0.5
+        },
+        "cell_left": {
+          "description": { "name": "Left boundary cell index", "symbol": "cell_left", "units": "index" },
+          "value": 1
+        },
+        "cell_right": {
+          "description": { "name": "Right boundary cell index", "symbol": "cell_right", "units": "index" },
+          "value": 200
+        }
       },
       "evacuation": {
-        "PL": 10000.0,
-        "PI": 20000.0,
-        "λ": 0.5,
-        "cell_left": 1,
-        "cell_right": 200
+        "PL": {
+          "description": { "name": "Low pressure", "symbol": "PL", "units": "Pa" },
+          "value": 10000.0
+        },
+        "PI": {
+          "description": { "name": "Intermediate pressure", "symbol": "PI", "units": "Pa" },
+          "value": 20000.0
+        },
+        "λ": {
+          "description": { "name": "Pressure BC parameter", "symbol": "λ", "units": "1/s" },
+          "value": 0.5
+        },
+        "cell_left": {
+          "description": { "name": "Left boundary cell index", "symbol": "cell_left", "units": "index" },
+          "value": 1
+        },
+        "cell_right": {
+          "description": { "name": "Right boundary cell index", "symbol": "cell_right", "units": "index" },
+          "value": 200
+        }
       }
-    }
   }
-}
