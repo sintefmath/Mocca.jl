@@ -6,14 +6,14 @@ import Mocca
 function setup_case(prm, step_info = missing)
     # TODO: Handle when only some of the parameters are supplied
     v_feed = prm["v_feed"]
-    p_intermediate = prm["p_intermediate"]
-    p_low = prm["p_low"]
+    # p_intermediate = prm["p_intermediate"]
+    # p_low = prm["p_low"]
     RealT = typeof(v_feed)
-    p_intermediate#::RealT
-    p_low#::RealT
+    # p_intermediate#::RealT
+    # p_low#::RealT
 
     # We define parameters, and set up the system and domain as in the [Simulate DCB](simulate_DCB.md) example.
-    constants = Mocca.HaghpanahConstants{RealT}(v_feed = v_feed, p_intermediate = p_intermediate, p_low = p_low)
+    constants = Mocca.HaghpanahConstants{RealT}(v_feed = v_feed)#, p_intermediate = p_intermediate, p_low = p_low)
     permeability = Mocca.compute_permeability(constants)
     axial_dispersion = Mocca.calc_dispersion(constants)
     system = Mocca.TwoComponentAdsorptionSystem(; permeability=permeability, dispersion=axial_dispersion, p=constants)
@@ -48,6 +48,11 @@ function setup_case(prm, step_info = missing)
     t_ads = 15
     t_blow = 30
     t_evac = 40
+
+    # t_press = 2
+    # t_ads = 2
+    # t_blow = 3
+    # t_evac = 4
 
     t_stage = [t_press, t_ads, t_blow, t_evac]
 
@@ -113,8 +118,14 @@ substates, dt, report_index = Jutul.expand_to_ministeps(result);
 ## Total objective function recovery
 
 function global_objective(model, state0, states, step_infos, forces, input_data)
+    # TODO: Ensure that these are the correct type from the start?
     total_co2_flux_in = 0.0
     total_co2_flux_out = 0.0
+
+    # TODO: Look at total contributions to total_in and total_out from each process stage
+    total_pres = 0.0
+    total_ads = 0.0
+    total_evac = 0.0
 
     for (step_info, state, force_outer) in zip(step_infos, states, forces)
         step = step_info[:step]
@@ -129,22 +140,31 @@ function global_objective(model, state0, states, step_infos, forces, input_data)
             # CO2 in for Pressurisation
             if force isa Mocca.PressurisationBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
+                total_pres -= mass_flux[Mocca.CO2INDEX] * dt
                 total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+                # @info "PressurisationBC at $step" mass_flux[Mocca.CO2INDEX]
             end
 
+            # TODO: This is the one causing the gradient mismatch between adjoint and numerical
+            # TODO: Create a simpler summed objective function that only looks at Adsorption
             # CO2 in for Adsorption
             if force isa Mocca.AdsorptionBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+                total_ads -= mass_flux[Mocca.CO2INDEX] * dt
+                # total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+                # @info "Adsorption at $step" mass_flux[Mocca.CO2INDEX]
             end
 
             if force isa Mocca.EvacuationBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_out += mass_flux[Mocca.CO2INDEX] * dt
+                total_evac -= mass_flux[Mocca.CO2INDEX] * dt
+                total_co2_flux_out -= mass_flux[Mocca.CO2INDEX] * dt
             end
         end
     end
 
+    # recovery = total_co2_flux_out# /(total_co2_flux_in + total_co2_flux_out)
+    # recovery = total_co2_flux_in
     recovery = total_co2_flux_out/total_co2_flux_in
     return recovery
 end
@@ -153,8 +173,8 @@ wrapped_global_objective = Jutul.WrappedGlobalObjective(global_objective)
 constants_ref = Mocca.HaghpanahConstants{Float64}()
 prm_guess = Dict(
     "v_feed" => constants_ref.v_feed,
-    "p_intermediate" => constants_ref.p_intermediate,
-    "p_low" => constants_ref.p_low
+    #"p_intermediate" => constants_ref.p_intermediate,
+    #"p_low" => constants_ref.p_low
 )
 
 bar = Jutul.si_unit(:bar)
@@ -163,7 +183,38 @@ Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; abs_min = 0.
 #Jutul.DictOptimization.free_optimization_parameter!(dprm, "p_intermediate"; abs_min = 0.05bar, abs_max = 0.5bar)
 #Jutul.DictOptimization.free_optimization_parameter!(dprm, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 
+
+## Look at adjoint vs numerical gradient
+# New version, using JutulOptimizationProblem
+opt_problem = Jutul.DictOptimization.JutulOptimizationProblem(dprm, wrapped_global_objective, setup_case)
+obj_and_dobj_adj = Jutul.DictOptimization.evaluate(opt_problem)
+dobj_finite_diff = Jutul.DictOptimization.finite_difference_gradient_entry(opt_problem)
+println("Numerical: $dobj_finite_diff, adjoint: $(only(obj_and_dobj_adj[2]))")
+##
+# Old version
+grad_adj = Jutul.DictOptimization.parameters_gradient(dprm, wrapped_global_objective, setup_case; raw_output = true)
+
+eps = 1e-3
+
+prm_0 = Dict()
+prm_0["v_feed"] = 0.37
+case_0 = setup_case(prm_0)
+result_0 = Jutul.simulate(case_0; output_substates = true, info_level=0)
+packed_steps_0 = Jutul.AdjointPackedResult(result_0, case_0.forces)
+obj_val_0 = Jutul.evaluate_objective(wrapped_global_objective, case_0.model, packed_steps_0)
+
+prm_1 = Dict()
+prm_1["v_feed"] = prm_0["v_feed"] + eps
+case_1 = setup_case(prm_1)
+result_1 = Jutul.simulate(case_1; output_substates = true, info_level=0)
+packed_steps_1 = Jutul.AdjointPackedResult(result_1, case_1.forces)
+obj_val_1 = Jutul.evaluate_objective(wrapped_global_objective, case_1.model, packed_steps_1)
+
+grad_num = (obj_val_1-obj_val_0)/eps
+
+##
 prm_opt = Jutul.DictOptimization.optimize(dprm, wrapped_global_objective, setup_case;
     max_it=10,
-    maximize=true
+    maximize=true,
+    info_level=-1
 )
