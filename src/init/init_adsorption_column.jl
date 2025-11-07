@@ -10,21 +10,17 @@ function initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, mode
     cTot = p_init ./ (R * temperature_init)
     c = y_init .* cTot
 
-    qN2 = map(1:ncells) do i
+    q_init = map(1:ncells) do i
         qstar = compute_equilibrium(model.system, c[i,:], temperature_init[i])
-        qstar[2]
     end
-
-    qCO2 = zeros(eltype(qN2), ncells)
-
-    q_init = hcat(qCO2, qN2)
+    q_init = stack(q_init) # Convert Vector of SVectors to Matrix
 
     walltemperature_init = fill(Tw_init, ncells)
 
     state0 = Jutul.setup_state(model,
         Pressure = p_init,
         y = y_init',
-        AdsorbedConcentration = q_init',
+        AdsorbedConcentration = q_init,
         Temperature = temperature_init,
         WallTemperature = walltemperature_init)
     volumes = model.data_domain[:volumes]
