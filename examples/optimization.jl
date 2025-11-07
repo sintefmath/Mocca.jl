@@ -170,6 +170,69 @@ function global_objective(model, state0, states, step_infos, forces, input_data)
 end
 wrapped_global_objective = Jutul.WrappedGlobalObjective(global_objective)
 
+function summed_objective(model, state, dt, step_info, force_outer)
+
+    step = step_info[:step]
+    dt = step_info[:dt]
+    time = step_info[:time]
+    obj_val = 0.0
+    obj_val = 0.0*model.system.p.v_feed
+
+    if time == 220.0
+        @show model.system.p.v_feed
+        force = force_outer.bc
+
+        # CO2 in for Pressurisation
+        # if force isa Mocca.PressurisationBC
+        #     mass_flux = Mocca.mass_flux_left(state, model, time, force)
+        #     obj_val = -mass_flux[Mocca.CO2INDEX] * dt
+        #     # @info "PressurisationBC at $step" mass_flux[Mocca.CO2INDEX]
+        # end
+
+        # TODO: All of the Adsorption steps are consistently wrong (individually)
+        # TODO: Check within mass_flux_left to see if something fishy is going on
+        # CO2 in for Adsorption
+        if force isa Mocca.AdsorptionBC
+            #mass_flux = Mocca.mass_flux_left(state, model, time, force)
+            #obj_val = -mass_flux[Mocca.CO2INDEX] * dt
+
+            cell_left = 1
+            pars = model.system.p
+            R = pars.R
+            mob = 1.0 / pars.fluid_viscosity
+            trans = Mocca.calc_bc_trans(model, state)
+
+            P = state.Pressure[cell_left]
+            y = state.y[:, cell_left]
+            y_bc = force.y_feed
+            T_bc = force.T_feed
+
+            q = Mocca.flux_left(model, state, force)
+            P_bc = q / (trans * mob) + P
+
+            c_tot = P_bc / (T_bc * R)
+            c = y_bc .* c_tot
+
+            # TODO: q is the culprit! (As a result of force.v_feed in flux_left not being AD/having zero gradient??)
+            # Does not seem to be included in sparsity tracing, and adjoint gradient wrt q is 0.0
+            # The comes from the fact that v_feed is not an AD variable
+            #mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+            mass_flux = c_tot[1]*q[1]*(y_bc[1]-y[1]) + q[1]*c[1]
+            @info q, P
+            obj_val = q
+
+            #@info "Adsorption at $step/$time:" mass_flux[Mocca.CO2INDEX]
+        end
+
+        # if force isa Mocca.EvacuationBC
+        #     mass_flux = Mocca.mass_flux_left(state, model, time, force)
+        #     obj_val = -mass_flux[Mocca.CO2INDEX] * dt
+        # end
+    end
+    return obj_val
+end
+wrapped_sum_objective = Jutul.WrappedSumObjective(summed_objective)
+
 constants_ref = Mocca.HaghpanahConstants{Float64}()
 prm_guess = Dict(
     "v_feed" => constants_ref.v_feed,
@@ -186,12 +249,14 @@ Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; abs_min = 0.
 
 ## Look at adjoint vs numerical gradient
 # New version, using JutulOptimizationProblem
-opt_problem = Jutul.DictOptimization.JutulOptimizationProblem(dprm, wrapped_global_objective, setup_case)
+opt_problem = Jutul.DictOptimization.JutulOptimizationProblem(dprm, wrapped_sum_objective, setup_case)
 obj_and_dobj_adj = Jutul.DictOptimization.evaluate(opt_problem)
 dobj_finite_diff = Jutul.DictOptimization.finite_difference_gradient_entry(opt_problem)
 println("Numerical: $dobj_finite_diff, adjoint: $(only(obj_and_dobj_adj[2]))")
+
 ##
 # Old version
+"""
 grad_adj = Jutul.DictOptimization.parameters_gradient(dprm, wrapped_global_objective, setup_case; raw_output = true)
 
 eps = 1e-3
@@ -210,7 +275,8 @@ result_1 = Jutul.simulate(case_1; output_substates = true, info_level=0)
 packed_steps_1 = Jutul.AdjointPackedResult(result_1, case_1.forces)
 obj_val_1 = Jutul.evaluate_objective(wrapped_global_objective, case_1.model, packed_steps_1)
 
-grad_num = (obj_val_1-obj_val_0)/eps
+grad_num = (obj_val_1-obj_val_0)/eps"""
+nothing
 
 ##
 prm_opt = Jutul.DictOptimization.optimize(dprm, wrapped_global_objective, setup_case;
