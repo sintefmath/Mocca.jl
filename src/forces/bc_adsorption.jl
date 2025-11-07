@@ -182,7 +182,7 @@ function Jutul.apply_forces_to_equation!(
         T = state.WallTemperature[cell_right]
         T_bc = pars.T_a
 
-        bc_src = -(trans_wall * (T_bc - T))
+        bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
     end
 
