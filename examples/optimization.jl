@@ -176,10 +176,10 @@ function summed_objective(model, state, dt, step_info, force_outer)
     dt = step_info[:dt]
     time = step_info[:time]
     obj_val = 0.0
-    obj_val = 0.0*model.system.p.v_feed
+    # obj_val = 0.0*model.system.p.v_feed
 
-    if time == 220.0
-        @show model.system.p.v_feed
+    if time >= 200.0
+        # @show model.system.p.v_feed
         force = force_outer.bc
 
         # CO2 in for Pressurisation
@@ -193,6 +193,7 @@ function summed_objective(model, state, dt, step_info, force_outer)
         # TODO: Check within mass_flux_left to see if something fishy is going on
         # CO2 in for Adsorption
         if force isa Mocca.AdsorptionBC
+            @show time
             #mass_flux = Mocca.mass_flux_left(state, model, time, force)
             #obj_val = -mass_flux[Mocca.CO2INDEX] * dt
 
@@ -218,8 +219,9 @@ function summed_objective(model, state, dt, step_info, force_outer)
             # The comes from the fact that v_feed is not an AD variable
             #mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
             mass_flux = c_tot[1]*q[1]*(y_bc[1]-y[1]) + q[1]*c[1]
-            @info q, P
-            obj_val = q
+            # @info q, P
+            # obj_val = q
+            obj_val = mass_flux
 
             #@info "Adsorption at $step/$time:" mass_flux[Mocca.CO2INDEX]
         end
