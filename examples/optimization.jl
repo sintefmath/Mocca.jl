@@ -132,7 +132,8 @@ function global_objective(model, state0, states, step_infos, forces, input_data)
         dt = step_info[:dt]
         time = step_info[:time]
 
-        if time >= 200.0
+        if time == 220.0
+            @show time
             force = force_outer.bc
             #trans = Mocca.calc_bc_trans(model, state)
             #cell_left = force.cell_left
@@ -153,6 +154,35 @@ function global_objective(model, state0, states, step_infos, forces, input_data)
                 total_ads -= mass_flux[Mocca.CO2INDEX] * dt
                 # total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
                 # @info "Adsorption at $step" mass_flux[Mocca.CO2INDEX]
+
+
+                cell_left = 1
+                pars = model.system.p
+                R = pars.R
+                mob = 1.0 / pars.fluid_viscosity
+                trans = Mocca.calc_bc_trans(model, state)
+
+                P = state.Pressure[cell_left]
+                y = state.y[:, cell_left]
+                y_bc = force.y_feed
+                T_bc = force.T_feed
+
+                q = Mocca.flux_left(model, state, force)
+                P_bc = q / (trans * mob) + P
+
+                c_tot = P_bc / (T_bc * R)
+                c = y_bc .* c_tot
+
+                # TODO: q is the culprit! (As a result of force.v_feed in flux_left not being AD/having zero gradient??)
+                # Does not seem to be included in sparsity tracing, and adjoint gradient wrt q is 0.0
+                # The comes from the fact that v_feed is not an AD variable
+                #mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+                mass_flux = c_tot[1] * q[1] * (y_bc[1] - y[1]) + q[1] * c[1]
+                # @info q, P
+                # obj_val = q
+                # total_co2_flux_in = mass_flux * dt
+                # @show q
+                total_co2_flux_in = q
             end
 
             if force isa Mocca.EvacuationBC
@@ -164,8 +194,9 @@ function global_objective(model, state0, states, step_infos, forces, input_data)
     end
 
     # recovery = total_co2_flux_out# /(total_co2_flux_in + total_co2_flux_out)
-    # recovery = total_co2_flux_in
-    recovery = total_co2_flux_out/total_co2_flux_in
+    recovery = total_co2_flux_in
+    @show recovery
+    # recovery = total_co2_flux_out/total_co2_flux_in
     return recovery
 end
 wrapped_global_objective = Jutul.WrappedGlobalObjective(global_objective)
@@ -251,7 +282,7 @@ Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; abs_min = 0.
 
 ## Look at adjoint vs numerical gradient
 # New version, using JutulOptimizationProblem
-opt_problem = Jutul.DictOptimization.JutulOptimizationProblem(dprm, wrapped_sum_objective, setup_case)
+opt_problem = Jutul.DictOptimization.JutulOptimizationProblem(dprm, wrapped_global_objective, setup_case)
 obj_and_dobj_adj = Jutul.DictOptimization.evaluate(opt_problem)
 dobj_finite_diff = Jutul.DictOptimization.finite_difference_gradient_entry(opt_problem)
 println("Numerical: $dobj_finite_diff, adjoint: $(only(obj_and_dobj_adj[2]))")
