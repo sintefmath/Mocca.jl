@@ -3,16 +3,14 @@ import Jutul
 import Mocca
 
 function setup_case(prm, step_info = missing)
-    # TODO: Handle when only some of the parameters are supplied
-    v_feed = prm["v_feed"]
-    p_intermediate = prm["p_intermediate"]
-    p_low = prm["p_low"]
-    RealT = typeof(v_feed)
-    p_intermediate::RealT
-    p_low::RealT
+
+    # Set up simulation constants from optimization parameters
+    # TODO: Handle only a subset of prm beeing free
+    symb_dict = Dict(Symbol(k) => v for (k, v) in prm)
+    RealT = valtype(symb_dict)
+    constants = Mocca.HaghpanahConstants{RealT}(; symb_dict...)
 
     # We define parameters, and set up the system and domain as in the [Simulate DCB](simulate_DCB.md) example.
-    constants = Mocca.HaghpanahConstants{RealT}(v_feed = v_feed, p_intermediate = p_intermediate, p_low = p_low)
     permeability = Mocca.compute_permeability(constants)
     axial_dispersion = Mocca.calc_dispersion(constants)
     system = Mocca.TwoComponentAdsorptionSystem(; permeability=permeability, dispersion=axial_dispersion, p=constants)
