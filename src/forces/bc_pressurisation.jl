@@ -39,8 +39,27 @@ function pressure_left(force::PressurisationBC, time)
     return (PH - (PH - PL) * exp(-λ * t))
 end
 
+function mass_flux_left(state, model, time, force::PressurisationBC)
+    pars = model.system.p
+    R = pars.R
+    mob = 1.0 / pars.fluid_viscosity
+    trans = calc_bc_trans(model, state)
 
+    cell_left = force.cell_left
+    P = state.Pressure[cell_left]
+    y = state.y[:, cell_left]
+    P_bc = pressure_left(force, time)
+    y_bc = force.y_feed
+    T_bc = force.T_feed
 
+    q = -trans * mob * (P - P_bc)
+
+    c_tot = P_bc / (T_bc * R)
+    c = y_bc .* c_tot
+
+    mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+    return mass_flux
+end
 
 function Jutul.apply_forces_to_equation!(
     acc,
@@ -53,35 +72,13 @@ function Jutul.apply_forces_to_equation!(
 )
 
     state = storage.state
+    cell_left = force.cell_left
 
-    pars = model.system.p
-    R = pars.R
-    μ = pars.fluid_viscosity
-    mob = 1.0 / μ
-    trans = calc_bc_trans(model, state)
-
-    # left side
-    begin
-        cell_left = force.cell_left
-        P = state.Pressure[cell_left]
-        y = state.y[:, cell_left] 
-
-        P_bc = pressure_left(force, time)
-        y_bc = force.y_feed        
-        T_bc = force.T_feed
-
-        q = -trans * mob * (P - P_bc)
-
-        cTot = P_bc / (T_bc * R)
-        c = y_bc .* cTot
-
-        for i in eachindex(y)
-            mysource = cTot * q * (y_bc[i] - y[i]) + q * c[i]
-            acc[i, cell_left] += mysource
-        end
-
+    mass_flux = mass_flux_left(state, model, time, force)
+    for i in eachindex(mass_flux)
+        acc[i, cell_left] += mass_flux[i]
     end
-  
+
 end
 
 
@@ -110,13 +107,13 @@ function Jutul.apply_forces_to_equation!(
     begin
         cell_left = force.cell_left
         P = state.Pressure[cell_left]
-        y = state.y[:, cell_left] 
+        y = state.y[:, cell_left]
         T = state.Temperature[cell_left]
         C_pg = state.C_pg[cell_left]
-        avm = state.avm[cell_left]        
+        avm = state.avm[cell_left]
 
         P_bc = pressure_left(force, time)
-        y_bc = force.y_feed        
+        y_bc = force.y_feed
         T_bc = force.T_feed
 
         q = -trans * mob * (P - P_bc)
@@ -147,7 +144,7 @@ function Jutul.apply_forces_to_equation!(
     state = storage.state
 
     pars = model.system.p
- 
+
     # left side
     begin
         cell_left = force.cell_left
@@ -170,7 +167,7 @@ function Jutul.apply_forces_to_equation!(
 
         bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
-    end    
+    end
 end
 
 function Jutul.vectorization_length(bc::PressurisationBC, variant)
