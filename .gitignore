@@ -27,3 +27,4 @@ Manifest.toml
 # Matlab data files 
 #
 *.mat
+.vscode/*
