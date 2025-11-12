@@ -15,7 +15,7 @@ export compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
 
 import Jutul
 import JutulDarcy
-using StaticArrays, ForwardDiff
+using StaticArrays
 
 # TODO: Remove these when n-component systems are implemented
 const CO2INDEX = 1 # TODO: We don't really need this

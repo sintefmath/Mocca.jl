@@ -6,7 +6,6 @@
 
 # First we load the necessary modules
 import Jutul
-import JutulDarcy
 import Mocca
 
 # We create a function for setting up new simulation cases from the value of the parameter we wish to tune

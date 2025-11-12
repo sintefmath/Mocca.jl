@@ -12,7 +12,6 @@
 #-
 # First we load the necessary modules
 import Jutul
-import JutulDarcy
 import Mocca
 
 #=

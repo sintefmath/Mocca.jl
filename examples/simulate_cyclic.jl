@@ -19,7 +19,6 @@ conditions. Adsorption onto Zeolite 13X is modelled with a dual-site Langmuir ad
 
 # First we load the necessary modules
 import Jutul
-import JutulDarcy
 import Mocca
 
 # We define parameters, and set up the system and domain as in the [Simulate DCB](simulate_DCB.md) example.
