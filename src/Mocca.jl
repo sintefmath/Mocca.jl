@@ -22,10 +22,9 @@ const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this
 
 
+include("core_types/core_types.jl")
 
 include("init/init.jl")
-
-
 include("systems/systems.jl")
 include("variables/variables.jl")
 include("equations/equations.jl")
