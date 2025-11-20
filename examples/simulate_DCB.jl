@@ -96,14 +96,14 @@ sim_forces = Jutul.setup_forces(model, bc=bc);
 timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
 
 case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
-states, sub_timesteps = Mocca.simulate_adsorption(case;
+states, timesteps_out = Mocca.simulate_adsorption(case;
     timestep_selector_cfg = timestep_selector_cfg,
     output_substates = true,
 );
 
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
-f_outlet = Mocca.plot_cell(states, model, sub_timesteps, outlet_cell)
+f_outlet = Mocca.plot_cell(states, model, timesteps_out, outlet_cell)
 
 # We also plot primary variables along the column at the end of the simulation
 f_column = Mocca.plot_state(states[end], model)
