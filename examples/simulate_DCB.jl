@@ -9,9 +9,10 @@
 # Injection flow rate is fixed at the right hand side of the column and the left hand side of the column
 # is open.
 # There is no heat transfer between the column and the column wall.
-#-
+#
+
 # First we load the necessary modules
-import Jutul
+import Jutul: si_unit
 import Mocca
 
 #=
@@ -24,15 +25,14 @@ constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0);
 
 # We set up a two component adsorption system. This system type is associated
 # with the appropriate equations and primary and secondary variables.
-system = Mocca.TwoComponentAdsorptionSystem(constants)
+system = Mocca.TwoComponentAdsorptionSystem(constants);
 
 # # Define the model
 # Next we need to make the model. This model contains information about
 # the domain (grid) over which we will solve the equations and information
 # about the system of equations which we are solving.
 #-
-# Because JutulDarcy has its roots in reservoir simulation we formulate
-# our velocity equation in the following form:
+# We formulate our velocity equation in the following form:
 #
 # ```math
 # v = -\frac{k}{\mu}(\nabla P)
@@ -52,16 +52,17 @@ system = Mocca.TwoComponentAdsorptionSystem(constants)
 # k = \frac{4}{150}\frac{\epsilon^3}{(1-\epsilon)^2} r_{i n}^2
 # ```
 ncells = 200
-model = Mocca.setup_adsorption_model(system; ncells = ncells)
+model = Mocca.setup_adsorption_model(system; ncells = ncells);
 
-# # Setup the initial state
-bar = Jutul.si_unit(:bar);
+# # Setup the initial state and parameters of the simulation
+# Initial values for pressure and temperature of the system
+bar = si_unit(:bar);
 P_init = 1*bar;
 T_init = 298.15;
 Tw_init = constants.T_a;
 
 # To avoid numerical errors we set the initial CO2 concentration to be very
-# small instead of 0.
+# small and not exactly zero
 yCO2_2 = 1e-10
 y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
 
@@ -71,33 +72,35 @@ state0 = Mocca.setup_adsorption_state(model;
     WallTemperature = Tw_init,
     y = y_init
 )
-parameters = Mocca.setup_adsorption_parameters(model)
+parameters = Mocca.setup_adsorption_parameters(model);
 
 # # Setup the timestepping and boundary conditions
 
 # For the DCB we are only running the adsorption stage of a VSA process.
 # We will use a total time of 5000 seconds with a single report step
-t_ads = 5000;
+t_ads = 5000.0;
 maxdt = 5000.0;
 numsteps = Int(floor(t_ads / maxdt));
 timesteps = fill(maxdt, numsteps);
 
-
-# We set up boundary conditions for an adsorption stage. AdsorptionBC sets a fixed
+# For the DCB we set up boundary conditions for just an adsorption stage. This sets a fixed
 # velocity, concentration and temperature at the inlet, and fixed pressure at
 # the outlet. By convention we assume the inlet bc is applied on the left hand
 # side and the outlet bc is applied on the right hand side.
-sim_forces = Mocca.setup_dcb_forces(model)
+sim_forces = Mocca.setup_dcb_forces(model);
 
-# Specify target change of different state variables for dynamic timestepping
-timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
+# Specify target change of the different state variables for dynamic timestepping
+timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0);
 
+# # Run the simulation
+# Collect everything into a fully specified simulation case and start the simulation
 case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
 states, timesteps_out = Mocca.simulate_adsorption(case;
     timestep_selector_cfg = timestep_selector_cfg,
     output_substates = true,
 );
 
+# # Visualisation
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
 f_outlet = Mocca.plot_cell(states, model, timesteps_out, outlet_cell)
