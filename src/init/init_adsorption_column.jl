@@ -67,4 +67,13 @@ function setup_adsorption_parameters(model; kwargs...)
     return parameters
 end
 
+function setup_dcb_forces(model)
+    constants = model.system.p
 
+    ncells = Jutul.number_of_cells(model.domain)
+    bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
+                                T_feed = constants.T_feed, cell_left = 1, cell_right = ncells);
+    dcb_forces = Jutul.setup_forces(model, bc=bc);
+
+    return dcb_forces
+end

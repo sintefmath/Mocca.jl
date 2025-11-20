@@ -82,15 +82,12 @@ maxdt = 5000.0;
 numsteps = Int(floor(t_ads / maxdt));
 timesteps = fill(maxdt, numsteps);
 
-# TODO: function to set up adsorption forces?
 
 # We set up boundary conditions for an adsorption stage. AdsorptionBC sets a fixed
 # velocity, concentration and temperature at the inlet, and fixed pressure at
 # the outlet. By convention we assume the inlet bc is applied on the left hand
 # side and the outlet bc is applied on the right hand side.
-bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
-                                T_feed = constants.T_feed, cell_left = 1, cell_right = ncells);
-sim_forces = Jutul.setup_forces(model, bc=bc);
+sim_forces = Mocca.setup_dcb_forces(model)
 
 # Specify target change of different state variables for dynamic timestepping
 timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)

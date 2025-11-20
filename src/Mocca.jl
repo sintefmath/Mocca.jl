@@ -10,6 +10,7 @@ export setup_adsorption_simulator
 export setup_adsorption_model
 export setup_adsorption_parameters
 export setup_adsorption_state
+export setup_dcb_forces
 export simulate_adsorption
 
 export plot_state, plot_cell
