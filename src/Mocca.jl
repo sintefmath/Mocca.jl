@@ -2,20 +2,22 @@ __precompile__(true)
 
 module Mocca
 
-export initialise_state_AdsorptionColumn
 export ConstantsStruct, HaghpanahConstants
-
-export compute_permeability, calc_dispersion
-
-
 export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
-export compute_equilibrium, compute_ki, initialize_from_matlab, plot_states
 
+export setup_adsorption_simulator
+export setup_adsorption_model
+export setup_adsorption_parameters
+export setup_adsorption_state
+export simulate_adsorption
 
+export plot_state, plot_cell
 
 import Jutul
 import JutulDarcy
 using StaticArrays
+
+import Jutul: JutulCase
 
 # TODO: Remove these when n-component systems are implemented
 const CO2INDEX = 1 # TODO: We don't really need this

@@ -55,11 +55,11 @@ function setup_adsorption_simulator(model, state0, parameters;
 end
 
 function simulate_adsorption(state0, model, dt, parameters, forces; kwargs...)
-    case = Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    case = JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
     simulate_adsorption(case; kwargs...)
 end
 
-function simulate_adsorption(case::Jutul.JutulCase;
+function simulate_adsorption(case::JutulCase;
     simulator = missing,
     config = missing,
     kwargs...
