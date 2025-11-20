@@ -18,105 +18,64 @@ conditions. Adsorption onto Zeolite 13X is modelled with a dual-site Langmuir ad
 =#
 
 # First we load the necessary modules
-import Jutul
+import Jutul: si_unit
 import Mocca
 
 # We define parameters, and set up the system and domain as in the [Simulate DCB](simulate_DCB.md) example.
 constants = Mocca.HaghpanahConstants{Float64}()
-permeability = Mocca.compute_permeability(constants)
-axial_dispersion = Mocca.calc_dispersion(constants)
-system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = constants)
-
-ncells = 200
-dx = sqrt(pi*constants.r_in^2)
-mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-domain = Mocca.mocca_domain(mesh, system);
+system = Mocca.TwoComponentAdsorptionSystem(constants);
 
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
-model = Jutul.SimulationModel(domain, system; general_ad = true);
+ncells = 200
+model = Mocca.setup_adsorption_model(system; ncells = ncells);
 
-# # Set up the initial state
-bar = Jutul.si_unit(:bar)
-P_init = 1*bar
-T_init = 298.15
-Tw_init = constants.T_a
+# # Setup the initial state and parameters
+# Initial values for pressure and temperature of the system
+bar = si_unit(:bar);
+P_init = 1*bar;
+T_init = 298.15;
+Tw_init = constants.T_a;
 
-yCO2 = fill(1e-10, ncells)
-y_init = hcat(yCO2, 1 .- yCO2)
+# To avoid numerical errors we set the initial CO2 concentration to be very
+# small and not exactly zero
+yCO2_2 = 1e-10
+y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
 
-state0, prm = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model);
+state0 = Mocca.setup_adsorption_state(model;
+    Pressure = P_init,
+    Temperature = T_init,
+    WallTemperature = Tw_init,
+    y = y_init
+)
+parameters = Mocca.setup_adsorption_parameters(model);
 
-# # Set up the stage timings
-
+# # Set up the stage timings and boundary conditions
 # Here we have 4 stages and we specify a duration in seconds that we will run each stage.
-
 t_press = 15
 t_ads = 15
 t_blow = 30
 t_evac= 40
+stage_times = [t_press, t_ads, t_blow, t_evac];
 
-t_stage = [t_press, t_ads, t_blow, t_evac];
-
-# We also calculate the time taken to run one cycle and the total time at the end of each stage.
-
-cycle_time = sum(t_stage)
-step_end = cumsum(t_stage);
-
-# # Set up boundary conditions
-
-# We use different boundary conditions for each stage as described above.
-# These boundary conditions are already programmed in Mocca. We just need to define their parameters.
-
-d_press = Mocca.PressurisationBC(y_feed = constants.y_feed, PH = constants.p_high, PL = constants.p_low,
-                                λ = constants.λ, T_feed = constants.T_feed, cell_left = 1, cell_right = ncells,
-                                cycle_time = cycle_time, previous_step_end = 0)
-
-d_ads = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
-                                T_feed = constants.T_feed, cell_left = 1, cell_right = ncells)
-
-d_blow = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
-                            λ = constants.λ, cell_left = 1, cell_right = ncells,
-                            cycle_time = cycle_time, previous_step_end = step_end[2])
-
-
-d_evac = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
-                            λ = constants.λ, cell_left = 1, cell_right = ncells,
-                            cycle_time = cycle_time, previous_step_end = step_end[3]);
-
-
-# We collect the boundary conditions in the order of their associated stages
-bcs = [d_press, d_ads, d_blow, d_evac];
-
-# Define the full cyclic simulation by stacking subsequent stages in time
-# for a specified number of cycles
-numcycles = 3
-
-timesteps = []
-sim_forces = []
-maxdt = 1
-
-for j = 1:numcycles
-    for i in eachindex(t_stage)
-        numsteps = t_stage[i] / maxdt
-        append!(timesteps, repeat([maxdt], Int(floor(numsteps))))
-        append!(sim_forces, repeat([Jutul.setup_forces(model, bc=bcs[i])], Int(floor(numsteps))))
-    end
-end
+# Set up cyclic boundary conditions and timesteps for the simulation
+sim_forces, timesteps = Mocca.setup_cyclic_forces(model, stage_times;
+    num_cycles = 3,
+    max_dt = 1.0
+);
 
 # # Simulate
-# Now we are ready to run the simulation.
-states, report = Jutul.simulate(state0, model, timesteps;
-    forces=sim_forces,
-    parameters = prm,
+# Now we are ready to run the simulation
+case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
+states, timesteps_out = Mocca.simulate_adsorption(case;
+    output_substates = true,
     info_level = -1
 );
 
-
-# # Plot
+# # Visualisation
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
-f_outlet = Mocca.plot_cell(states, model, timesteps, outlet_cell)
+f_outlet = Mocca.plot_cell(states, model, timesteps_out, outlet_cell)
 
 # We also plot primary variables along the column at the end of the simulation
 f_column = Mocca.plot_state(states[end], model)
