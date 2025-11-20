@@ -25,37 +25,71 @@ function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
     return nothing
 end
 
-function simulate_adsorption(model, state0, dt, parameters, sim_forces;
-    info_level = 0,
-    var_tstep_cfg = nothing
-)
-    extra_args = Dict()
+function setup_adsorption_simulator(model, state0, parameters;
+        var_tstep_cfg = nothing,
+        initial_dt = 1.0,
+        kwargs...
+    )
 
-    # Set up optional variable timestep selectors
-    if !isnothing(var_tstep_cfg)
-        t_base = Jutul.TimestepSelector(initial_absolute = 1.0)
-        timesteppers = Any[t_base]
-        push!(timesteppers, t_base)
-        for (k, v) in pairs(var_tstep_cfg)
-            t_i = Jutul.VariableChangeTimestepSelector(k, v, relative = false)
-            push!(timesteppers, t_i)
-        end
-        extra_args[:timestep_selectors] = timesteppers
-    end
-
+    # Set up simulator
     sim = Jutul.Simulator(model; state0 = state0, parameters = parameters)
 
+    # Set up timestep selectors
+    t_base = Jutul.TimestepSelector(initial_absolute = initial_dt)
+    timesteppers = Vector{Any}()
+    push!(timesteppers, t_base)
+    if !isnothing(var_tstep_cfg)
+        for (k, v) in pairs(var_tstep_cfg)
+            t_i = Jutul.VariableChangeTimestepSelector(k, v, relative=false)
+            push!(timesteppers, t_i)
+        end
+    end
+
+    # Set up config
     cfg = Jutul.simulator_config(sim;
-        output_substates = true,
-        info_level = info_level,
-        pairs(extra_args)...
+        timestep_selectors = timesteppers,
+        kwargs...
     )
+
+    return (sim, cfg)
+end
+
+function simulate_adsorption(state0, model, dt, parameters, forces; kwargs...)
+    case = Jutul.JutulCase(model, dt, forces, state0 = state0, parameters = parameters)
+    simulate_adsorption(case; kwargs...)
+end
+
+function simulate_adsorption(case::Jutul.JutulCase;
+    simulator = missing,
+    config = missing,
+    kwargs...
+)
+    (; model, forces, state0, parameters, dt) = case
+
+    if ismissing(simulator)
+        sim = Jutul.Simulator(model; state0 = state0, parameters = parameters)
+        (sim, cfg_new) = setup_adsorption_simulator(model, state0, parameters; kwargs...)
+        config = cfg_new
+        extra_arg = NamedTuple()
+    else
+        sim = simulator
+        @assert !ismissing(config) "If simulator is provided, config must also be provided"
+        # May have been passed kwarg that should be accounted for
+        if length(kwargs) > 0
+            config = copy(config)
+            for (k, v) in kwargs
+                config[k] = v
+            end
+        end
+        extra_arg = (state0 = case.state0, parameters = case.parameters)
+    end
 
     result = Jutul.simulate!(sim, dt;
-        config = cfg,
-        forces = sim_forces
+        config = config,
+        forces = forces,
+        extra_arg...
     )
 
-    substates, subtimesteps = Jutul.expand_to_ministeps(result)
-    return substates, subtimesteps
+    states, timesteps = Jutul.expand_to_ministeps(result)
+    return states, timesteps
 end

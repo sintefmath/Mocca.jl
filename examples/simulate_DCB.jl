@@ -83,6 +83,7 @@ numsteps = Int(floor(t_ads / maxdt));
 timesteps = fill(maxdt, numsteps);
 
 # TODO: function to set up adsorption forces?
+
 # We set up boundary conditions for an adsorption stage. AdsorptionBC sets a fixed
 # velocity, concentration and temperature at the inlet, and fixed pressure at
 # the outlet. By convention we assume the inlet bc is applied on the left hand
@@ -91,16 +92,17 @@ bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed
                                 T_feed = constants.T_feed, cell_left = 1, cell_right = ncells);
 sim_forces = Jutul.setup_forces(model, bc=bc);
 
+case = Jutul.JutulCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
+
 var_tstep_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
 
-# TODO: Create wrapper function for this
-substates, subtimesteps = Mocca.simulate_adsorption(model, state0, timesteps, parameters, sim_forces;
+states, timesteps = Mocca.simulate_adsorption(case;
     var_tstep_cfg = var_tstep_cfg
 );
 
 # We plot primary variables at the outlet through time
 outlet_cell = ncells
-f_outlet = Mocca.plot_cell(substates, model, subtimesteps, outlet_cell)
+f_outlet = Mocca.plot_cell(states, model, timesteps, outlet_cell)
 
 # We also plot primary variables along the column at the end of the simulation
-f_column = Mocca.plot_state(substates[end], model)
+f_column = Mocca.plot_state(states[end], model)
