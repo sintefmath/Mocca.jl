@@ -95,7 +95,7 @@ sim_forces = Jutul.setup_forces(model, bc=bc);
 
 var_tstep_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
 
-case = Jutul.JutulCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
+case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
 states, sub_timesteps = Mocca.simulate_adsorption(case;
     var_tstep_cfg = var_tstep_cfg,
     output_substates = true,

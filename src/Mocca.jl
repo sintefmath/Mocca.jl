@@ -4,6 +4,7 @@ module Mocca
 
 export ConstantsStruct, HaghpanahConstants
 export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
+export MoccaCase
 
 export setup_adsorption_simulator
 export setup_adsorption_model
@@ -18,6 +19,8 @@ import JutulDarcy
 using StaticArrays
 
 import Jutul: JutulCase
+
+const MoccaCase = JutulCase # Convenience alias for simulation cases
 
 # TODO: Remove these when n-component systems are implemented
 const CO2INDEX = 1 # TODO: We don't really need this
