@@ -77,3 +77,45 @@ function setup_dcb_forces(model)
 
     return dcb_forces
 end
+
+function setup_cyclic_forces(model, stage_times;
+        num_cycles = 3,
+        max_dt = 1.0
+    )
+    cycle_time = sum(stage_times)
+    step_end = cumsum(stage_times)
+
+    constants = model.system.p
+    ncells = Jutul.number_of_cells(model.domain)
+
+    d_press = Mocca.PressurisationBC(y_feed=constants.y_feed, PH=constants.p_high, PL=constants.p_low,
+        λ=constants.λ, T_feed=constants.T_feed, cell_left=1, cell_right=ncells,
+        cycle_time=cycle_time, previous_step_end=0)
+
+    d_ads = Mocca.AdsorptionBC(y_feed=constants.y_feed, PH=constants.p_high, v_feed=constants.v_feed,
+        T_feed=constants.T_feed, cell_left=1, cell_right=ncells)
+
+    d_blow = Mocca.BlowdownBC(PH=constants.p_high, PI=constants.p_intermediate,
+        λ=constants.λ, cell_left=1, cell_right=ncells,
+        cycle_time=cycle_time, previous_step_end=step_end[2])
+
+
+    d_evac = Mocca.EvacuationBC(PL=constants.p_low, PI=constants.p_intermediate,
+        λ=constants.λ, cell_left=1, cell_right=ncells,
+        cycle_time=cycle_time, previous_step_end=step_end[3])
+
+    bcs = [d_press, d_ads, d_blow, d_evac]
+
+    timesteps = Float64[]
+    sim_forces = []
+
+    for j = 1:num_cycles
+        for i in eachindex(stage_times)
+            numsteps = stage_times[i] / max_dt
+            append!(timesteps, repeat([max_dt], Int(floor(numsteps))))
+            append!(sim_forces, repeat([Jutul.setup_forces(model, bc=bcs[i])], Int(floor(numsteps))))
+        end
+    end
+
+    return (sim_forces, timesteps)
+end
