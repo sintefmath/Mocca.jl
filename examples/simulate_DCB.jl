@@ -92,12 +92,12 @@ bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed
                                 T_feed = constants.T_feed, cell_left = 1, cell_right = ncells);
 sim_forces = Jutul.setup_forces(model, bc=bc);
 
-
-var_tstep_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
+# Specify target change of different state variables for dynamic timestepping
+timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0)
 
 case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
 states, sub_timesteps = Mocca.simulate_adsorption(case;
-    var_tstep_cfg = var_tstep_cfg,
+    timestep_selector_cfg = timestep_selector_cfg,
     output_substates = true,
 );
 

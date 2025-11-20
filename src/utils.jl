@@ -26,7 +26,7 @@ function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
 end
 
 function setup_adsorption_simulator(model, state0, parameters;
-        var_tstep_cfg = nothing,
+        timestep_selector_cfg = nothing,
         initial_dt = 1.0,
         kwargs...
     )
@@ -38,8 +38,8 @@ function setup_adsorption_simulator(model, state0, parameters;
     t_base = Jutul.TimestepSelector(initial_absolute = initial_dt)
     timesteppers = Vector{Any}()
     push!(timesteppers, t_base)
-    if !isnothing(var_tstep_cfg)
-        for (k, v) in pairs(var_tstep_cfg)
+    if !isnothing(timestep_selector_cfg)
+        for (k, v) in pairs(timestep_selector_cfg)
             t_i = Jutul.VariableChangeTimestepSelector(k, v, relative=false)
             push!(timesteppers, t_i)
         end
