@@ -6,12 +6,12 @@ export ConstantsStruct, HaghpanahConstants
 export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
 export MoccaCase
 
-export setup_adsorption_simulator
-export setup_adsorption_model
-export setup_adsorption_parameters
-export setup_adsorption_state
+export setup_process_simulator
+export setup_process_model
+export setup_process_parameters
+export setup_process_state
 export setup_dcb_forces
-export simulate_adsorption
+export simulate_process
 
 export plot_state, plot_cell
 

@@ -25,7 +25,7 @@ function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
     return nothing
 end
 
-function setup_adsorption_simulator(model, state0, parameters;
+function setup_process_simulator(model, state0, parameters;
         timestep_selector_cfg = nothing,
         initial_dt = 1.0,
         kwargs...
@@ -54,12 +54,12 @@ function setup_adsorption_simulator(model, state0, parameters;
     return (sim, cfg)
 end
 
-function simulate_adsorption(state0, model, dt, parameters, forces; kwargs...)
+function simulate_process(state0, model, dt, parameters, forces; kwargs...)
     case = MoccaCase(model, dt, forces, state0 = state0, parameters = parameters)
-    simulate_adsorption(case; kwargs...)
+    simulate_process(case; kwargs...)
 end
 
-function simulate_adsorption(case::MoccaCase;
+function simulate_process(case::MoccaCase;
     simulator = missing,
     config = missing,
     kwargs...
@@ -68,7 +68,7 @@ function simulate_adsorption(case::MoccaCase;
 
     if ismissing(simulator)
         sim = Jutul.Simulator(model; state0 = state0, parameters = parameters)
-        (sim, cfg_new) = setup_adsorption_simulator(model, state0, parameters; kwargs...)
+        (sim, cfg_new) = setup_process_simulator(model, state0, parameters; kwargs...)
         config = cfg_new
         extra_arg = NamedTuple()
     else

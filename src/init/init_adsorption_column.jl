@@ -26,7 +26,7 @@ function initial_adsorbed_concentration(model; kwargs...)
     return q_init
 end
 
-function setup_adsorption_model(system::AdsorptionSystem;
+function setup_process_model(system::AdsorptionSystem;
     ncells = 100
 )
     constants = system.p
@@ -38,7 +38,7 @@ function setup_adsorption_model(system::AdsorptionSystem;
     return model
 end
 
-function setup_adsorption_state(model; kwargs...)
+function setup_process_state(model; kwargs...)
     system = model.system
     g = JutulDarcy.physical_representation(model.data_domain)
     ncells = prod(g.dims)
@@ -52,7 +52,7 @@ function setup_adsorption_state(model; kwargs...)
     return state0
 end
 
-function setup_adsorption_parameters(model; kwargs...)
+function setup_process_parameters(model; kwargs...)
     system = model.system
     volumes = model.data_domain[:volumes]
     solid_volume = volumes * (1 - system.p.Φ)

@@ -15,7 +15,7 @@ function setup_case(prm, step_info=missing)
 
     constants = Mocca.HaghpanahConstants{RealT}(h_in = 0.0, h_out = 0.0, v_feed = prm["v_feed"])
     system = Mocca.TwoComponentAdsorptionSystem(constants)
-    model = Mocca.setup_adsorption_model(system; ncells = ncells);
+    model = Mocca.setup_process_model(system; ncells = ncells);
 
     bar = Jutul.si_unit(:bar)
     P_init = 1 * bar
@@ -25,13 +25,13 @@ function setup_case(prm, step_info=missing)
     yCO2_2 = 1e-10
     y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
 
-    state0 = Mocca.setup_adsorption_state(model;
+    state0 = Mocca.setup_process_state(model;
         Pressure=P_init,
         Temperature=T_init,
         WallTemperature=Tw_init,
         y=y_init
     )
-    parameters = Mocca.setup_adsorption_parameters(model)
+    parameters = Mocca.setup_process_parameters(model)
 
     t_ads = 5000.0
     maxdt = 5000.0
@@ -51,7 +51,7 @@ case_ref = setup_case(prm_ref);
 
 # Configure simulator which will be used in the history matching
 timestep_selector_cfg = (y=0.01, Temperature=10.0, Pressure=10.0)
-sim, cfg = Mocca.setup_adsorption_simulator(case_ref.model, case_ref.state0, case_ref.parameters;
+sim, cfg = Mocca.setup_process_simulator(case_ref.model, case_ref.state0, case_ref.parameters;
     timestep_selector_cfg = timestep_selector_cfg,
     initial_dt = 1.0,
     output_substates = true,
@@ -59,7 +59,7 @@ sim, cfg = Mocca.setup_adsorption_simulator(case_ref.model, case_ref.state0, cas
 );
 
 # Run reference simulation to generate and generate "ground truth" data from the result
-states, timesteps_out = Mocca.simulate_adsorption(case_ref;
+states, timesteps_out = Mocca.simulate_process(case_ref;
     simulator = sim,
     config = cfg
 );

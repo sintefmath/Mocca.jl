@@ -29,7 +29,7 @@ function setup_case(prm, step_info = missing)
     system = Mocca.TwoComponentAdsorptionSystem(constants)
 
     ncells = 200
-    model = Mocca.setup_adsorption_model(system; ncells = ncells);
+    model = Mocca.setup_process_model(system; ncells = ncells);
     push!(model.output_variables, :CellDx)
 
     bar = Jutul.si_unit(:bar)
@@ -40,14 +40,14 @@ function setup_case(prm, step_info = missing)
     yCO2_2 = 1e-10
     y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
 
-    state0 = Mocca.setup_adsorption_state(model;
+    state0 = Mocca.setup_process_state(model;
         Pressure=P_init,
         Temperature=T_init,
         WallTemperature=Tw_init,
         y=y_init
     )
 
-    parameters = Mocca.setup_adsorption_parameters(model)
+    parameters = Mocca.setup_process_parameters(model)
 
     stage_times, num_cycles = cycle_definition()
     sim_forces, timesteps = Mocca.setup_cyclic_forces(model, stage_times;

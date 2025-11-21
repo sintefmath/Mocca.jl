@@ -52,7 +52,7 @@ system = Mocca.TwoComponentAdsorptionSystem(constants);
 # k = \frac{4}{150}\frac{\epsilon^3}{(1-\epsilon)^2} r_{i n}^2
 # ```
 ncells = 200
-model = Mocca.setup_adsorption_model(system; ncells = ncells);
+model = Mocca.setup_process_model(system; ncells = ncells);
 
 # # Setup the initial state and parameters of the simulation
 # Initial values for pressure and temperature of the system
@@ -66,13 +66,13 @@ Tw_init = constants.T_a;
 yCO2_2 = 1e-10
 y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
 
-state0 = Mocca.setup_adsorption_state(model;
+state0 = Mocca.setup_process_state(model;
     Pressure = P_init,
     Temperature = T_init,
     WallTemperature = Tw_init,
     y = y_init
 )
-parameters = Mocca.setup_adsorption_parameters(model);
+parameters = Mocca.setup_process_parameters(model);
 
 # # Setup the timestepping and boundary conditions
 
@@ -95,7 +95,7 @@ timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0);
 # # Run the simulation
 # Collect everything into a fully specified simulation case and start the simulation
 case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
-states, timesteps_out = Mocca.simulate_adsorption(case;
+states, timesteps_out = Mocca.simulate_process(case;
     timestep_selector_cfg = timestep_selector_cfg,
     output_substates = true,
 );
