@@ -24,7 +24,7 @@ function parse_input(filepath::String; typeT=Float64)
     return constants, info
 end
 
-function is_detailed_input(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}})
+function is_detailed_input(input_dict)
 
     
     if !haskey(input_dict, "columnProps") 
@@ -32,11 +32,10 @@ function is_detailed_input(input_dict::Union{Dict{String, Any},JSON.Object{Strin
     end
 
     # Check for the presence of "value" keys in nested dictionaries
-    if isa(input_dict["columnProps"]["L"],Dict)
+    L_value = input_dict["columnProps"]["L"]
+    if isa(L_value, Dict) || isa(L_value, AbstractDict)
         return true
-    elseif isa(input_dict["columnProps"]["L"],JSON.Object)
-        return true
-    elseif isa(input_dict["columnProps"]["L"],Number)
+    elseif isa(L_value, Number)
         return false
     else
         error("Input JSON file format not recognized")
@@ -44,7 +43,7 @@ function is_detailed_input(input_dict::Union{Dict{String, Any},JSON.Object{Strin
     return 
 end
 
-function parse_input_from_detailed_dict(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}}, typeT)
+function parse_input_from_detailed_dict(input_dict, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
     constants = Mocca.adsorptionConstants{typeT}(
@@ -119,7 +118,7 @@ function parse_input_from_detailed_dict(input_dict::Union{Dict{String, Any},JSON
     return constants, info
 end
 
-function parse_input_from_simple_dict(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}}, typeT)
+function parse_input_from_simple_dict(input_dict, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
     constants = Mocca.adsorptionConstants{typeT}(
@@ -192,5 +191,6 @@ function parse_input_from_simple_dict(input_dict::Union{Dict{String, Any},JSON.O
 
     return constants, info
 end
+
 
 
