@@ -38,22 +38,26 @@ function build_mocca_docs(; build_examples = true)
     ## Make docs
 
     makedocs(;
-        # modules = [Mocca],
+        modules = [Mocca],
+        warnonly = [:missing_docs],
         sitename="Mocca.jl",
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
             "Examples" => examples_markdown
-        ]
+        ],
+        format=Documenter.HTML(;
+            edit_link="main"
+        )
 
     )
 
     ## Deploy docs
 
-    # deploydocs(;
-    # repo="github.com/sintefmath/Mocca.jl",
-    # devbranch="main",
-    # )
+    deploydocs(;
+        repo="github.com/sintefmath/Mocca.jl",
+        devbranch="main",
+    )
 end
 
 build_mocca_docs(build_examples=true)
