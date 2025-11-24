@@ -57,6 +57,7 @@ function build_mocca_docs(; build_examples = true)
     deploydocs(;
         repo="github.com/sintefmath/Mocca.jl",
         devbranch="main",
+        push_preview = true
     )
 end
 
