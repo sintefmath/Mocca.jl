@@ -1,28 +1,22 @@
-function initial_adsorbed_concentration(model; kwargs...)
+function initial_adsorbed_concentration(model, t_init, p_init, y_init)
+    # Check that necessary state variables are provided
+    !ismissing(t_init) || error("The key Temperature must be present to initialize AdsorbedConcentration")
+    !ismissing(p_init) || error("The key Pressure must be present to initialize AdsorbedConcentration")
+    !ismissing(y_init) || error("The key y must be present to initialize AdsorbedConcentration")
+    R = model.system.p.R
+    ncells = Jutul.number_of_cells(model.domain)
 
-    # Extract values from kwargs
-    if haskey(kwargs, :Pressure) && haskey(kwargs, :y) && haskey(kwargs, :Temperature)
-        p_init = kwargs[:Pressure]
-        y_init = kwargs[:y]
-        temperature_init = kwargs[:Temperature]
-        R = model.system.p.R
-        ncells = Jutul.number_of_cells(model.domain)
+    # Ensure vectors have correct length for cell-wise operations
+    p_vec = isa(p_init, Number) ? fill(p_init, ncells) : p_init
+    temp_vec = isa(t_init, Number) ? fill(t_init, ncells) : t_init
 
-        # Ensure vectors have correct length for cell-wise operations
-        p_vec = isa(p_init, Number) ? fill(p_init, ncells) : p_init
-        temp_vec = isa(temperature_init, Number) ? fill(temperature_init, ncells) : temperature_init
+    cTot = p_vec ./ (R * temp_vec)
+    c = y_init' .* cTot
 
-        cTot = p_vec ./ (R * temp_vec)
-        c = y_init' .* cTot
-
-        q_init = map(1:ncells) do i
-            qstar = compute_equilibrium(model.system, c[i,:], temp_vec[i])
-        end
-        q_init = stack(q_init) # Convert Vector of SVectors to Matrix
-
-    else
-        error("Need to set Pressure, y and Temperature in order to determine initial adsorbed concentration in the column")
+    q_init = map(1:ncells) do i
+        qstar = compute_equilibrium(model.system, c[i, :], temp_vec[i])
     end
+    q_init = stack(q_init) # Convert Vector of SVectors to Matrix
     return q_init
 end
 
@@ -39,11 +33,15 @@ function setup_process_model(system::AdsorptionSystem;
 end
 
 function setup_process_state(model; kwargs...)
-    system = model.system
-    g = JutulDarcy.physical_representation(model.data_domain)
-    ncells = prod(g.dims)
-
-    q_init = initial_adsorbed_concentration(model; kwargs...)
+    # If not provided, the initial adsorbed concentration is calculated from the other state variables
+    if haskey(kwargs, :AdsorbedConcentration)
+        q_init = kwargs[:AdsorbedConcentration]
+    else
+        t_init = get(kwargs, :Temperature, missing)
+        p_init = get(kwargs, :Pressure, missing)
+        y_init = get(kwargs, :y, missing)
+        q_init = initial_adsorbed_concentration(model, t_init, p_init, y_init)
+    end
 
     state0 = Jutul.setup_state(model;
         AdsorbedConcentration = q_init,
