@@ -7,6 +7,13 @@ using Parameters
     p::T
 end
 
+function TwoComponentAdsorptionSystem(constants::ConstantsStruct)
+    permeability = compute_permeability(constants)
+    axial_dispersion = calc_dispersion(constants)
+
+    return TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = constants)
+end
+
 JutulDarcy.number_of_components(sys::TwoComponentAdsorptionSystem) = 2
 
 JutulDarcy.number_of_phases(sys::TwoComponentAdsorptionSystem) = 1

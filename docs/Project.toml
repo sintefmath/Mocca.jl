@@ -1,0 +1,5 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Jutul = "2b460a1a-8a2b-45b2-b125-b5c536396eb9"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Mocca = "eb14e3ba-90c8-11ed-0ecf-1dd2ea0d109c"

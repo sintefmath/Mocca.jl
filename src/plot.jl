@@ -107,17 +107,23 @@ function plot_state(state, model)
 end
 
 
-function plot_optimization_history(dict_parameters::Jutul.DictParameters)
+function plot_optimization_history(dict_parameters::Jutul.DictParameters;
+    yscale = log10,
+    ylabel = "Objective error"
+)
     vals = dict_parameters.history.val
 
     f = Figure(size= (900, 600))
-    ax = Axis(f[1,1]; xlabel = "Iteration #", ylabel = "Objective error")
+    ax = Axis(f[1,1]; xlabel = "Iteration #", ylabel = ylabel)
     ax.xticks = 1:length(vals)
     lim_min, lim_max = extrema(vals)
     lim_min *= 0.5
     lim_max *= 2.0
+    if yscale == identity
+        lim_min = 0.0
+    end
     ylims!(ax, lim_min, lim_max)
-    ax.yscale = log10
+    ax.yscale = yscale
 
     scatter!(ax, vals)
     return f

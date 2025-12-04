@@ -1,9 +1,3 @@
-
-abstract type AdsorptionSystem <: JutulDarcy.MultiComponentSystem end
-
-const AdsorptionModel = Jutul.SimulationModel{<:Any,<:AdsorptionSystem,<:Any,<:Any}
-
-
 # Overload JutulDarcy functions
 
 JutulDarcy.number_of_components(sys::AdsorptionSystem) = sys.number_of_components

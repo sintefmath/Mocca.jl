@@ -41,8 +41,26 @@ function pressure_left(force::EvacuationBC, time)
     return (PL + (PI - PL) * exp(-λ * t))
 end
 
+function mass_flux_left(state, model, time, force::EvacuationBC)
+    pars = model.system.p
+    R = pars.R
+    μ = pars.fluid_viscosity
+    mob = 1.0 / μ
+    trans = calc_bc_trans(model, state)
 
+    cell_left = force.cell_left
+    P = state.Pressure[cell_left]
+    T = state.Temperature[cell_left]
+    y = state.y[:, cell_left]
 
+    P_bc = pressure_left(force, time)
+    q = -trans * mob * (P_bc - P)
+    cTot = P / (T * R)
+
+    c = y .* cTot
+    mass_flux = -q .* c
+    return mass_flux
+end
 
 function Jutul.apply_forces_to_equation!(
     acc,
@@ -55,34 +73,13 @@ function Jutul.apply_forces_to_equation!(
 )
 
     state = storage.state
-
-    pars = model.system.p
-    R = pars.R
-    μ = pars.fluid_viscosity
-    mob = 1.0 / μ
-    trans = calc_bc_trans(model, state)
+    cell_left = force.cell_left
 
     # left side
-    begin
-        cell_left = force.cell_left
-        P = state.Pressure[cell_left]
-        T = state.Temperature[cell_left]
-        y = state.y[:, cell_left] 
-
-        P_bc = pressure_left(force, time)
-
-        q = -trans * mob * (P_bc - P)
-
-        cTot = P / (T * R)
-
-        for i in eachindex(y)
-            c = y[i] * cTot
-            mysource =  -(q * c)
-            acc[i, cell_left] -= mysource
-        end
-
+    mass_flux = mass_flux_left(state, model, time, force)
+    for i in eachindex(mass_flux)
+        acc[i, cell_left] -= mass_flux[i]
     end
-  
 end
 
 

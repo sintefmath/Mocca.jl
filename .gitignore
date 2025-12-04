@@ -28,7 +28,11 @@ Manifest.toml
 # Matlab data files 
 #
 *.mat
+<<<<<<< HEAD
 
 # vscode settings
 .vscode/settings.json
 
+=======
+.vscode/*
+>>>>>>> add-new-api
