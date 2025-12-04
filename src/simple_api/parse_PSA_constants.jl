@@ -51,7 +51,21 @@ function parse_PSA_constants(json_file::String)
         p_low = json_data["boundaryConditions"]["p_low"]["value"],
         λ = json_data["boundaryConditions"]["λ"]["value"],
         # Initial conditions
-        T0 = json_data["initialConditions"]["T0"]["value"]
+        T0 = json_data["initialConditions"]["T0"]["value"],
+        # Simulation parameters
+        ncells = json_data["simulation"]["ncells"],
+        t_ads = json_data["simulation"]["t_ads"],
+        maxdt = json_data["simulation"]["maxdt"],
+        timesteps = json_data["simulation"]["timesteps"],
+        P_init = json_data["simulation"]["P_init"],
+        T_init = json_data["simulation"]["T_init"],
+        Tw_init = json_data["simulation"]["Tw_init"],
+        yCO2_initial = json_data["simulation"]["yCO2_initial"],
+        timestep_selectors = json_data["simulation"]["timestep_selectors"],
+        boundary_conditions = json_data["simulation"]["boundary_conditions"],
+        # Solver parameters
+        linear_solver = json_data["simulation"]["solver"]["linear_solver"],
+        info_level = json_data["simulation"]["solver"]["info_level"]
     )
 
     return constants

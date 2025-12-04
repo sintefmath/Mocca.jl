@@ -65,44 +65,13 @@ function setup_process_parameters(model; kwargs...)
     return parameters
 end
 
-function setup_dcb_forces(model)
-    constants = model.system.p
+function setup_forces(model,stage_times,stage_names;
+    num_cycles=1,max_dt = 1.0)
 
-    ncells = Jutul.number_of_cells(model.domain)
-    bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
-                                T_feed = constants.T_feed, cell_left = 1, cell_right = ncells);
-    dcb_forces = Jutul.setup_forces(model, bc=bc);
-
-    return dcb_forces
-end
-
-function setup_cyclic_forces(model, stage_times;
-        num_cycles = 3,
-        max_dt = 1.0
-    )
-    cycle_time = sum(stage_times)
-    step_end = cumsum(stage_times)
-
-    constants = model.system.p
-    ncells = Jutul.number_of_cells(model.domain)
-
-    d_press = Mocca.PressurisationBC(y_feed=constants.y_feed, PH=constants.p_high, PL=constants.p_low,
-        λ=constants.λ, T_feed=constants.T_feed, cell_left=1, cell_right=ncells,
-        cycle_time=cycle_time, previous_step_end=0)
-
-    d_ads = Mocca.AdsorptionBC(y_feed=constants.y_feed, PH=constants.p_high, v_feed=constants.v_feed,
-        T_feed=constants.T_feed, cell_left=1, cell_right=ncells)
-
-    d_blow = Mocca.BlowdownBC(PH=constants.p_high, PI=constants.p_intermediate,
-        λ=constants.λ, cell_left=1, cell_right=ncells,
-        cycle_time=cycle_time, previous_step_end=step_end[2])
-
-
-    d_evac = Mocca.EvacuationBC(PL=constants.p_low, PI=constants.p_intermediate,
-        λ=constants.λ, cell_left=1, cell_right=ncells,
-        cycle_time=cycle_time, previous_step_end=step_end[3])
-
-    bcs = [d_press, d_ads, d_blow, d_evac]
+    constants = model.system.p;
+    ncells = Jutul.number_of_cells(model.domain);
+    
+    bcs = setup_stage_bcs(constants,stage_times,stage_names,ncells);
 
     timesteps = Float64[]
     sim_forces = []
@@ -116,4 +85,37 @@ function setup_cyclic_forces(model, stage_times;
     end
 
     return (sim_forces, timesteps)
+end
+
+function setup_stage_bcs(constants,stage_times,stage_names,ncells)
+
+
+	cycle_time = sum(stage_times);
+	step_end = cumsum(stage_times);
+
+	bcs = [];
+
+	for i in 1:length(stage_times)
+		if stage_names[i] == "pressurisation"
+			bc = Mocca.PressurisationBC(y_feed = constants.y_feed, PH = constants.p_high, PL = constants.p_low,
+				λ = constants.λ, T_feed = constants.T_feed, cell_left = 1, cell_right = ncells,
+				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
+		elseif stage_names[i] == "adsorption"
+			bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
+				T_feed = constants.T_feed, cell_left = 1, cell_right = ncells)
+		elseif stage_names[i] == "blowdown"
+			bc = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
+				λ = constants.λ, cell_left = 1, cell_right = ncells,
+				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
+		elseif stage_names[i] == "evacuation"
+			bc = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
+				λ = constants.λ, cell_left = 1, cell_right = ncells,
+				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
+		else
+			error("Boundary condition type $(stage_names[i]) not recognized")
+		end
+		push!(bcs, bc)
+	end
+
+	return bcs
 end

@@ -80,14 +80,14 @@ parameters = Mocca.setup_process_parameters(model);
 # We will use a total time of 5000 seconds with a single report step
 t_ads = 5000.0;
 maxdt = 5000.0;
-numsteps = Int(floor(t_ads / maxdt));
-timesteps = fill(maxdt, numsteps);
+
 
 # For the DCB we set up boundary conditions for just an adsorption stage. This sets a fixed
 # velocity, concentration and temperature at the inlet, and fixed pressure at
 # the outlet. By convention we assume the inlet bc is applied on the left hand
 # side and the outlet bc is applied on the right hand side.
-sim_forces = Mocca.setup_dcb_forces(model);
+sim_forces, timesteps = Mocca.setup_forces(model,[t_ads],["adsorption"];
+    num_cycles=1,max_dt = maxdt);
 
 # Specify target change of the different state variables for dynamic timestepping
 timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0);

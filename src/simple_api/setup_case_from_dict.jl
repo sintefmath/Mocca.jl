@@ -15,7 +15,7 @@ function setup_case_from_dict(input_dict::Dict{Symbol, Any})
 	if input_dict[:system_type] == "TwoComponentAdsorptionSystem"
 		system = Mocca.TwoComponentAdsorptionSystem(; permeability = permeability, dispersion = axial_dispersion, p = constants);
 	else
-		error("System type $(input_dict[:system]) not recognized")
+		error("System type $(input_dict[:system_type]) not recognized")
 	end
 
 	# Jutul uses finite volume discretisation in space. To model a 1D cylindrical column
@@ -63,50 +63,21 @@ function setup_case_from_dict(input_dict::Dict{Symbol, Any})
 	# For the DCB we are only running the adsorption stage of a VSA process.
 	# We will use a total time of 5000 seconds with a single report step
 
-	t_stage = input_dict[:t_stage];
-	cycle_time = sum(t_stage)
-	step_end = cumsum(t_stage);
 
-	bcs = [];
-
-	for i in 1:length(t_stage)
-		if input_dict[:stages][i] == "PressurisationBC"
-			bc = Mocca.PressurisationBC(y_feed = constants.y_feed, PH = constants.p_high, PL = constants.p_low,
-				λ = constants.λ, T_feed = constants.T_feed, cell_left = 1, cell_right = ncells,
-				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
-		elseif input_dict[:stages][i] == "AdsorptionBC"
-			bc = Mocca.AdsorptionBC(y_feed = constants.y_feed, PH = constants.p_high, v_feed = constants.v_feed,
-				T_feed = constants.T_feed, cell_left = 1, cell_right = ncells)
-		elseif input_dict[:stages][i] == "BlowdownBC"
-			bc = Mocca.BlowdownBC(PH = constants.p_high, PI = constants.p_intermediate,
-				λ = constants.λ, cell_left = 1, cell_right = ncells,
-				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
-		elseif input_dict[:stages][i] == "EvacuationBC"
-			bc = Mocca.EvacuationBC(PL = constants.p_low, PI = constants.p_intermediate,
-				λ = constants.λ, cell_left = 1, cell_right = ncells,
-				cycle_time = cycle_time, previous_step_end = i == 1 ? 0 : step_end[i-1])
-		else
-			error("Boundary condition type $(input_dict[:stages][i]) not recognized")
-		end
-		push!(bcs, bc)
-	end
-
+	stage_names = input_dict[:stages];
+	stage_times = input_dict[:t_stage];
+	numcycles = input_dict[:numcycles];
+	maxdt = input_dict[:maxdt];
+	bcs = setup_forces(stage_times,stage_names);
 
 	# Define the full cyclic simulation by stacking subsequent stages in time
 	# for a specified number of cycles
-	numcycles = input_dict[:numcycles]
+	
 
-	timesteps = []
-	sim_forces = []
-	maxdt = 1
+	sim_forces, timesteps = setup_forces(model,stage_times,stage_names;
+	num_cycles=numcycles, max_dt = maxdt);
 
-	for j ∈ 1:numcycles
-		for i in eachindex(t_stage)
-			numsteps = t_stage[i] / maxdt
-			append!(timesteps, repeat([maxdt], Int(floor(numsteps))))
-			append!(sim_forces, repeat([Jutul.setup_forces(model, bc = bcs[i])], Int(floor(numsteps))))
-		end
-	end
+
 	# # Simulate
 
 	# Set up timesteppers based on target changes with an initial timestep of 1 day
@@ -132,3 +103,4 @@ function setup_case_from_dict(input_dict::Dict{Symbol, Any})
 	return (sim = sim, timesteps = timesteps, sim_forces = sim_forces, cfg = cfg)
 
 end
+

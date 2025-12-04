@@ -47,22 +47,23 @@ state0 = Mocca.setup_process_state(model;
     Temperature = T_init,
     WallTemperature = Tw_init,
     y = y_init
-)
+);
+
 parameters = Mocca.setup_process_parameters(model);
 
 # # Set up the stage timings and boundary conditions
 # Here we have 4 stages and we specify a duration in seconds that we will run each stage.
-t_press = 15
-t_ads = 15
-t_blow = 30
-t_evac= 40
+t_press = 15.0
+t_ads = 15.0
+t_blow = 30.0
+t_evac= 40.0
 stage_times = [t_press, t_ads, t_blow, t_evac];
-
+stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
 # Set up cyclic boundary conditions and timesteps for the simulation
-sim_forces, timesteps = Mocca.setup_cyclic_forces(model, stage_times;
-    num_cycles = 3,
-    max_dt = 1.0
-);
+
+
+sim_forces, timesteps = Mocca.setup_forces(model,stage_times,stage_names;
+    num_cycles=3,max_dt = 1);
 
 # # Simulate
 # Now we are ready to run the simulation
