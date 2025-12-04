@@ -106,8 +106,4 @@ outlet_cell = ncells
 f_outlet = Mocca.plot_cell(states, model, timesteps_out, outlet_cell)
 
 # We also plot primary variables along the column at the end of the simulation
-<<<<<<< HEAD
 #f_column = Mocca.plot_state(substates[end], model)
-=======
-f_column = Mocca.plot_state(states[end], model)
->>>>>>> add-new-api
