@@ -3,16 +3,15 @@ import JutulDarcy
 import Mocca
 
 filepath = joinpath(@__DIR__, "../json/haghpanah_constants.json")
-constants = Mocca.parse_PSA_constants(filepath)
-constants.h_in = 0.0
-constants.h_out = 0.0
-case = Mocca.haghpanah_DCB(constants);
+# This creates a constants struct from the JSON file
+input_pars = Mocca.parse_input(filepath)
+input_pars.h_in = 0.0
+input_pars.h_out = 0.0
 
-case = setup_case(filepath);
+case, cfg, sim = Mocca.setup_mocca_case(input_pars)
 
-# case = Mocca.import_case()
-result = Mocca.simulate_case(case);
+states, timesteps_out = Mocca.simulate_process(case; simulator = sim, config = cfg)
 
-f = Mocca.plot_outlet(case,result)
+f = Mocca.plot_outlet(case,states)
 
-# Mocca.export_cell_results("testout.csv", case, result; format="csv")
+Mocca.export_cell_results("testout.csv", case, states; format="csv")

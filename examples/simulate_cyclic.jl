@@ -63,14 +63,14 @@ stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
 
 
 sim_forces, timesteps = Mocca.setup_forces(model,stage_times,stage_names;
-    num_cycles=3,max_dt = 1);
+    num_cycles=300,max_dt = 1);
 
 # # Simulate
 # Now we are ready to run the simulation
 case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
 states, timesteps_out = Mocca.simulate_process(case;
     output_substates = true,
-    info_level = -1
+    info_level = 0
 );
 
 # # Visualisation

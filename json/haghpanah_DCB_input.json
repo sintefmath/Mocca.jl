@@ -44,7 +44,6 @@
     "ncells": 200,
     "t_ads": 5000,
     "maxdt": 5000.0,
-    "timesteps": 1,
     "P_init": 101325.0,
     "T_init": 298.15,
     "Tw_init": 298.15,

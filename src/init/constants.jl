@@ -85,7 +85,7 @@ abstract type ConstantsStruct end
 
 end
 
-@with_kw mutable struct PSAConstants{RealT} <: ConstantsStruct
+@with_kw mutable struct adsorptionInput{RealT<:Real} <: ConstantsStruct
     
     # Physical constants
     molecularMassOfCO2::RealT
@@ -142,8 +142,7 @@ end
     "Specific heat capacity for the wall [J kg^{-1}K^{-1}]"
     C_pw::RealT
 
-    "Initial temperature [K]"
-    T0::RealT
+
     "Ambient temperature [K]"
     T_a::RealT
 
@@ -172,12 +171,35 @@ end
     "Column length [m]"
     L::RealT
 
+    # Initial conditions
+    "Initial pressure [Pa]"
+    P_init::RealT
+    
+    "Initial temperature [K]"
+    T0::RealT
+
+    "Initial wall temperature [K]"
+    Tw_init::RealT
+
+    "Initial mole fractions of CO2 [-]"
+    y_init::SVector{2,RealT}
+
+    # Process specification
+    stage_types::Vector{String}
+    stage_durations::Vector{RealT}
+    num_cycles::Int
+
+
+    # Simulation parameters
+    system_type::String
+    ncells::Int
+    maxdt::RealT
+
+    timestep_selectors::Dict{String, Any}
+
+    # Solver parameters
+    linear_solver::String
+    info_level::Int
+
 end
 
-
-#function HaghpanahConstants(; kwarg...)
-#    HaghpanahConstants{Float64}(; kwarg...)
-#end
-
-
-# axial_dispersion(p::HaghpanahConstants) = 0.7 * p.D_m + 0.5 * p.V0_inter * p.d_p

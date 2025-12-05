@@ -37,10 +37,10 @@ function setup_process_state(model; kwargs...)
     if haskey(kwargs, :AdsorbedConcentration)
         q_init = kwargs[:AdsorbedConcentration]
     else
-        t_init = get(kwargs, :Temperature, missing)
+        T0 = get(kwargs, :Temperature, missing)
         p_init = get(kwargs, :Pressure, missing)
         y_init = get(kwargs, :y, missing)
-        q_init = initial_adsorbed_concentration(model, t_init, p_init, y_init)
+        q_init = initial_adsorbed_concentration(model, T0, p_init, y_init)
     end
 
     state0 = Jutul.setup_state(model;
