@@ -1,10 +1,10 @@
 using Mocca
 
-# filepath = joinpath(@__DIR__, "../models/json/haghpanah_constants.json")
-# input_pars = Mocca.parse_input(filepath)
-
-filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input.json")
+filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input_simple.json")
 input_pars = Mocca.parse_input(filepath)
+
+# filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input.json")
+# input_pars = Mocca.parse_input(filepath)
 
 #input_pars = Mocca.parse_input(haghpanah_DCB_input())
 
@@ -15,7 +15,6 @@ case, ts_config = Mocca.setup_mocca_case(input_pars)
 
 states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
     output_substates = true, info_level = 0);
-
 
 Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "haghpanah_DCB_results.csv"), case, states, timesteps; format="csv")
 
