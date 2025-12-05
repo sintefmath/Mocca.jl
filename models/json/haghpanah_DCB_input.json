@@ -132,20 +132,20 @@
     "T_feed": {
       "description": { "name": "Feed temperature", "symbol": "T_feed", "units": "K" },
       "value": 298.15
-    }
-  },
-  "boundaryConditions": {
-    "T_a": {
-      "description": { "name": "Ambient temperature", "symbol": "T_a", "units": "K" },
-      "value": 298.15
     },
-    "v_feed": {
+      "v_feed": {
       "description": { "name": "Fluid velocity of feed gas", "symbol": "v_feed", "units": "m/s" },
       "value": 0.37
     },
     "y_feed": {
       "description": { "name": "Mole fraction of components", "symbol": "y_feed", "units": "dimensionless" },
       "value": [0.15, 0.85]
+    }
+  },
+  "boundaryConditions": {
+    "T_a": {
+      "description": { "name": "Ambient temperature", "symbol": "T_a", "units": "K" },
+      "value": 298.15
     },
     "p_high": {
       "description": { "name": "High pressure", "symbol": "p_high", "units": "Pa" },
@@ -167,7 +167,7 @@
   "initialConditions": {
     "P_init": {
       "description": { "name": "Initial pressure", "symbol": "P_init", "units": "Pa" },
-      "value": 100000.0
+      "value": 101325.0
     },
     "T0": {
       "description": { "name": "Initial temperature", "symbol": "T0", "units": "K" },

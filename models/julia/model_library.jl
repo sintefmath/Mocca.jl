@@ -1,5 +1,9 @@
-# Define a dictionary containing the Haghpanah DCB case input parameters
 
+export haghpanah_DCB_input
+
+
+function haghpanah_DCB_input()
+# Define a dictionary containing the Haghpanah DCB case input parameters
 haghpanah_input = Dict{String, Any}(
     "physicalConstants" => Dict(
         "molecularMassOfCO2" => 0.04401,
@@ -54,16 +58,31 @@ haghpanah_input = Dict{String, Any}(
         "P_init" => 101325.0,
         "T_init" => 298.15,
         "Tw_init" => 298.15,
-        "y_init" => 1e-10s
+        "y_init" => [1e-10, 0.9999999999]
+    ),
+    "processSpecification" => Dict(
+        "num_cycles" => 1,
+        "stage_durations" => [5000.0],
+        "stage_types" => ["adsorption"]
     ),
     "simulation" => Dict(
-        "system" => "TwoComponentAdsorptionSystem",
+        "system_type" => "TwoComponentAdsorptionSystem",
         "ncells" => 200,
         "t_ads" => 5000,
         "maxdt" => 5000.0,
-        "t_stage" => [5000]
+        "t_stage" => [5000],
+         "timestep_selectors" => Dict( 
+                "y" => Dict("change" => 0.01, "relative" => false),
+                "Temperature" => Dict("change" => 10.0, "relative" => false),
+                "Pressure" => Dict("change" => 10.0, "relative" => false)
+            )       
     ),
     "solver" => Dict(
-            "info_level" => 0
+            "info_level" => 0,
+            "linear_solver" => "default"
     )
+    
 )
+
+return haghpanah_input
+end

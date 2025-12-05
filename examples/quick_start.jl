@@ -1,10 +1,15 @@
-import Jutul
-import JutulDarcy
-import Mocca
+using Mocca
 
-filepath = joinpath(@__DIR__, "../json/haghpanah_constants.json")
-# This creates a constants struct from the JSON file
-input_pars = Mocca.parse_input(filepath)
+# filepath = joinpath(@__DIR__, "../models/json/haghpanah_constants.json")
+# input_pars = Mocca.parse_input(filepath)
+
+#filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input.json")
+#input_pars = Mocca.parse_input(filepath)
+
+input_pars = Mocca.parse_input(haghpanah_DCB_input())
+
+
+
 input_pars.h_in = 0.0
 input_pars.h_out = 0.0
 
@@ -14,7 +19,7 @@ states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_conf
     output_substates = true, info_level = 0);
 
 
-Mocca.export_cell_results("testout_2.csv", case, states, timesteps; format="csv")
+Mocca.export_cell_results("haghpanah_DCB_results.csv", case, states, timesteps; format="csv")
 
 f = Mocca.plot_outlet(case, states, timesteps);
 
