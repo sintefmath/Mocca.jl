@@ -8,8 +8,6 @@ using Mocca
 
 input_pars = Mocca.parse_input(haghpanah_DCB_input())
 
-
-
 input_pars.h_in = 0.0
 input_pars.h_out = 0.0
 
