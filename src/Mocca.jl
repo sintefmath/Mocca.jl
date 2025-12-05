@@ -27,6 +27,12 @@ const MoccaCase = JutulCase # Convenience alias for simulation cases
 const CO2INDEX = 1 # TODO: We don't really need this
 const N2INDEX = 2 # TODO: We don't really need this
 
+const moccaResultsDir = joinpath(@__DIR__, "..", "results")
+
+if !isdir(moccaResultsDir)
+    mkpath(moccaResultsDir)
+end
+
 
 include("core_types/core_types.jl")
 

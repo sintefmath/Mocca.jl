@@ -24,6 +24,8 @@ docs/src/notebooks/
 # environment.
 Manifest.toml
 
+# Mocca results directory
+results/
 
 # Matlab data files 
 #
