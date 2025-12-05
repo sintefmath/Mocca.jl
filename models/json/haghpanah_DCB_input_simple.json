@@ -43,7 +43,6 @@
   },   
  "boundaryConditions": {
     "T_a": 298.15,
-
     "p_high": 100000.0,
     "p_intermediate": 20000.0,
     "p_low": 10000.0,
