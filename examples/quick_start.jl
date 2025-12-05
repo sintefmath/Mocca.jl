@@ -8,10 +8,14 @@ input_pars = Mocca.parse_input(filepath)
 input_pars.h_in = 0.0
 input_pars.h_out = 0.0
 
-case, cfg, sim = Mocca.setup_mocca_case(input_pars)
+case, ts_config = Mocca.setup_mocca_case(input_pars)
 
-states, timesteps_out = Mocca.simulate_process(case; simulator = sim, config = cfg)
+states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
+    output_substates = true, info_level = 0);
 
-f = Mocca.plot_outlet(case,states)
 
-Mocca.export_cell_results("testout.csv", case, states; format="csv")
+Mocca.export_cell_results("testout_2.csv", case, states, timesteps; format="csv")
+
+f = Mocca.plot_outlet(case, states, timesteps);
+
+display(f)

@@ -1,11 +1,10 @@
-function plot_outlet(case,result)
+using Jutul
 
-    # Get the substates and subtimesteps used inside the simulator for visualisation
-    substates, subtimesteps = Jutul.expand_to_ministeps(result);
+function plot_outlet(case, states, timesteps_out)
 
-    # We plot primary variables at the outlet through time
-    outlet_cell = size(result.states[1][:y][1,:],1)
-    f_outlet = Mocca.plot_cell(substates, case.sim.model, subtimesteps, outlet_cell);
+
+    outlet_cell = size(states[1][:y][1,:],1)
+    f_outlet = Mocca.plot_cell(states, case.model, timesteps_out, outlet_cell);
 
     return f_outlet
 end

@@ -210,10 +210,6 @@
       "description": { "name": "Maximum time step", "symbol": "maxdt", "units": "s" },
       "value": 5000.0
     },
-    "timesteps": {
-      "description": { "name": "Number of timesteps", "symbol": "timesteps", "units": "dimensionless" },
-      "value": 1
-    },
     "timestep_selectors": {
       "description": { "name": "Timestep selectors", "symbol": "timestep_selectors", "units": "dimensionless" },
       "value": {
