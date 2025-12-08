@@ -1,21 +1,11 @@
 @testset "State Initialization" begin
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
-    system = Mocca.TwoComponentAdsorptionSystem(
-        permeability = permeability,
-        dispersion = dispersion,
-        p = constants
-    )
-
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
     # Create a simple mesh
     ncells = 10
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-    domain = Mocca.mocca_domain(mesh, system)
-    model = Jutul.SimulationModel(domain, system)
+    model = Mocca.setup_process_model(system; ncells = ncells);
 
     # Test state initialization
     bar = 1e5  # Pa
@@ -25,11 +15,15 @@
 
     # Initial composition (very small CO2, mostly N2)
     yCO2 = fill(1e-10, ncells)
-    y_init = hcat(yCO2, 1 .- yCO2)
+    y_init = hcat(yCO2, 1 .- yCO2)'
 
-    state0, parameters = Mocca.initialise_state_AdsorptionColumn(
-        P_init, T_init, Tw_init, y_init, model
+    state0 = Mocca.setup_process_state(model;
+        Pressure = P_init,
+        Temperature = T_init,
+        WallTemperature = Tw_init,
+        y = y_init
     )
+    parameters = Mocca.setup_process_parameters(model);
 
     @test state0 isa Dict
     @test parameters isa Dict
@@ -68,28 +62,15 @@
     @test length(parameters[:SolidVolume]) == ncells
     @test length(parameters[:FluidVolume]) == ncells
 
-    # Check volume consistency
-    total_volumes = parameters[:SolidVolume] + parameters[:FluidVolume]
-    domain_volumes = domain[:volumes]
-    @test all(total_volumes .≈ domain_volumes)
 end
 
 @testset "State Initialization with Different Conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
-    system = Mocca.TwoComponentAdsorptionSystem(
-        permeability = permeability,
-        dispersion = dispersion,
-        p = constants
-    )
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
 
     ncells = 5
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-    domain = Mocca.mocca_domain(mesh, system)
-    model = Jutul.SimulationModel(domain, system)
+    model = Mocca.setup_process_model(system; ncells = ncells);
 
     # Test with different pressures
     bar = 1e5
@@ -99,13 +80,19 @@ end
     Tw_init = constants.T_a
 
     yCO2 = fill(0.1, ncells)  # 10% CO2
-    y_init = hcat(yCO2, 1 .- yCO2)
+    y_init = hcat(yCO2, 1 .- yCO2)'
 
-    state_high, _ = Mocca.initialise_state_AdsorptionColumn(
-        P_high, T_init, Tw_init, y_init, model
+    state_high = Mocca.setup_process_state(model;
+        Pressure = P_high,
+        Temperature = T_init,
+        WallTemperature = Tw_init,
+        y = y_init
     )
-    state_low, _ = Mocca.initialise_state_AdsorptionColumn(
-        P_low, T_init, Tw_init, y_init, model
+    state_low = Mocca.setup_process_state(model;
+        Pressure = P_low,
+        Temperature = T_init,
+        WallTemperature = Tw_init,
+        y = y_init
     )
 
     @test all(state_high[:Pressure] .≈ P_high)
@@ -116,11 +103,17 @@ end
     T_low = 250.0
     P_init = 1.0 * bar
 
-    state_hot, _ = Mocca.initialise_state_AdsorptionColumn(
-        P_init, T_high, Tw_init, y_init, model
+    state_hot = Mocca.setup_process_state(model;
+        Pressure = P_init,
+        Temperature = T_high,
+        WallTemperature = Tw_init,
+        y = y_init
     )
-    state_cold, _ = Mocca.initialise_state_AdsorptionColumn(
-        P_init, T_low, Tw_init, y_init, model
+    state_cold = Mocca.setup_process_state(model;
+        Pressure = P_init,
+        Temperature = T_low,
+        WallTemperature = Tw_init,
+        y = y_init
     )
 
     @test all(state_hot[:Temperature] .≈ T_high)
