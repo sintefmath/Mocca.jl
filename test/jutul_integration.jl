@@ -1,26 +1,19 @@
 @testset "Jutul Integration Tests" begin
     # Test that Mocca systems work with Jutul framework
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
-    system = Mocca.TwoComponentAdsorptionSystem(
-        permeability = permeability,
-        dispersion = dispersion,
-        p = constants
-    )
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    # Create a simple mesh
+    ncells = 10
+    model = Mocca.setup_process_model(system; ncells = ncells);
 
-    # Test domain creation
-    ncells = 5
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
+    domain = model.data_domain
+    mesh = domain.representation
 
-    @test mesh isa Jutul.CartesianMesh
+    @test model.data_domain.representation isa Jutul.CartesianMesh
     @test Jutul.number_of_cells(mesh) == ncells
 
     # Test domain setup
-    domain = Mocca.mocca_domain(mesh, system)
-
     @test domain isa Jutul.DataDomain
     @test haskey(domain, :porosity)
     @test haskey(domain, :permeability)
@@ -42,35 +35,35 @@
 end
 
 @testset "Model State Setup" begin
+  # Test that Mocca systems work with Jutul framework
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
-    system = Mocca.TwoComponentAdsorptionSystem(
-        permeability = permeability,
-        dispersion = dispersion,
-        p = constants
-    )
-
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    # Create a simple mesh
     ncells = 3
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-    domain = Mocca.mocca_domain(mesh, system)
-    model = Jutul.SimulationModel(domain, system)
+    model = Mocca.setup_process_model(system; ncells = ncells);
+
+    domain = model.data_domain;
+    mesh = domain.representation;
 
     # Test state setup using Jutul's setup_state
     P_init = 1e5
     T_init = 298.15
     Tw_init = constants.T_a
-    yCO2 = fill(0.05, ncells)
-    y_init = hcat(yCO2, 1 .- yCO2)
+    yCO2 = 0.05
+    y_init = [yCO2, 1 .- yCO2]
 
-    state, parameters = Mocca.initialise_state_AdsorptionColumn(
-        P_init, T_init, Tw_init, y_init, model
+    state = Mocca.setup_process_state(model;
+        Pressure = P_init,
+        Temperature = T_init,
+        WallTemperature = Tw_init,
+        y = y_init
     )
 
+    parameters = Mocca.setup_process_parameters(model);
+    
     # Test that state is compatible with model
-    @test Jutul.number_of_cells(model.domain) == length(state[:Pressure])
+    @test Jutul.number_of_cells(domain) == length(state[:Pressure])
 
     # Test parameter setup
     @test parameters isa Dict
@@ -80,19 +73,14 @@ end
 
 @testset "Domain Properties" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
-    system = Mocca.TwoComponentAdsorptionSystem(
-        permeability = permeability,
-        dispersion = dispersion,
-        p = constants
-    )
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
 
     ncells = 4
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-    domain = Mocca.mocca_domain(mesh, system)
+    model = Mocca.setup_process_model(system; ncells = ncells);
+
+    domain = model.data_domain
+    mesh = domain.representation
 
     # Test domain properties are correctly set
     @test all(domain[:porosity] .== system.p.Φ)
@@ -105,6 +93,7 @@ end
     @test all(domain[:dx] .≈ expected_dx)
 
     # Test volumes
-    expected_volume = dx^2 * expected_dx  # Cell volume
+    dr = sqrt(pi*constants.r_in^2)
+    expected_volume =dr.^2 * expected_dx  # Cell volume
     @test all(domain[:volumes] .≈ expected_volume)
 end
