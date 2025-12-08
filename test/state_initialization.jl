@@ -64,6 +64,49 @@
 
 end
 
+@testset "State Initialization with different size arrays" begin
+    # Set up system and model
+    constants = Mocca.HaghpanahConstants{Float64}()
+
+    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    # Create a simple mesh
+    ncells = 10
+    model = Mocca.setup_process_model(system; ncells = ncells);
+
+    # Test state initialization
+    bar = 1e5  # Pa
+    P_init = 1.0 * bar
+    T_init = 298.15  # K
+    Tw_init = constants.T_a
+
+    # Initial composition (very small CO2, mostly N2)
+    yCO2 = 1e-10
+    y_init = [yCO2, 1 .- yCO2]
+
+    state0 = Mocca.setup_process_state(model;
+        Pressure = P_init,
+        Temperature = T_init,
+        WallTemperature = Tw_init,
+        y = y_init
+    )
+
+ # Check that all required fields are present
+    @test haskey(state0, :Pressure)
+    @test haskey(state0, :y)
+    @test haskey(state0, :AdsorbedConcentration)
+    @test haskey(state0, :Temperature)
+    @test haskey(state0, :WallTemperature)
+
+    # Check dimensions
+    @test length(state0[:Pressure]) == ncells
+    @test size(state0[:y]) == (2, ncells)  # 2 components, ncells cells
+    @test size(state0[:AdsorbedConcentration]) == (2, ncells)
+    @test length(state0[:Temperature]) == ncells
+    @test length(state0[:WallTemperature]) == ncells
+
+end
+
+
 @testset "State Initialization with Different Conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
 
