@@ -2,6 +2,15 @@ using Mocca
 
 function export_cell_results(outputfile::String, case::MoccaCase, states, timesteps; format="csv")
 
+    if format != "csv"
+        error("Currently only 'csv' format is supported.")
+    end
+
+    # Check if results file should be overwritten
+    if isfile(outputfile)
+        @error "Output file $outputfile already exists. Choose a new name or delete the existing file to save results."
+        return
+    end
 
     # Export to csv with columns: time, P, T, Tw, y1, ..., yn, q1, ..., qn
     open(outputfile, "w") do io
