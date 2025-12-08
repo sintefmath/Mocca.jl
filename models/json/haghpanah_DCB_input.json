@@ -97,11 +97,11 @@
     },
     "h_in": {
       "description": { "name": "Heat transfer coefficient (column to wall)", "symbol": "h_in", "units": "W/(m^2·K)" },
-      "value": 8.6
+      "value": 0.0
     },
     "h_out": {
       "description": { "name": "Heat transfer coefficient (wall to outside)", "symbol": "h_out", "units": "W/(m^2·K)" },
-      "value": 2.5
+      "value": 0.0
     },
     "ρ_w": {
       "description": { "name": "Density of wall medium", "symbol": "ρ_w", "units": "kg/m^3" },
