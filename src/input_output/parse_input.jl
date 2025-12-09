@@ -77,8 +77,8 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
         y_init = SVector{2, Float64}(input_dict["initialConditions"]["y_init"]["value"]...),
 
         # Process specification
-        stage_types = input_dict["processSpecification"]["stage_types"]["value"],
-        stage_durations = input_dict["processSpecification"]["stage_durations"]["value"],
+        stage_types = Array{String}(input_dict["processSpecification"]["stage_types"]["value"]),
+        stage_durations = Vector{Float64}(input_dict["processSpecification"]["stage_durations"]["value"]),
         num_cycles = input_dict["processSpecification"]["num_cycles"]["value"],
 
         # Simulation parameters
@@ -149,8 +149,8 @@ function parse_input_from_simple_dict(input_dict::Dict{String, Any})
         y_init = SVector{2, Float64}(input_dict["initialConditions"]["y_init"]...),
 
         # Process specification
-        stage_types = input_dict["processSpecification"]["stage_types"],
-        stage_durations = input_dict["processSpecification"]["stage_durations"],
+        stage_types = Vector{String}(input_dict["processSpecification"]["stage_types"]),
+        stage_durations = Vector{Float64}(input_dict["processSpecification"]["stage_durations"]),
         num_cycles = input_dict["processSpecification"]["num_cycles"],
 
         # Simulation parameters

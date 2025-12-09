@@ -51,13 +51,13 @@ function setup_mocca_case(inputStruct::ConstantsStruct)
 	# for a specified number of cycles
 	
 
-	sim_forces, timesteps = setup_forces(model,stage_durations,stage_types;
+	sim_forces, timesteps = Mocca.setup_forces(model,stage_durations,stage_types;
 	num_cycles=num_cycles, max_dt = maxdt);
 
 
 	# # Simulate
 	# IF timestepping config is provided then setup timesteppers
-	if hasproperty(inputStruct, :timestep_selectors)
+	if ~isempty(inputStruct.timestep_selectors)
 		ts_select = inputStruct.timestep_selectors;
 		timestep_selector_cfg = (y = ts_select["y"]["change"],
 			Temperature = ts_select["Temperature"]["change"],

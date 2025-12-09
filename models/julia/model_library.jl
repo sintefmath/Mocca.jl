@@ -1,8 +1,95 @@
 
 export haghpanah_DCB_input
+export haghpanah_cyclic_input
 
 
 function haghpanah_DCB_input()
+# Define a dictionary containing the Haghpanah DCB case input parameters
+haghpanah_input = Dict{String, Any}(
+    "physicalConstants" => Dict(
+        "molecularMassOfCO2" => 0.04401,
+        "molecularMassOfN2" => 0.028,
+        "R" => 8.3144598),
+    "dslPars" => Dict(
+        "b0" => [8.65e-7, 2.5e-6],
+        "d0" => [2.63e-8, 0.0],
+        "ΔUbi" => [-36641.21, -15800.0],
+        "ΔUdi" => [-35690.66, 0.0],
+        "qsbi" => [3489.44, 6613.551],
+        "qsdi" => [2872.35, 0.0]),
+    "adsorbentProps" => Dict(
+        "ϵ_p" => 0.35,
+        "D_m" => 1.6e-5,
+        "τ" => 3.0,
+        "d_p" => 0.002,
+        "V0_inter" => 1.0,
+        "ρ_s" => 1130.0,
+        "C_pa" => [697.5687, 1096.4],
+        "C_ps" => 1070.0),
+    "columnProps" => Dict(
+        "Φ" => 0.37,
+        "K_z" => 0.0903,
+        "K_w" => 16.0,
+        "r_in" => 0.1445,
+        "r_out" => 0.162,
+        "h_in" => 0.0,
+        "h_out" => 0.0,
+        "ρ_w" => 7800.0,
+        "C_pw" => 502.0,
+        "L" => 1.0
+    ),
+    "feedProps" => Dict(
+        "fluid_viscosity" => 1.72e-5,
+        "ρ_g" => 1.22638310956,
+        "C_pg" => [697.5687, 1096.4],
+        "v_feed" => 0.37,
+        "y_feed" => [0.15, 0.85],
+        "T_feed" => 298.15
+    ),
+    "boundaryConditions" => Dict(
+        "T_a" => 298.15,
+        "p_high" => 100000.0,
+        "p_intermediate" => 20000.0,
+        "p_low" => 10000.0,
+        "λ" => 0.5,
+        "stages" => ["AdsorptionBC"]
+    ),
+    "initialConditions" => Dict(
+        "T0" => 298.15,
+        "P_init" => 101325.0,
+        "T_init" => 298.15,
+        "Tw_init" => 298.15,
+        "y_init" => [1e-10, 0.9999999999]
+    ),
+    "processSpecification" => Dict(
+        "num_cycles" => 1,
+        "stage_durations" => [5000.0],
+        "stage_types" => ["adsorption"]
+    ),
+    "simulation" => Dict(
+        "system_type" => "TwoComponentAdsorptionSystem",
+        "ncells" => 200,
+        "t_ads" => 5000,
+        "maxdt" => 5000.0,
+        "t_stage" => [5000],
+         "timestep_selectors" => Dict( 
+                "y" => Dict("change" => 0.01, "relative" => false),
+                "Temperature" => Dict("change" => 10.0, "relative" => false),
+                "Pressure" => Dict("change" => 10.0, "relative" => false)
+            )       
+    ),
+    "solver" => Dict(
+            "info_level" => 0,
+            "linear_solver" => "default"
+    )
+    
+)
+
+return haghpanah_input
+end
+
+
+function haghpanah_cyclic_input()
 # Define a dictionary containing the Haghpanah DCB case input parameters
 haghpanah_input = Dict{String, Any}(
     "physicalConstants" => Dict(
@@ -51,7 +138,6 @@ haghpanah_input = Dict{String, Any}(
         "p_intermediate" => 20000.0,
         "p_low" => 10000.0,
         "λ" => 0.5,
-        "stages" => ["AdsorptionBC"]
     ),
     "initialConditions" => Dict(
         "T0" => 298.15,
@@ -61,21 +147,16 @@ haghpanah_input = Dict{String, Any}(
         "y_init" => [1e-10, 0.9999999999]
     ),
     "processSpecification" => Dict(
-        "num_cycles" => 1,
-        "stage_durations" => [5000.0],
-        "stage_types" => ["adsorption"]
+        "num_cycles" => 500,
+        "stage_durations" => [15.0,15.0,30.0,40.0],
+        "stage_types" =>  ["pressurisation", "adsorption", "blowdown", "evacuation"]
+
     ),
     "simulation" => Dict(
         "system_type" => "TwoComponentAdsorptionSystem",
         "ncells" => 200,
-        "t_ads" => 5000,
-        "maxdt" => 5000.0,
-        "t_stage" => [5000],
-         "timestep_selectors" => Dict( 
-                "y" => Dict("change" => 0.01, "relative" => false),
-                "Temperature" => Dict("change" => 10.0, "relative" => false),
-                "Pressure" => Dict("change" => 10.0, "relative" => false)
-            )       
+        "maxdt" => 1.0,
+         "timestep_selectors" => Dict( )     
     ),
     "solver" => Dict(
             "info_level" => 0,
