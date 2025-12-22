@@ -24,38 +24,16 @@ function setup_case(prm, step_info = missing)
 
     param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
     RealT = valtype(param_dict_symb)
-    constants = Mocca.HaghpanahConstants{RealT}(; param_dict_symb...)
+    constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
+    info.num_cycles = 3;
+    for (k, v) in param_dict_symb
+        print(k)
+        print(v)
+        setproperty!(constants, Symbol(k), v)
+    end
+    case,  = Mocca.setup_mocca_case(constants, info)
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
-
-    ncells = 200
-    model = Mocca.setup_process_model(system; ncells = ncells);
-    push!(model.output_variables, :CellDx)
-
-    bar = Jutul.si_unit(:bar)
-    P_init = 1 * bar
-    T_init = 298.15
-    Tw_init = constants.T_a
-
-    yCO2_2 = 1e-10
-    y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
-
-    state0 = Mocca.setup_process_state(model;
-        Pressure=P_init,
-        Temperature=T_init,
-        WallTemperature=Tw_init,
-        y=y_init
-    )
-
-    parameters = Mocca.setup_process_parameters(model)
-
-    stage_times, num_cycles = cycle_definition()
-    sim_forces, timesteps = Mocca.setup_cyclic_forces(model, stage_times;
-        num_cycles=3,
-        max_dt=1.0
-    )
-
-    return Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
+    return case
 end;
 
 # Create a helper function for getting timing for the stages and the number of cycles
@@ -108,7 +86,9 @@ end
 wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func);
 
 # We use the original parameter values as a starting point for the optimization
-constants_ref = Mocca.HaghpanahConstants{Float64}()
+constants_ref, = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
+
+
 prm_guess = Dict(
     "v_feed" => constants_ref.v_feed,
     "p_intermediate" => constants_ref.p_intermediate,
