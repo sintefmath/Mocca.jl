@@ -1,17 +1,18 @@
 using Mocca
 
-function setup_mocca_case(inputStruct::ConstantsStruct)
+function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 
 	# We set up a two component adsorption system. This system type is associated
 	# with the appropriate equations and primary and secondary variables.
-	if inputStruct.system_type == "TwoComponentAdsorptionSystem"
-		system = Mocca.TwoComponentAdsorptionSystem(inputStruct);
+	if info.system_type == "TwoComponentAdsorptionSystem"
+		system = Mocca.TwoComponentAdsorptionSystem(constants);
 	else
-		error("System type $(inputStruct.system_type) not recognized")
+		error("System type $(info.system_type) not recognized")
 	end
 
 	# Define the model
-	model = Mocca.setup_process_model(system; ncells = inputStruct.ncells);
+	model = Mocca.setup_process_model(system; ncells = info.ncells);
+	push!(model.output_variables, :CellDx)
 
 	# # Setup the initial state
 
@@ -19,14 +20,15 @@ function setup_mocca_case(inputStruct::ConstantsStruct)
 	# system.
 
 
-	P_init = inputStruct.P_init;
-	T_init = inputStruct.T0;
-	Tw_init = inputStruct.T_a;
+	P_init = constants.P_init;
+	T_init = constants.T0;
+	Tw_init = constants.T_a;
+	y_init = constants.y_init;
 
 	# To avoid numerical errors we set the initial CO2 concentration to be very
 	# small instead of 0.
 
-	if sum(inputStruct.y_init) != 1.0 
+	if sum(constants.y_init) != 1.0 
 		error("Initial concentration must sum to 1.0")
 	end
 
@@ -35,17 +37,17 @@ function setup_mocca_case(inputStruct::ConstantsStruct)
 		Pressure = P_init,
 		Temperature = T_init,
 		WallTemperature = Tw_init,
-		y = inputStruct.y_init
+		y = y_init
 	)
 
 	parameters = Mocca.setup_process_parameters(model);
 
 	# # Setup the timestepping and boundary conditions
 
-	stage_types = inputStruct.stage_types;
-	stage_durations = inputStruct.stage_durations;
-	num_cycles = inputStruct.num_cycles;
-	maxdt = inputStruct.maxdt;
+	stage_types = info.stage_types;
+	stage_durations = info.stage_durations;
+	num_cycles = info.num_cycles;
+	maxdt = info.maxdt;
 
 	# Define the full cyclic simulation by stacking subsequent stages in time
 	# for a specified number of cycles
@@ -57,8 +59,8 @@ function setup_mocca_case(inputStruct::ConstantsStruct)
 
 	# # Simulate
 	# IF timestepping config is provided then setup timesteppers
-	if ~isempty(inputStruct.timestep_selectors)
-		ts_select = inputStruct.timestep_selectors;
+	if ~isempty(info.timestep_selectors)
+		ts_select = info.timestep_selectors;
 		timestep_selector_cfg = (y = ts_select["y"]["change"],
 			Temperature = ts_select["Temperature"]["change"],
 			Pressure = ts_select["Pressure"]["change"],
@@ -75,7 +77,7 @@ function setup_mocca_case(inputStruct::ConstantsStruct)
 	case = Mocca.MoccaCase(model, timesteps, sim_forces; 
 	state0 = state0, parameters = parameters)
 
-	return case, timestep_selector_cfg, inputStruct.info_level
+	return case, timestep_selector_cfg, info.info_level
 
 end
 

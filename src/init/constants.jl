@@ -1,5 +1,6 @@
 using Parameters
 abstract type ConstantsStruct end
+abstract type InfoStruct end
 
 @with_kw struct HaghpanahConstants{RealT} <: ConstantsStruct
     molecularMassOfCO2::RealT = 44.01e-3 # kg / mole
@@ -85,8 +86,8 @@ abstract type ConstantsStruct end
 
 end
 
-@with_kw mutable struct adsorptionInput{RealT<:Real} <: ConstantsStruct
-    
+@with_kw mutable struct adsorptionConstants{RealT} <: ConstantsStruct
+     
     # Physical constants
     molecularMassOfCO2::RealT
     molecularMassOfN2::RealT
@@ -184,16 +185,22 @@ end
     "Initial mole fractions of CO2 [-]"
     y_init::SVector{2,RealT}
 
+end
+
+
+
+@with_kw mutable struct processInfo <: InfoStruct
+
     # Process specification
     stage_types::Vector{String}
-    stage_durations::Vector{RealT}
+    stage_durations::Vector{Float64}
     num_cycles::Int
 
 
     # Simulation parameters
     system_type::String
     ncells::Int
-    maxdt::RealT
+    maxdt::Float64
 
     timestep_selectors::Dict{String, Any}
 

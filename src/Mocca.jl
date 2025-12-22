@@ -2,7 +2,7 @@ __precompile__(true)
 
 module Mocca
 
-export ConstantsStruct, HaghpanahConstants
+export ConstantsStruct, HaghpanahConstants, InfoStruct
 export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
 export MoccaCase
 

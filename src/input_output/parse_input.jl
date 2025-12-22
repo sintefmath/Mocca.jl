@@ -1,42 +1,45 @@
 using Mocca
 using JSON3
 
-function parse_input(input_dict::Dict{String, Any})
+function parse_input(input_dict::Dict{String, Any}; typeT=Float64)
+
+    # Parse input directly from julia dictionary
     
     is_detailed_input(input_dict) ? 
-            adsorptionInput = parse_input_from_detailed_dict(input_dict) :
-            adsorptionInput = parse_input_from_simple_dict(input_dict)
-
-    return adsorptionInput
+            (constants,info) = parse_input_from_detailed_dict(input_dict, typeT) :
+            (constants,info) = parse_input_from_simple_dict(input_dict, typeT)
+    return constants, info
 end
 
-function parse_input(filepath::String)
+function parse_input(filepath::String; typeT=Float64)
+
+    # Parse JSON file to julia dictionary and then create structs
 
     input_dict = JSON3.read(open(filepath), Dict{String, Any})
 
     is_detailed_input(input_dict) ? 
-            adsorptionInput = parse_input_from_detailed_dict(input_dict) :
-            adsorptionInput = parse_input_from_simple_dict(input_dict)
+            (constants,info) = parse_input_from_detailed_dict(input_dict, typeT) :
+            (constants,info) = parse_input_from_simple_dict(input_dict, typeT)
 
-    return adsorptionInput
+    return constants, info
 end
 
 
-function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
+function parse_input_from_detailed_dict(input_dict::Dict{String, Any}, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
-    input_pars = Mocca.adsorptionInput{Float64}(
+    constants = Mocca.adsorptionConstants{typeT}(
         # Physical constants
         molecularMassOfCO2 = input_dict["physicalConstants"]["molecularMassOfCO2"]["value"],
         molecularMassOfN2 = input_dict["physicalConstants"]["molecularMassOfN2"]["value"],
         R = input_dict["physicalConstants"]["R"]["value"],
         # Dual-site Langmuir Isotherm
-        b0 = SVector{2, Float64}(input_dict["dslPars"]["b0"]["value"]...),
-        d0 = SVector{2, Float64}(input_dict["dslPars"]["d0"]["value"]...),
-        ΔUbi = SVector{2, Float64}(input_dict["dslPars"]["ΔUbi"]["value"]...),
-        ΔUdi = SVector{2, Float64}(input_dict["dslPars"]["ΔUdi"]["value"]...),
-        qsbi = SVector{2, Float64}(input_dict["dslPars"]["qsbi"]["value"]...),
-        qsdi = SVector{2, Float64}(input_dict["dslPars"]["qsdi"]["value"]...),
+        b0 = SVector{2, typeT}(input_dict["dslPars"]["b0"]["value"]...),
+        d0 = SVector{2, typeT}(input_dict["dslPars"]["d0"]["value"]...),
+        ΔUbi = SVector{2, typeT}(input_dict["dslPars"]["ΔUbi"]["value"]...),
+        ΔUdi = SVector{2, typeT}(input_dict["dslPars"]["ΔUdi"]["value"]...),
+        qsbi = SVector{2, typeT}(input_dict["dslPars"]["qsbi"]["value"]...),
+        qsdi = SVector{2, typeT}(input_dict["dslPars"]["qsdi"]["value"]...),
         # Adsorbent properties
         ϵ_p = input_dict["adsorbentProps"]["ϵ_p"]["value"],
         D_m = input_dict["adsorbentProps"]["D_m"]["value"],
@@ -44,7 +47,7 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
         d_p = input_dict["adsorbentProps"]["d_p"]["value"],
         V0_inter = input_dict["adsorbentProps"]["V0_inter"]["value"],
         ρ_s = input_dict["adsorbentProps"]["ρ_s"]["value"],
-        C_pa = SVector{2, Float64}(input_dict["adsorbentProps"]["C_pa"]["value"]...),
+        C_pa = SVector{2, typeT}(input_dict["adsorbentProps"]["C_pa"]["value"]...),
         C_ps = input_dict["adsorbentProps"]["C_ps"]["value"],
         # Column properties
         Φ = input_dict["columnProps"]["Φ"]["value"],
@@ -60,10 +63,10 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
         # Feed gas properties
         fluid_viscosity = input_dict["feedProps"]["fluid_viscosity"]["value"],       
         ρ_g = input_dict["feedProps"]["ρ_g"]["value"],
-        C_pg = SVector{2, Float64}(input_dict["feedProps"]["C_pg"]["value"]...),
+        C_pg = SVector{2, typeT}(input_dict["feedProps"]["C_pg"]["value"]...),
         T_feed = input_dict["feedProps"]["T_feed"]["value"],
         v_feed = input_dict["feedProps"]["v_feed"]["value"],
-        y_feed = SVector{2, Float64}(input_dict["feedProps"]["y_feed"]["value"]...),
+        y_feed = SVector{2, typeT}(input_dict["feedProps"]["y_feed"]["value"]...),
         # Boundary conditions
         T_a = input_dict["boundaryConditions"]["T_a"]["value"],
          p_high = input_dict["boundaryConditions"]["p_high"]["value"],
@@ -74,12 +77,15 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
         P_init = input_dict["initialConditions"]["P_init"]["value"],
         T0 = input_dict["initialConditions"]["T0"]["value"],
         Tw_init = input_dict["initialConditions"]["Tw_init"]["value"],
-        y_init = SVector{2, Float64}(input_dict["initialConditions"]["y_init"]["value"]...),
+        y_init = SVector{2, typeT}(input_dict["initialConditions"]["y_init"]["value"]...),
+    )
 
+    info = Mocca.processInfo(   
         # Process specification
         stage_types = Array{String}(input_dict["processSpecification"]["stage_types"]["value"]),
         stage_durations = Vector{Float64}(input_dict["processSpecification"]["stage_durations"]["value"]),
         num_cycles = input_dict["processSpecification"]["num_cycles"]["value"],
+
 
         # Simulation parameters
         system_type = input_dict["simulation"]["system_type"]["value"],
@@ -91,24 +97,24 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any})
         info_level = input_dict["solver"]["info_level"]["value"]
     )
 
-    return input_pars
+    return constants, info
 end
 
-function parse_input_from_simple_dict(input_dict::Dict{String, Any})
+function parse_input_from_simple_dict(input_dict::Dict{String, Any}, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
-    input_pars = Mocca.adsorptionInput{Float64}(
+    constants = Mocca.adsorptionConstants{typeT}(
         # Physical constants
         molecularMassOfCO2 = input_dict["physicalConstants"]["molecularMassOfCO2"],
         molecularMassOfN2 = input_dict["physicalConstants"]["molecularMassOfN2"],
         R = input_dict["physicalConstants"]["R"],
         # Dual-site Langmuir Isotherm
-        b0 = SVector{2, Float64}(input_dict["dslPars"]["b0"]...),
-        d0 = SVector{2, Float64}(input_dict["dslPars"]["d0"]...),
-        ΔUbi = SVector{2, Float64}(input_dict["dslPars"]["ΔUbi"]...),
-        ΔUdi = SVector{2, Float64}(input_dict["dslPars"]["ΔUdi"]...),
-        qsbi = SVector{2, Float64}(input_dict["dslPars"]["qsbi"]...),
-        qsdi = SVector{2, Float64}(input_dict["dslPars"]["qsdi"]...),
+        b0 = SVector{2, typeT}(input_dict["dslPars"]["b0"]...),
+        d0 = SVector{2, typeT}(input_dict["dslPars"]["d0"]...),
+        ΔUbi = SVector{2, typeT}(input_dict["dslPars"]["ΔUbi"]...),
+        ΔUdi = SVector{2, typeT}(input_dict["dslPars"]["ΔUdi"]...),
+        qsbi = SVector{2, typeT}(input_dict["dslPars"]["qsbi"]...),
+        qsdi = SVector{2, typeT}(input_dict["dslPars"]["qsdi"]...),
         # Adsorbent properties
         ϵ_p = input_dict["adsorbentProps"]["ϵ_p"],
         D_m = input_dict["adsorbentProps"]["D_m"],
@@ -132,10 +138,10 @@ function parse_input_from_simple_dict(input_dict::Dict{String, Any})
         # Feed gas properties
         fluid_viscosity = input_dict["feedProps"]["fluid_viscosity"],       
         ρ_g = input_dict["feedProps"]["ρ_g"],
-        C_pg = SVector{2, Float64}(input_dict["feedProps"]["C_pg"]...),
+        C_pg = SVector{2, typeT}(input_dict["feedProps"]["C_pg"]...),
         T_feed = input_dict["feedProps"]["T_feed"],
         v_feed = input_dict["feedProps"]["v_feed"],
-        y_feed = SVector{2, Float64}(input_dict["feedProps"]["y_feed"]...), 
+        y_feed = SVector{2, typeT}(input_dict["feedProps"]["y_feed"]...), 
         # Boundary conditions
         T_a = input_dict["boundaryConditions"]["T_a"],
         p_high = input_dict["boundaryConditions"]["p_high"],
@@ -146,8 +152,10 @@ function parse_input_from_simple_dict(input_dict::Dict{String, Any})
         P_init = input_dict["initialConditions"]["P_init"],
         T0 = input_dict["initialConditions"]["T0"],
         Tw_init = input_dict["initialConditions"]["Tw_init"],
-        y_init = SVector{2, Float64}(input_dict["initialConditions"]["y_init"]...),
+        y_init = SVector{2, typeT}(input_dict["initialConditions"]["y_init"]...),
+    )
 
+    info = Mocca.processInfo(
         # Process specification
         stage_types = Vector{String}(input_dict["processSpecification"]["stage_types"]),
         stage_durations = Vector{Float64}(input_dict["processSpecification"]["stage_durations"]),
@@ -163,7 +171,7 @@ function parse_input_from_simple_dict(input_dict::Dict{String, Any})
         info_level = input_dict["solver"]["info_level"]
     )
 
-    return input_pars
+    return constants, info
 end
 
 
