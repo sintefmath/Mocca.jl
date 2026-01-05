@@ -15,7 +15,7 @@ input_pars = Mocca.parse_input(filepath)
 # input_pars = Mocca.parse_input(filepath)
 
 # Option 3: Get input pars from a predefined Julia dictionary
-(constants, info )= Mocca.parse_input(haghpanah_DCB_input())
+# (constants, info )= Mocca.parse_input(haghpanah_DCB_input())
     
 # Setup simulation case and timestep configuration
 case, ts_config = Mocca.setup_mocca_case(constants, info)
