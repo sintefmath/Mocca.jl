@@ -1,6 +1,6 @@
 using Mocca
 
-function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
+function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct; state0 = nothing)
 
 	# We set up a two component adsorption system. This system type is associated
 	# with the appropriate equations and primary and secondary variables.
@@ -33,12 +33,17 @@ function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 	end
 
 	# Now we can initialise the state in the column
-	state0 = Mocca.setup_process_state(model;
+
+	if isnothing(state0)
+		# Setup initial state if not provided as input argument
+		state0 = Mocca.setup_process_state(model;
 		Pressure = P_init,
 		Temperature = T_init,
 		WallTemperature = Tw_init,
 		y = y_init
-	)
+		)
+	end
+
 
 	parameters = Mocca.setup_process_parameters(model);
 

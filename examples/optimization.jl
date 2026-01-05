@@ -25,13 +25,32 @@ function setup_case(prm, step_info = missing)
     param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
     RealT = valtype(param_dict_symb)
     constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
-    info.num_cycles = 3;
+    info.num_cycles = 1;
     for (k, v) in param_dict_symb
         print(k)
         print(v)
         setproperty!(constants, Symbol(k), v)
     end
-    case,  = Mocca.setup_mocca_case(constants, info)
+    case, ts_config  = Mocca.setup_mocca_case(constants, info)
+
+    # Run simulation
+    print("Running simulation to find steady state")
+    states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
+        output_substates = true, info_level = -1)
+
+    # Setup simulation case and timestep configuration
+
+    state0 = Mocca.setup_process_state(case.model;
+        Pressure = states[end][:Pressure],
+        Temperature = states[end][:Temperature],
+        WallTemperature = states[end][:WallTemperature],
+        y = states[end][:y]
+    );
+
+    state0 = nothing
+
+    info.num_cycles = 1;
+    case, ts_config = Mocca.setup_mocca_case(constants, info; state0 = state0)
 
     return case
 end;
