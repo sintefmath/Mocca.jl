@@ -106,6 +106,16 @@ function plot_state(state, model)
     return f
 end
 
+function plot_outlet(case, states, timesteps_out)
+
+    # Convenience function to plot outlet cell variables over time
+
+    outlet_cell = size(states[1][:y][1,:],1)
+    f_outlet = Mocca.plot_cell(states, case.model, timesteps_out, outlet_cell);
+
+    return f_outlet
+end
+
 
 function plot_optimization_history(dict_parameters::Jutul.DictParameters;
     yscale = log10,
