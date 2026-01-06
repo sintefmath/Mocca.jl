@@ -8,11 +8,11 @@ json_dir = joinpath(dirname(pathof(Mocca)), "../models/json/")
 
 # Load input parameters from JSON 
 filepath = joinpath(json_dir, "haghpanah_DCB_input_simple.json")
-input_pars = Mocca.parse_input(filepath)
+(constants, info ) = Mocca.parse_input(filepath)
 
 # Option 2: Load input from the detailed JSON format
 # filepath = joinpath(json_dir, "haghpanah_DCB_input.json")
-# input_pars = Mocca.parse_input(filepath)
+# (constants, info ) = Mocca.parse_input(filepath)
 
 # Option 3: Get input pars from a predefined Julia dictionary
 # (constants, info )= Mocca.parse_input(haghpanah_DCB_input())
