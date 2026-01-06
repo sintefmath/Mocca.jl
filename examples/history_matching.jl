@@ -10,42 +10,24 @@ import Mocca
 
 # We create a function for setting up new simulation cases from the value of the parameter we wish to tune
 function setup_case(prm, step_info=missing)
-    RealT = typeof(prm["v_feed"])
-    ncells = 200
 
-    constants = Mocca.HaghpanahConstants{RealT}(h_in = 0.0, h_out = 0.0, v_feed = prm["v_feed"])
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system; ncells = ncells);
+    param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
+    RealT = valtype(param_dict_symb)
+    constants, info = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=RealT)
 
-    bar = Jutul.si_unit(:bar)
-    P_init = 1 * bar
-    T_init = 298.15
-    Tw_init = constants.T_a
+    for (k, v) in param_dict_symb
+        print(k)
+        print(v)
+        setproperty!(constants, Symbol(k), v)
+    end
+    case,  = Mocca.setup_mocca_case(constants, info)
 
-    yCO2_2 = 1e-10
-    y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
-
-    state0 = Mocca.setup_process_state(model;
-        Pressure=P_init,
-        Temperature=T_init,
-        WallTemperature=Tw_init,
-        y=y_init
-    )
-    parameters = Mocca.setup_process_parameters(model)
-
-    t_ads = 5000.0
-    maxdt = 5000.0
-    numsteps = Int(floor(t_ads / maxdt))
-    timesteps = fill(maxdt, numsteps)
-
-    sim_forces = Mocca.setup_dcb_forces(model)
-
-    case = Mocca.MoccaCase(model, timesteps, sim_forces; state0=state0, parameters=parameters)
     return case
 end;
 
 # # Create synthetic reference data
-constants_ref = Mocca.HaghpanahConstants{Float64}(h_in=0.0, h_out=0.0)
+constants_ref, = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=Float64)
+
 prm_ref = Dict("v_feed" => constants_ref.v_feed)
 case_ref = setup_case(prm_ref);
 
