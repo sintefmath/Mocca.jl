@@ -16,10 +16,11 @@ function build_mocca_docs(; build_examples = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
-         "Simulate DCB" => "simulate_DCB"
-         "Simulate cyclic" => "simulate_cyclic"
-         "History matching" => "history_matching"
-         "Optimization" => "optimization"
+        "Quick start" => "quick_start"
+        "Simulate DCB" => "simulate_DCB"
+        "Simulate cyclic" => "simulate_cyclic"
+        "History matching" => "history_matching"
+        "Optimization" => "optimization"
     ]
 
     examples_markdown = []
@@ -40,21 +41,33 @@ function build_mocca_docs(; build_examples = true)
     ## Make docs
 
     makedocs(;
-        # modules = [Mocca],
+        modules = [Mocca],
+        warnonly = [:missing_docs],
         sitename="Mocca.jl",
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
             "Examples" => examples_markdown
-        ]
+        ],
+        format=Documenter.HTML(;
+            edit_link="main",
+            # size_threshold_ignore = [
+            #     "examples/quick_start.md",
+            #     "examples/simulate_DCB.md",
+            #     "examples/history_matching.md",
+            #     "examples/optimization.md",                
+            # ]        
+            size_threshold=300_000
+        )
 
     )
 
-    ## Deploy docs
+    # ## Deploy docs
 
     # deploydocs(;
-    # repo="github.com/sintefmath/Mocca.jl",
-    # devbranch="main",
+    #     repo="github.com/sintefmath/Mocca.jl",
+    #     devbranch="main",
+    #     push_preview = true
     # )
 end
 
