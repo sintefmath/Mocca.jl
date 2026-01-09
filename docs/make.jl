@@ -64,11 +64,11 @@ function build_mocca_docs(; build_examples = true)
 
     # ## Deploy docs
 
-    # deploydocs(;
-    #     repo="github.com/sintefmath/Mocca.jl",
-    #     devbranch="main",
-    #     push_preview = true
-    # )
+    deploydocs(;
+        repo="github.com/sintefmath/Mocca.jl",
+        devbranch="main",
+        push_preview = true
+    )
 end
 
 build_mocca_docs(build_examples=true)
