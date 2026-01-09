@@ -1,5 +1,5 @@
 using Mocca
-using JSON3
+using JSON
 
 function parse_input(input_dict::Dict{String, Any}; typeT=Float64)
 
@@ -15,7 +15,7 @@ function parse_input(filepath::String; typeT=Float64)
 
     # Parse JSON file to julia dictionary and then create structs
 
-    input_dict = JSON3.read(open(filepath), Dict{String, Any})
+    input_dict = JSON.parse(open(filepath))
 
     is_detailed_input(input_dict) ? 
             (constants,info) = parse_input_from_detailed_dict(input_dict, typeT) :
@@ -24,8 +24,27 @@ function parse_input(filepath::String; typeT=Float64)
     return constants, info
 end
 
+function is_detailed_input(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}})
 
-function parse_input_from_detailed_dict(input_dict::Dict{String, Any}, typeT)
+    
+    if !haskey(input_dict, "columnProps") 
+        error("Input JSON file format not recognized: 'columnProps' key is missing")
+    end
+
+    # Check for the presence of "value" keys in nested dictionaries
+    if isa(input_dict["columnProps"]["L"],Dict)
+        return true
+    elseif isa(input_dict["columnProps"]["L"],JSON.Object)
+        return true
+    elseif isa(input_dict["columnProps"]["L"],Number)
+        return false
+    else
+        error("Input JSON file format not recognized")
+    end
+    return 
+end
+
+function parse_input_from_detailed_dict(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}}, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
     constants = Mocca.adsorptionConstants{typeT}(
@@ -100,7 +119,7 @@ function parse_input_from_detailed_dict(input_dict::Dict{String, Any}, typeT)
     return constants, info
 end
 
-function parse_input_from_simple_dict(input_dict::Dict{String, Any}, typeT)
+function parse_input_from_simple_dict(input_dict::Union{Dict{String, Any},JSON.Object{String, Any}}, typeT)
 
    # Extract values from the JSON and initialize HaghpanahConstants
     constants = Mocca.adsorptionConstants{typeT}(
@@ -175,20 +194,3 @@ function parse_input_from_simple_dict(input_dict::Dict{String, Any}, typeT)
 end
 
 
-function is_detailed_input(input_dict::Dict{String, Any})
-
-    
-    if !haskey(input_dict, "columnProps") 
-        error("Input JSON file format not recognized: 'columnProps' key is missing")
-    end
-
-    # Check for the presence of "value" keys in nested dictionaries
-    if isa(input_dict["columnProps"]["L"],Dict)
-        return true
-    elseif isa(input_dict["columnProps"]["L"],Number)
-        return false
-    else
-        error("Input JSON file format not recognized")
-    end
-    return 
-end

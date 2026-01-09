@@ -2,7 +2,6 @@ using Test
 using Mocca
 using Jutul
 using JutulDarcy
-using MAT
 using LinearAlgebra
 using StaticArrays
 
