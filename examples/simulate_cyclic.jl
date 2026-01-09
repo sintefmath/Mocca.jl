@@ -59,11 +59,12 @@ t_blow = 30.0
 t_evac= 40.0
 stage_times = [t_press, t_ads, t_blow, t_evac];
 stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
+
 # Set up cyclic boundary conditions and timesteps for the simulation
-
-
+# We will run 3 cycles of the process for demonstration purposes, 
+# to reach steady state num_cycles should be increased.
 sim_forces, timesteps = Mocca.setup_forces(model,stage_times,stage_names;
-    num_cycles=300,max_dt = 1);
+    num_cycles=3, max_dt = 1);
 
 # # Simulate
 # Now we are ready to run the simulation
