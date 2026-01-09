@@ -12,6 +12,8 @@ function export_cell_results(outputfile::String, case::MoccaCase, states, timest
         return
     end
 
+    outputtimes = cumsum(timesteps);
+
     # Export to csv with columns: time, P, T, Tw, y1, ..., yn, q1, ..., qn
     open(outputfile, "w") do io
         # Write header
@@ -25,7 +27,7 @@ function export_cell_results(outputfile::String, case::MoccaCase, states, timest
         println(io, join(header, ","))
         # Write data
         for (i, state) in enumerate(states)
-            time = timesteps[i]
+            time = outputtimes[i]
             P = state[:Pressure][end]
             T = state[:Temperature][end]
             Tw = state[:WallTemperature][end]
