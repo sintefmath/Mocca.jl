@@ -1,68 +1,37 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>History matching · Mocca.jl</title><meta name="title" content="History matching · Mocca.jl"/><meta property="og:title" content="History matching · Mocca.jl"/><meta property="twitter:title" content="History matching · Mocca.jl"/><meta name="description" content="Documentation for Mocca.jl."/><meta property="og:description" content="Documentation for Mocca.jl."/><meta property="twitter:description" content="Documentation for Mocca.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Mocca.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../installation/">Installation</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../simulate_DCB/">Simulate DCB</a></li><li><a class="tocitem" href="../simulate_cyclic/">Simulate cyclic</a></li><li class="is-active"><a class="tocitem" href>History matching</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Create-synthetic-reference-data"><span>Create synthetic reference data</span></a></li><li class="toplevel"><a class="tocitem" href="#Setting-up-and-solving-the-optimization-problem"><span>Setting up and solving the optimization problem</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../optimization/">Optimization</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>History matching</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>History matching</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="History-matching-of-simulation-models"><a class="docs-heading-anchor" href="#History-matching-of-simulation-models">History matching of simulation models</a><a id="History-matching-of-simulation-models-1"></a><a class="docs-heading-anchor-permalink" href="#History-matching-of-simulation-models" title="Permalink"></a></h1><p>We demonstrate history matching of a Direct Column Breakthrough (DCB) simulation model in Mocca. We leverage the powerful and flexible optimization functionality of Jutul to set up and perform the history matching. For more details about the DCB modelling, see the <a href="../simulate_DCB/">Simulate DCB</a> example.</p><p>First we load the necessary modules</p><pre><code class="language-julia hljs">import Jutul
-import Mocca</code></pre><p>We create a function for setting up new simulation cases from the value of the parameter we wish to tune</p><pre><code class="language-julia hljs">function setup_case_v_feed(prm, step_info=missing)
-    RealT = typeof(prm[&quot;v_feed&quot;])
-    constants = Mocca.HaghpanahConstants{RealT}(h_in = 0.0, h_out = 0.0, v_feed = prm[&quot;v_feed&quot;])
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>History matching · Mocca.jl</title><meta name="title" content="History matching · Mocca.jl"/><meta property="og:title" content="History matching · Mocca.jl"/><meta property="twitter:title" content="History matching · Mocca.jl"/><meta name="description" content="Documentation for Mocca.jl."/><meta property="og:description" content="Documentation for Mocca.jl."/><meta property="twitter:description" content="Documentation for Mocca.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Mocca.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../installation/">Installation</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../quick_start/">Quick start</a></li><li><a class="tocitem" href="../simulate_DCB/">Simulate DCB</a></li><li><a class="tocitem" href="../simulate_cyclic/">Simulate cyclic</a></li><li class="is-active"><a class="tocitem" href>History matching</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Create-synthetic-reference-data"><span>Create synthetic reference data</span></a></li><li class="toplevel"><a class="tocitem" href="#Setting-up-and-solving-the-optimization-problem"><span>Setting up and solving the optimization problem</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../optimization/">Optimization</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>History matching</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>History matching</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="History-matching-of-simulation-models"><a class="docs-heading-anchor" href="#History-matching-of-simulation-models">History matching of simulation models</a><a id="History-matching-of-simulation-models-1"></a><a class="docs-heading-anchor-permalink" href="#History-matching-of-simulation-models" title="Permalink"></a></h1><p>We demonstrate history matching of a Direct Column Breakthrough (DCB) simulation model in Mocca. We leverage the powerful and flexible optimization functionality of Jutul to set up and perform the history matching. For more details about the DCB modelling, see the <a href="../simulate_DCB/">Simulate DCB</a> example.</p><p>Import necessary modules</p><pre><code class="language-julia hljs">import Jutul
+import Mocca</code></pre><p>We create a function for setting up new simulation cases from the value of the parameter we wish to tune</p><pre><code class="language-julia hljs">function setup_case(prm, step_info=missing)
 
-    permeability = Mocca.compute_permeability(constants)
-    axial_dispersion = Mocca.calc_dispersion(constants)
+    param_dict_symb = Dict(Symbol(k) =&gt; v for (k, v) in prm)
+    RealT = valtype(param_dict_symb)
+    constants, info = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=RealT)
 
-    system = Mocca.TwoComponentAdsorptionSystem(; permeability=permeability, dispersion=axial_dispersion, p=constants)
+    for (k, v) in param_dict_symb
+        print(k)
+        print(v)
+        setproperty!(constants, Symbol(k), v)
+    end
+    case,  = Mocca.setup_mocca_case(constants, info)
 
-    ncells = 200
-    dx = sqrt(pi * constants.r_in^2)
-    mesh = Jutul.CartesianMesh((ncells, 1, 1), (constants.L, dx, dx))
-    domain = Mocca.mocca_domain(mesh, system)
+    return case
+end;</code></pre><h1 id="Create-synthetic-reference-data"><a class="docs-heading-anchor" href="#Create-synthetic-reference-data">Create synthetic reference data</a><a id="Create-synthetic-reference-data-1"></a><a class="docs-heading-anchor-permalink" href="#Create-synthetic-reference-data" title="Permalink"></a></h1><pre><code class="language-julia hljs">constants_ref, = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=Float64)
 
-    model = Jutul.SimulationModel(domain, system, general_ad=true)
-
-    bar = Jutul.si_unit(:bar)
-    P_init = 1 * bar
-    T_init = 298.15
-    Tw_init = constants.T_a
-
-    yCO2 = fill(1e-10, ncells)
-    y_init = hcat(yCO2, 1 .- yCO2)
-
-    state0, parameters = Mocca.initialise_state_AdsorptionColumn(P_init, T_init, Tw_init, y_init, model)
-
-    t_ads = 5000
-    maxdt = 5000.0
-    numsteps = Int(floor(t_ads / maxdt))
-    timesteps = fill(maxdt, numsteps)
-
-    bc = Mocca.AdsorptionBC(y_feed=constants.y_feed, PH=constants.p_high, v_feed=constants.v_feed,
-        T_feed=constants.T_feed, cell_left=1, cell_right=ncells)
-
-    sim_forces = Jutul.setup_forces(model, bc=bc)
-
-    return Jutul.JutulCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
-end;</code></pre><h1 id="Create-synthetic-reference-data"><a class="docs-heading-anchor" href="#Create-synthetic-reference-data">Create synthetic reference data</a><a id="Create-synthetic-reference-data-1"></a><a class="docs-heading-anchor-permalink" href="#Create-synthetic-reference-data" title="Permalink"></a></h1><pre><code class="language-julia hljs">constants_ref = Mocca.HaghpanahConstants{Float64}(h_in=0.0, h_out=0.0)
 prm_ref = Dict(&quot;v_feed&quot; =&gt; constants_ref.v_feed)
-case_ref = setup_case_v_feed(prm_ref)
-
-t_c = Jutul.VariableChangeTimestepSelector(:y, 0.01, relative = false)
-t_t = Jutul.VariableChangeTimestepSelector(:Temperature, 10.0, relative = false)
-t_p = Jutul.VariableChangeTimestepSelector(:Pressure, 10.0, relative = false);
-t_base = Jutul.TimestepSelector(initial_absolute = 1.0)
-timesteppers = [t_base, t_c, t_t, t_p];
-
-sim = Jutul.Simulator(case_ref)
-lsolve = Jutul.LUSolver()
-
-cfg = Jutul.simulator_config(sim;
-    timestep_selectors = timesteppers,
+case_ref = setup_case(prm_ref);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">v_feed0.37</code></pre><p>Configure simulator which will be used in the history matching</p><pre><code class="language-julia hljs">timestep_selector_cfg = (y=0.01, Temperature=10.0, Pressure=10.0)
+sim, cfg = Mocca.setup_process_simulator(case_ref.model, case_ref.state0, case_ref.parameters;
+    timestep_selector_cfg = timestep_selector_cfg,
+    initial_dt = 1.0,
     output_substates = true,
-    linear_solver = lsolve,
     info_level = -1
+);</code></pre><p>Run reference simulation to generate and generate &quot;ground truth&quot; data from the result</p><pre><code class="language-julia hljs">states, timesteps_out = Mocca.simulate_process(case_ref;
+    simulator = sim,
+    config = cfg
 );
 
-result = Jutul.simulate(case_ref;
-    config = cfg
-);</code></pre><p>Extract the substates and subtimesteps used inside the simulator</p><pre><code class="language-julia hljs">substates, subtimesteps = Jutul.expand_to_ministeps(result);</code></pre><p>We create an interpolation function to be able to sample the reference solution at arbitrary points in time</p><pre><code class="language-julia hljs">times_ref = cumsum(subtimesteps)
+times_ref = cumsum(timesteps_out)
 total_time = times_ref[end]
 last_cell_idx = Jutul.number_of_cells(case_ref.model.domain)
-qCO2_ref = map(s -&gt; getindex(s[:AdsorbedConcentration], 1, last_cell_idx), substates)
+qCO2_ref = map(s -&gt; getindex(s[:AdsorbedConcentration], 1, last_cell_idx), states)
 qCO2_ref_by_time = Jutul.get_1d_interpolator(times_ref, qCO2_ref);</code></pre><h1 id="Setting-up-and-solving-the-optimization-problem"><a class="docs-heading-anchor" href="#Setting-up-and-solving-the-optimization-problem">Setting up and solving the optimization problem</a><a id="Setting-up-and-solving-the-optimization-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-and-solving-the-optimization-problem" title="Permalink"></a></h1><p>We define a suitable objective function to quantify the match between our simulations and the reference solution. Here we choose deviation of adsorbed CO2 in the last grid cell.</p><pre><code class="language-julia hljs">function objective_function(model, state, dt, step_info, forces)
     current_time = step_info[:time]
     q_co2 = getindex(state[:AdsorbedConcentration], 1, last_cell_idx)
@@ -70,27 +39,37 @@ qCO2_ref_by_time = Jutul.get_1d_interpolator(times_ref, qCO2_ref);</code></pre><
     v = dt/total_time*(q_co2 - q_co2_ref)^2
     return v
 end;</code></pre><p>Perturb the known parameter <span>$v_{feed}$</span> to form our initial guess for the optimization</p><pre><code class="language-julia hljs">prm_guess = Dict(&quot;v_feed&quot; =&gt; constants_ref.v_feed+0.2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{String, Float64} with 1 entry:
-  &quot;v_feed&quot; =&gt; 0.57</code></pre><p>Activate <span>$v_{feed}$</span> as a free parameter and run the optimization</p><pre><code class="language-julia hljs">dprm = Jutul.DictOptimization.DictParameters(prm_guess)
-Jutul.DictOptimization.free_optimization_parameter!(dprm, &quot;v_feed&quot;; rel_min = 0.1, rel_max = 10.0)
-prm_opt = Jutul.DictOptimization.optimize(dprm, objective_function, setup_case_v_feed;
+  &quot;v_feed&quot; =&gt; 0.57</code></pre><p>Activate <span>$v_{feed}$</span> as a free parameter</p><pre><code class="language-julia hljs">dprm = Jutul.DictOptimization.DictParameters(prm_guess)
+Jutul.DictOptimization.free_optimization_parameter!(dprm, &quot;v_feed&quot;; rel_min = 0.1, rel_max = 10.0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 1 parameters (1 active), and 0 multipliers:
+<span class="sgr1">Active optimization parameters</span>
+┌────────┬───────────────┬───────┬───────┬─────┐
+│<span class="sgr1">   Name </span>│<span class="sgr1"> Initial value </span>│<span class="sgr1"> Count </span>│<span class="sgr1">   Min </span>│<span class="sgr1"> Max </span>│
+├────────┼───────────────┼───────┼───────┼─────┤
+│ v_feed │ 0.57          │     1 │ 0.057 │ 5.7 │
+└────────┴───────────────┴───────┴───────┴─────┘
+No inactive optimization parameters.
+No multipliers set.
+</code></pre><p>Run the optimization</p><pre><code class="language-julia hljs">prm_opt = Jutul.DictOptimization.optimize(dprm, objective_function, setup_case;
     config = cfg,
     max_it = 10,
     obj_change_tol = 1e-3
 );</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Optimization: Starting calibration of 1 parameters.
 Optimization: Setting up adjoint storage.
-Optimization: Finished setup in 39.881115299 seconds.
+Optimization: Finished setup in 5.946040383 seconds.
 It.  | Objective  | Proj. grad | Linesearch-its
 -----------------------------------------------
-   0 | 7.5689e+05 | 2.6607e+07 | -
-LBFGS: Hessian not updated during iteration 1
-   1 | 8.0174e+03 | 2.6607e+07 | 2
+   0 | 7.6129e+05 | 2.6629e+07 | -
 LBFGS: Resetting &#39;m&#39; to number of parameters: m = 1
-   2 | 4.7502e+01 | 7.3105e+06 | 2
-   3 | 1.5729e+00 | 5.4983e+05 | 1
-   4 | 1.7660e-02 | 1.0879e+05 | 1
-   5 | 2.4500e-06 | 1.1493e+04 | 1
-   6 | 6.2305e-10 | 1.3583e+02 | 1
-Optimization: Finished in 106.621369662 seconds.</code></pre><p>We can see a clear reduction of the objective function value throughout the optimization iterations, indicating a close match between the reference solution and our simulation.</p><pre><code class="language-julia hljs">f = Mocca.plot_optimization_history(dprm)</code></pre><img src="77f9debc.png" alt="Example block output"/><p>We can look at the optimization result:</p><pre><code class="language-julia hljs">dprm</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 1 parameters (1 active), and 0 multipliers:
+   1 | 7.4915e+03 | 2.6629e+07 | 2
+   2 | 2.8822e+01 | 7.0900e+06 | 2
+   3 | 1.0718e+01 | 4.5699e+05 | 1
+LBFGS: Line search unable to succeed in 5 iterations ...
+   4 | 3.5082e+00 | 4.7057e+04 | 5
+   5 | 3.4878e+00 | 8.4036e+04 | 1
+LBFGS: Line search unable to succeed in 5 iterations ...
+LBFGS: Hessian not updated during iteration 6
+   6 | 3.4878e+00 | 4.1567e+04 | 5
+Optimization: Finished in 88.130729619 seconds.</code></pre><p>We can see a clear reduction of the objective function value throughout the optimization iterations, indicating a close match between the reference solution and our simulation.</p><pre><code class="language-julia hljs">f = Mocca.plot_optimization_history(dprm)</code></pre><img src="02f1ed1a.png" alt="Example block output"/><p>We can look at the optimization result:</p><pre><code class="language-julia hljs">dprm</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 1 parameters (1 active), and 0 multipliers:
 <span class="sgr1">Active optimization parameters</span>
 ┌────────┬───────────────┬───────┬───────┬─────┬─────────────────┬────────┐
 │<span class="sgr1">   Name </span>│<span class="sgr1"> Initial value </span>│<span class="sgr1"> Count </span>│<span class="sgr1">   Min </span>│<span class="sgr1"> Max </span>│<span class="sgr1"> Optimized value </span>│<span class="sgr1"> Change </span>│
@@ -99,4 +78,4 @@ Optimization: Finished in 106.621369662 seconds.</code></pre><p>We can see a cle
 └────────┴───────────────┴───────┴───────┴─────┴─────────────────┴────────┘
 No inactive optimization parameters.
 No multipliers set.
-</code></pre><p>and see that the value matches the reference parameter value</p><pre><code class="language-julia hljs">constants_ref.v_feed</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.37</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simulate_cyclic/">« Simulate cyclic</a><a class="docs-footer-nextpage" href="../optimization/">Optimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Monday 24 November 2025 14:37">Monday 24 November 2025</span>. Using Julia version 1.12.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</code></pre><p>and see that the value matches the reference parameter value</p><pre><code class="language-julia hljs">constants_ref.v_feed</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.37</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../simulate_cyclic/">« Simulate cyclic</a><a class="docs-footer-nextpage" href="../optimization/">Optimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 9 January 2026 11:56">Friday 9 January 2026</span>. Using Julia version 1.12.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
