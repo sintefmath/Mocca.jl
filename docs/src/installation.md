@@ -23,4 +23,4 @@ Pkg.instantiate()
 
 This will activate the environment in the current directory and install all necessary dependencies. Mocca is now installed and ready to use.
 
-A good starting example to try is [Direct Column Breakthrough simulation](@ref). Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+A good starting example to try is [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl). Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!

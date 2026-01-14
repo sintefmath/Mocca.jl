@@ -16,7 +16,6 @@ function build_mocca_docs(; build_examples = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
-        "Quick start" => "quick_start"
         "Simulate DCB" => "simulate_DCB"
         "Simulate cyclic" => "simulate_cyclic"
         "History matching" => "history_matching"
@@ -47,6 +46,7 @@ function build_mocca_docs(; build_examples = true)
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
+            "Quick start" => "quick_start.md",
             "Examples" => examples_markdown
         ],
         format=Documenter.HTML(;

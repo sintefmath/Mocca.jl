@@ -1,5 +1,8 @@
 # Mocca
 
+![Mocca.jl logo](docs/src/assets/mocca_small_transparent.png)
+
+
 Mocca [Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture.
 
 Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) and [Cyclic Vacuum Swing Adsorption simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_cyclic.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
@@ -23,7 +26,36 @@ Pkg.instantiate()
 
 This will activate the environment in the current directory and install all necessary dependencies. Mocca is now installed and ready to use.
 
-A good starting example to try is [Direct Column Breakthrough simulation](@ref). Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+To get started try the [quick_start](@ref) or [Direct Column Breakthrough simulation](@ref) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+
+
+# Quick start example
+Run the following code to quickly setup and run a
+Direct Column breakthrough adsorption simulation using predefined input parameters.
+
+The example uses some utility functions which simplify the simulation setup.
+To see the steps used in more detail, please refer to the
+[Simulate DCB](simulate_DCB.md) example.
+
+```julia
+using Mocca
+
+# Import and load input parameters
+json_dir = joinpath(dirname(pathof(Mocca)), "../models/json/")
+filepath = joinpath(json_dir, "haghpanah_DCB_input_simple.json")
+(constants, info ) = Mocca.parse_input(filepath)
+
+# Setup and run simulation
+case, ts_config = Mocca.setup_mocca_case(constants, info)
+states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
+    output_substates = true, info_level = 0)
+
+# Save results to CSV and plot
+Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "haghpanah_DCB_results.csv"),
+    case, states, timesteps; format="csv")
+f = Mocca.plot_outlet(case, states, timesteps)
+display(f)
+```
 
 # Acknowledgements
 
