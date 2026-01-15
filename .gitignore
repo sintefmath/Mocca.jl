@@ -30,6 +30,10 @@ Manifest.toml
 results/
 
 # Matlab data files 
-#
 *.mat
+
+# vscode settings
 .vscode/*
+
+# Mac specific files
+*.DS_Store
