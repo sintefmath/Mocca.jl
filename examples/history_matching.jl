@@ -11,8 +11,8 @@ import Mocca
 # We create a function for setting up new simulation cases from the value of the parameter we wish to tune
 function setup_case(prm, step_info=missing)
 
-    param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
-    RealT = valtype(param_dict_symb)
+    param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm);
+    RealT = valtype(param_dict_symb);
     constants, info = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=RealT)
 
     for (k, v) in param_dict_symb
@@ -25,11 +25,13 @@ function setup_case(prm, step_info=missing)
     return case
 end;
 
+
 # # Create synthetic reference data
 constants_ref, = Mocca.parse_input(Mocca.haghpanah_DCB_input(); typeT=Float64)
 
-prm_ref = Dict("v_feed" => constants_ref.v_feed)
+prm_ref = Dict("v_feed" => constants_ref.v_feed);
 case_ref = setup_case(prm_ref);
+
 
 # Configure simulator which will be used in the history matching
 timestep_selector_cfg = (y=0.01, Temperature=10.0, Pressure=10.0)
@@ -64,17 +66,18 @@ function objective_function(model, state, dt, step_info, forces)
 end;
 
 # Perturb the known parameter ``v_{feed}`` to form our initial guess for the optimization
-prm_guess = Dict("v_feed" => constants_ref.v_feed+0.2)
+prm_guess = Dict("v_feed" => constants_ref.v_feed+0.2);
 
 # Activate ``v_{feed}`` as a free parameter
 dprm = Jutul.DictOptimization.DictParameters(prm_guess)
-Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; rel_min = 0.1, rel_max = 10.0)
+Jutul.DictOptimization.free_optimization_parameter!(dprm, "v_feed"; rel_min = 0.001, rel_max = 100.0)
 
 # Run the optimization
 prm_opt = Jutul.DictOptimization.optimize(dprm, objective_function, setup_case;
     config = cfg,
     max_it = 10,
-    obj_change_tol = 1e-3
+    obj_change_tol = 1e-6,
+    solution_history = true
 );
 
 # We can see a clear reduction of the objective function value throughout the optimization iterations,
@@ -86,3 +89,6 @@ dprm
 
 # and see that the value matches the reference parameter value
 constants_ref.v_feed
+
+# Check size of objective mismatch
+dprm.history.objectives
