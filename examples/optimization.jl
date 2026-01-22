@@ -95,7 +95,7 @@ function setup_case(prm, step_info = missing)
         case,  = Mocca.setup_mocca_case(constants, info)
     else
         (; model, state0, parameters) = basecase
-        if true
+        if false
             tmp, = Mocca.setup_mocca_case(constants, info)
             dt = tmp.dt
             forces = tmp.forces
@@ -104,12 +104,17 @@ function setup_case(prm, step_info = missing)
                 info.stage_durations,
                 info.stage_types;
                 num_cycles = info.num_cycles,
-                max_dt = info.maxdt);
+                max_dt = info.maxdt,
+                constants = constants # !! Use updated constants
+            );
         end
         case = Mocca.MoccaCase(model, dt, forces, state0 = state0, parameters = parameters)
     end
     return case
 end;
+
+c = setup_case(prm_guess);
+##
 # Specify which parameters we wish to optimize and set limits for their final values. Relative change limits can also be specified.
 bar = Jutul.si_unit(:bar)
 dprm = DictParameters(prm_guess)

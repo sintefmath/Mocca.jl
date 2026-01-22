@@ -66,9 +66,11 @@ function setup_process_parameters(model; kwargs...)
 end
 
 function setup_forces(model,stage_times,stage_names;
-    num_cycles=1,max_dt = 1.0)
+        num_cycles=1,
+        max_dt = 1.0,
+        constants = model.system.p
+    )
 
-    constants = model.system.p;
     ncells = Jutul.number_of_cells(model.domain);
     
     bcs = setup_stage_bcs(constants,stage_times,stage_names,ncells);
