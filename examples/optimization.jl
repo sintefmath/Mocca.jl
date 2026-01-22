@@ -41,24 +41,36 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
         dt = step_info[:dt]
         time = step_info[:time]
 
-        if time >= start_time_last_cycle # We only use the last cycle for calculating the objective, once the system has more or less stabilized
-            force = force_outer.bc
+        force = force_outer.bc
 
-            if force isa Mocca.PressurisationBC
-                mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
-            end
+        co2_flux_in = 0.0
+        co2_flux_out = 0.0
 
-            if force isa Mocca.AdsorptionBC
-                mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
-            end
-
-            if force isa Mocca.EvacuationBC
-                mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_out -= mass_flux[Mocca.CO2INDEX] * dt
-            end
+        if force isa Mocca.PressurisationBC
+            mass_flux = Mocca.mass_flux_left(state, model, time, force)
+            # total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+            co2_flux_in = mass_flux[Mocca.CO2INDEX] * dt
         end
+
+        if force isa Mocca.AdsorptionBC
+            mass_flux = Mocca.mass_flux_left(state, model, time, force)
+            # total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+            co2_flux_in = mass_flux[Mocca.CO2INDEX] * dt
+        end
+
+        if force isa Mocca.EvacuationBC
+            mass_flux = Mocca.mass_flux_left(state, model, time, force)
+            # total_co2_flux_out -= mass_flux[Mocca.CO2INDEX] * dt
+            co2_flux_out = mass_flux[Mocca.CO2INDEX] * dt
+        end
+
+        if time >= start_time_last_cycle # We only use the last cycle for calculating the objective, once the system has more or less stabilized
+            w = 1.0
+        else
+            w = 0.00001
+        end
+        total_co2_flux_out -= w*co2_flux_out
+        total_co2_flux_in -= w*co2_flux_in
     end
 
     recovery = total_co2_flux_out/total_co2_flux_in
@@ -130,7 +142,15 @@ free_optimization_parameter!(dprm, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 prm_opt = optimize(dprm, wrapped_global_objective, setup_case;
     max_it=10,
     maximize=true,
-    info_level=-1
+    info_level=-1,
+        backend_arg = (
+        use_sparsity = true,
+        di_sparse = true,
+        single_step_sparsity = :unique_forces,
+        do_prep = true,
+        deps = :case,
+        deps_ad = :di
+    )
 )
 
 # We can plot the optimization history to see how the objective function has changed throughout the optimization
