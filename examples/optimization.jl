@@ -136,16 +136,21 @@ bar = Jutul.si_unit(:bar)
 sim, cfg = Mocca.setup_process_simulator(basecase.model, basecase.state0, basecase.parameters,
     info_level = -1, end_report = false);
 
-num_cycles_outer = 10
+num_cycles_outer = 500
 num_cycles_optimizer = 3
 current_parameters = prm_guess
 maxit = 10
 num_outer_it = 3
 
 dict_opt = missing
+results = []
+histories = []
+initial_states = []
 for outer_it in 1:num_outer_it
     case_full = setup_case(current_parameters; num_cycles = num_cycles_outer)
+    cfg[:info_level] = 0
     states, = Mocca.simulate_process(case_full, simulator = sim, config = cfg)
+    cfg[:info_level] = -1
 
     println("Results after $num_cycles_outer cycles:")
     for (k, v) in states[end]
@@ -153,7 +158,7 @@ for outer_it in 1:num_outer_it
     end
     setup_case_inner = (arg...) -> setup_case(arg...; state0 = states[end], num_cycles = num_cycles_optimizer)
 
-    dict_opt = DictParameters(current_parameters)
+    dict_opt = DictParameters(current_parameters, verbose = false)
     free_optimization_parameter!(dict_opt, "v_feed"; abs_min = 0.1, abs_max = 2.0)
     free_optimization_parameter!(dict_opt, "p_intermediate"; abs_min = 0.05bar, abs_max = 0.5bar)
     free_optimization_parameter!(dict_opt, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
@@ -174,8 +179,12 @@ for outer_it in 1:num_outer_it
         simulator = sim,
         config = cfg
     )
+    push!(results, current_parameters)
+    push!(histories, dict_opt.history)
+    push!(initial_states, states[end])
 end
 
+error()
 # # Run the optimization
 
 # We call the optimizer provided by Jutul.
