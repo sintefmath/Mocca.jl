@@ -25,6 +25,7 @@ function cycle_definition()
     t_evac = 40.0
     t_stage = [t_press, t_ads, t_blow, t_evac]
     num_cycles = 3
+    # num_cycles = 500
     return (t_stage, num_cycles)
 end;
 
@@ -92,12 +93,12 @@ prm_guess = Dict(
 # We create a setup function for making simulation cases.
 # This is needed by the optimizer so that it knows how to set up a new simulation
 # from the current iteration of the optimization parameters.
-function setup_case(prm, step_info = missing)
-
+function setup_case(prm, step_info = missing; num_cycles = cycle_definition()[2], state0 = basecase.state0)
+    # @info "Solving with $num_cycles"
     param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
     RealT = valtype(param_dict_symb)
     constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
-    info.num_cycles = cycle_definition()[2];
+    info.num_cycles = num_cycles;
     for (k, v) in param_dict_symb
         print(k)
         print(v)
@@ -106,7 +107,7 @@ function setup_case(prm, step_info = missing)
     if false
         case,  = Mocca.setup_mocca_case(constants, info)
     else
-        (; model, state0, parameters) = basecase
+        (; model, parameters) = basecase
         if false
             tmp, = Mocca.setup_mocca_case(constants, info)
             dt = tmp.dt
@@ -126,15 +127,54 @@ function setup_case(prm, step_info = missing)
     return case
 end;
 
-c = setup_case(prm_guess);
+# c = setup_case(prm_guess);
 ##
+using Statistics
 # Specify which parameters we wish to optimize and set limits for their final values. Relative change limits can also be specified.
 bar = Jutul.si_unit(:bar)
-dprm = DictParameters(prm_guess)
-free_optimization_parameter!(dprm, "v_feed"; abs_min = 0.1, abs_max = 2.0)
-free_optimization_parameter!(dprm, "p_intermediate"; abs_min = 0.05bar, abs_max = 0.5bar)
-free_optimization_parameter!(dprm, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 
+sim, cfg = Mocca.setup_process_simulator(basecase.model, basecase.state0, basecase.parameters,
+    info_level = -1, end_report = false);
+
+num_cycles_outer = 10
+num_cycles_optimizer = 3
+current_parameters = prm_guess
+maxit = 10
+num_outer_it = 3
+
+dict_opt = missing
+for outer_it in 1:num_outer_it
+    case_full = setup_case(current_parameters; num_cycles = num_cycles_outer)
+    states, = Mocca.simulate_process(case_full, simulator = sim, config = cfg)
+
+    println("Results after $num_cycles_outer cycles:")
+    for (k, v) in states[end]
+        @info "$k => Mean: $(Statistics.mean(v)) Min: $(minimum(v)) Max: $(maximum(v))"
+    end
+    setup_case_inner = (arg...) -> setup_case(arg...; state0 = states[end], num_cycles = num_cycles_optimizer)
+
+    dict_opt = DictParameters(current_parameters)
+    free_optimization_parameter!(dict_opt, "v_feed"; abs_min = 0.1, abs_max = 2.0)
+    free_optimization_parameter!(dict_opt, "p_intermediate"; abs_min = 0.05bar, abs_max = 0.5bar)
+    free_optimization_parameter!(dict_opt, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
+
+    println("Starting optimization with $maxit iterations:")
+    current_parameters = optimize(dict_opt, wrapped_global_objective, setup_case;
+        max_it=maxit,
+        maximize=true,
+        info_level=-1,
+            backend_arg = (
+            use_sparsity = true,
+            di_sparse = true,
+            single_step_sparsity = :unique_forces,
+            do_prep = true,
+            deps = :case,
+            deps_ad = :di
+        ),
+        simulator = sim,
+        config = cfg
+    )
+end
 
 # # Run the optimization
 
@@ -194,3 +234,4 @@ dprm
 # │          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │ 5000.0          │ -50.0% │
 # └────────────────┴───────────────┴───────┴────────┴─────────┴─────────────────┴────────┘
 # 143 -> 48
+##
