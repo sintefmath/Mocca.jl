@@ -17,25 +17,6 @@ import Mocca
 import Jutul
 import Jutul.DictOptimization: optimize, DictParameters, free_optimization_parameter!
 
-# We create a setup function for making simulation cases.
-# This is needed by the optimizer so that it knows how to set up a new simulation
-# from the current iteration of the optimization parameters.
-function setup_case(prm, step_info = missing)
-
-    param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
-    RealT = valtype(param_dict_symb)
-    constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
-    info.num_cycles = 3;
-    for (k, v) in param_dict_symb
-        print(k)
-        print(v)
-        setproperty!(constants, Symbol(k), v)
-    end
-    case,  = Mocca.setup_mocca_case(constants, info)
-
-    return case
-end;
-
 # Create a helper function for getting timing for the stages and the number of cycles
 function cycle_definition()
     t_press = 15.0
@@ -86,8 +67,9 @@ end
 wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func);
 
 # We use the original parameter values as a starting point for the optimization
-constants_ref, = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
+constants_ref, info_ref = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
 
+basecase, = Mocca.setup_mocca_case(constants_ref, info_ref)
 
 prm_guess = Dict(
     "v_feed" => constants_ref.v_feed,
@@ -95,6 +77,39 @@ prm_guess = Dict(
     "p_low" => constants_ref.p_low
 )
 
+# We create a setup function for making simulation cases.
+# This is needed by the optimizer so that it knows how to set up a new simulation
+# from the current iteration of the optimization parameters.
+function setup_case(prm, step_info = missing)
+
+    param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
+    RealT = valtype(param_dict_symb)
+    constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
+    info.num_cycles = 3;
+    for (k, v) in param_dict_symb
+        print(k)
+        print(v)
+        setproperty!(constants, Symbol(k), v)
+    end
+    if false
+        case,  = Mocca.setup_mocca_case(constants, info)
+    else
+        (; model, state0, parameters) = basecase
+        if true
+            tmp, = Mocca.setup_mocca_case(constants, info)
+            dt = tmp.dt
+            forces = tmp.forces
+        else
+            forces, dt = Mocca.setup_forces(model,
+                info.stage_durations,
+                info.stage_types;
+                num_cycles = info.num_cycles,
+                max_dt = info.maxdt);
+        end
+        case = Mocca.MoccaCase(model, dt, forces, state0 = state0, parameters = parameters)
+    end
+    return case
+end;
 # Specify which parameters we wish to optimize and set limits for their final values. Relative change limits can also be specified.
 bar = Jutul.si_unit(:bar)
 dprm = DictParameters(prm_guess)
@@ -120,3 +135,17 @@ Mocca.plot_optimization_history(dprm; yscale = identity, ylabel = "Recovery")
 # We see that the optimized intermediate and low pressure values have reached their prescribed limits,
 # meaning that we could have increased the objective function further if we were allowed to change the limits.
 dprm
+
+
+# Optimization: Objective #12: 3.95121e-01 (f/f0=1.870e+00), gradient 2-norm: 1.21684e-04
+#   10 | 1.7712e+01 | 1.5777e-01 | 1
+# Optimization: Finished in 143.1014966 seconds.     
+# DictParameters with 3 parameters (3 active), and 0 multipliers:
+# Active optimization parameters
+# ┌────────────────┬───────────────┬───────┬────────┬─────────┬─────────────────┬────────┐
+# │           Name │ Initial value │ Count │    Min │     Max │ Optimized value │ Change │
+# ├────────────────┼───────────────┼───────┼────────┼─────────┼─────────────────┼────────┤
+# │         v_feed │ 0.37          │     1 │    0.1 │     2.0 │ 0.684           │  85.0% │
+# │ p_intermediate │ 20000.0       │     1 │ 5000.0 │ 50000.0 │ 50000.0         │ 150.0% │
+# │          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │ 5000.0          │ -50.0% │
+# └────────────────┴───────────────┴───────┴────────┴─────────┴─────────────────┴────────┘
