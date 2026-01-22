@@ -36,8 +36,8 @@ end
     ∇p = JutulDarcy.pressure_gradient(state, kgrad)
     μ = sys.p.fluid_viscosity
     v = -T_f * ∇p / μ
-    P_c = cell -> state.Pressure[cell]
-    P_face = JutulDarcy.upwind(upw, P_c, v)
+    # P_c = cell -> state.Pressure[cell]
+    P_face = JutulDarcy.upwind(upw, state.Pressure, v)
     q = v * P_face
     return q
 end

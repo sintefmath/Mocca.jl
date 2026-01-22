@@ -30,8 +30,9 @@ function JutulDarcy.component_mass_fluxes!(
 
     D_l = state.DiffusionTransmissibilities[face]
     for component in eachindex(q)
-        F_c = cell -> c[component, cell] / μ
-        c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
+        # F_c = cell -> c[component, cell] / μ
+        # c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
+        c_face = JutulDarcy.component_upwind(upw, c, component, q_darcy) / μ
         q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y, component, kgrad)
 
         q = setindex(q, q_i, component)

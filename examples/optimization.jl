@@ -116,7 +116,8 @@ function setup_case(prm, step_info = missing)
                 info.stage_durations,
                 info.stage_types;
                 num_cycles = info.num_cycles,
-                max_dt = info.maxdt,
+                # max_dt = info.maxdt,
+                max_dt = 1.0,
                 constants = constants # !! Use updated constants
             );
         end
@@ -139,10 +140,26 @@ free_optimization_parameter!(dprm, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 
 # We call the optimizer provided by Jutul.
 # Note that we are maximizing the objective function.
+# import Jutul: Simulator, simulator_config
+# sim = Simulator(basecase)
+# lsolve = LUSolver()
+# lsolve = Jutul.GenericKrylov(:bicgstab, preconditioner = Jutul.ILUZeroPreconditioner())
+# cfg = simulator_config(sim, linear_solver = lsolve, end_report = false)
+timestep_selector_cfg = (
+    y=0.05,
+    Temperature=10.0,
+    Pressure=10.0
+)
+sim, cfg = Mocca.setup_process_simulator(basecase.model, basecase.state0, basecase.parameters,
+    timestep_selector_cfg = timestep_selector_cfg,
+    output_substates = true,
+    info_level = 2
+);
+##
 prm_opt = optimize(dprm, wrapped_global_objective, setup_case;
     max_it=10,
     maximize=true,
-    info_level=-1,
+    # info_level=-1,
         backend_arg = (
         use_sparsity = true,
         di_sparse = true,
@@ -150,7 +167,9 @@ prm_opt = optimize(dprm, wrapped_global_objective, setup_case;
         do_prep = true,
         deps = :case,
         deps_ad = :di
-    )
+    ),
+    # simulator = sim,
+    # config = cfg
 )
 
 # We can plot the optimization history to see how the objective function has changed throughout the optimization
