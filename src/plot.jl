@@ -121,7 +121,7 @@ function plot_optimization_history(dict_parameters::Jutul.DictParameters;
     yscale = log10,
     ylabel = "Objective error"
 )
-    vals = dict_parameters.history.val
+    vals = dict_parameters.history.objectives
 
     f = Figure(size= (900, 600))
     ax = Axis(f[1,1]; xlabel = "Iteration #", ylabel = ylabel)
