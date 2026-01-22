@@ -76,7 +76,7 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
     recovery = total_co2_flux_out/total_co2_flux_in
     return recovery
 end
-wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func);
+wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func, depends_on_parameters = false);
 
 # We use the original parameter values as a starting point for the optimization
 constants_ref, info_ref = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
@@ -97,7 +97,7 @@ function setup_case(prm, step_info = missing)
     param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
     RealT = valtype(param_dict_symb)
     constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
-    info.num_cycles = 3;
+    info.num_cycles = cycle_definition()[2];
     for (k, v) in param_dict_symb
         print(k)
         print(v)
