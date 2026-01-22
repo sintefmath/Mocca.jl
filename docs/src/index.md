@@ -4,8 +4,7 @@ CurrentModule = Mocca
 
 
 # Mocca
-
-![Mocca.jl logo](https://github.com/sintefmath/Mocca.jl/blob/main/docs/src/assets/mocca_small_light.png)
+![Mocca.jl logo](./assets/mocca_small_light.png)
 
 Mocca [Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture.
 
