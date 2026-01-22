@@ -185,6 +185,37 @@ for outer_it in 1:num_outer_it
 end
 
 error()
+##
+using CairoMakie
+offset = 0
+fig = Figure(size = (800, 800))
+ax = Axis(fig[1, 1];
+    xlabel = "Iteration",
+    ylabel = "Objective",
+    title = "Optimization history",
+    yscale = log10
+)
+for (i, history) in enumerate(histories)
+    iterations = 1:length(history.objectives)
+    objectives = history.objectives
+    scatter!(ax, iterations .+ offset, objectives; label = "Outer it $i")
+    offset += length(iterations)
+end
+axislegend(position = :rb)
+ax = Axis(fig[2, 1];
+    xlabel = "Parameter",
+    ylabel = "Value",
+    title = "Optimized parameters"
+)
+relstate0(k, offset = 0) = map(x -> mean(x[k] .- offset), initial_states)/mean(initial_states[1][k] .- offset)
+
+scatterlines!(ax, relstate0(:Pressure), label = "Pressure")
+scatterlines!(ax, relstate0(:Temperature, 273.15), label = "Temperature")
+scatterlines!(ax, relstate0(:y), label = "y")
+scatterlines!(ax, relstate0(:AdsorbedConcentration), label = "AdsorbedConcentration")
+
+axislegend(position = :lb)
+fig
 # # Run the optimization
 
 # We call the optimizer provided by Jutul.
