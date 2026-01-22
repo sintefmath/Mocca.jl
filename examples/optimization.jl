@@ -67,7 +67,7 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
         if time >= start_time_last_cycle # We only use the last cycle for calculating the objective, once the system has more or less stabilized
             w = 1.0
         else
-            w = 0.00001
+            w = 1e-12
         end
         total_co2_flux_out -= w*co2_flux_out
         total_co2_flux_in -= w*co2_flux_in
@@ -174,3 +174,4 @@ dprm
 # │ p_intermediate │ 20000.0       │     1 │ 5000.0 │ 50000.0 │ 50000.0         │ 150.0% │
 # │          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │ 5000.0          │ -50.0% │
 # └────────────────┴───────────────┴───────┴────────┴─────────┴─────────────────┴────────┘
+# 143 -> 48
