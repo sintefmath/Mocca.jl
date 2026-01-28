@@ -1,5 +1,7 @@
 name = "Mocca"
 uuid = "eb14e3ba-90c8-11ed-0ecf-1dd2ea0d109c"
+version = "0.0.1"
+authors = ["Francesca Watson <francesca.watson@sintef.no>"]
 
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
