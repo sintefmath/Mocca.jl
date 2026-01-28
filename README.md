@@ -5,7 +5,7 @@
 
 [Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture. 
 
-To learn more about using Mocca please see the [documentation] (https://sintefmath.github.io/Mocca.jl/dev/).
+To learn more about using Mocca please see the [documentation](https://sintefmath.github.io/Mocca.jl/dev/).
 
 Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) and [Cyclic Vacuum Swing Adsorption simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_cyclic.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
 
@@ -28,7 +28,7 @@ Pkg.instantiate()
 
 This will activate the environment in the current directory and install all necessary dependencies. Mocca is now installed and ready to use.
 
-To get started try the [quick start]((https://github.com/sintefmath/Mocca.jl/blob/main/examples/quick_start.jl) example.) or [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) example. examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+To get started try the [quick start](https://github.com/sintefmath/Mocca.jl/blob/main/examples/quick_start.jl) or [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
 
 
 # Quick start example
@@ -37,7 +37,7 @@ Direct Column breakthrough adsorption simulation using predefined input paramete
 
 The example uses some utility functions which simplify the simulation setup.
 To see the steps used in more detail, please refer to the
-[Simulate DCB](simulate_DCB.md) example.
+[Simulate DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) example.
 
 ```julia
 using Mocca

@@ -8,7 +8,7 @@ Direct Column breakthrough adsorption simulation using predefined input paramete
 
 The example uses some utility functions which simplify the simulation setup.
 To see the steps used in more detail, please refer to the
-[Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) example.
+[Direct Column Breakthrough simulation](simulate_DCB.md) example.
 
 ```julia
 using Mocca
