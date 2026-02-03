@@ -1,3 +1,5 @@
+[![Zenodo](https://zenodo.org/badge/587234164.svg)](https://zenodo.org/badge/latestdoi/587234164)
+
 # Mocca
 
 ![Mocca.jl logo](docs/src/assets/mocca_small_light.png)
