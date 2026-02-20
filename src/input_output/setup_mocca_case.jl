@@ -22,7 +22,7 @@ function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 
 	P_init = constants.P_init;
 	T_init = constants.T0;
-	Tw_init = constants.T_a;
+	Tw_init = hasproperty(constants, :Tw_init) ? constants.Tw_init : constants.T_a;
 	y_init = constants.y_init;
 
 	# To avoid numerical errors we set the initial CO2 concentration to be very
