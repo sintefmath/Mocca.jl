@@ -34,4 +34,8 @@ using StaticArrays
         include("regression/cyclic_regression.jl")
     end
 
+    @testset "GUI Helpers" begin
+        include("gui_helpers.jl")
+    end
+
 end

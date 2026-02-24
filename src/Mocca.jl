@@ -14,6 +14,7 @@ export setup_dcb_forces
 export simulate_process
 
 export plot_state, plot_cell
+export launch_gui
 
 import Jutul
 import JutulDarcy
@@ -49,4 +50,5 @@ include("utils.jl")
 include("plot.jl")
 include("input_output/input_output.jl")
 include("../models/models.jl")
+include("gui.jl")
 end
