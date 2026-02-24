@@ -1,6 +1,5 @@
-using Gtk4
+using GLMakie
 using JSON
-using CairoMakie
 
 const DEFAULT_CYCLIC_JSON = joinpath(@__DIR__, "..", "models", "json", "haghpanah_cyclic_input_simple.json")
 
@@ -91,12 +90,12 @@ function string_to_value(str::String, original_val)
 end
 
 """
-    read_params_from_entries(entries::Dict, params::Dict)
+    read_params_from_textboxes(textboxes::Dict, params::Dict)
 
-Read current values from all GUI entry widgets and update the parameter dictionary.
+Read current values from all GUI Textbox widgets and update the parameter dictionary.
 Returns a new Dict with updated values.
 """
-function read_params_from_entries(entries::Dict, params::Dict)
+function read_params_from_textboxes(textboxes::Dict, params::Dict)
     updated = deepcopy(params)
     for (section_label, section_key, param_keys) in PARAM_SECTIONS
         if !haskey(updated, section_key)
@@ -104,13 +103,15 @@ function read_params_from_entries(entries::Dict, params::Dict)
         end
         for pkey in param_keys
             entry_key = (section_key, pkey)
-            if haskey(entries, entry_key) && haskey(updated[section_key], pkey)
+            if haskey(textboxes, entry_key) && haskey(updated[section_key], pkey)
                 original_val = params[section_key][pkey]
-                text = entries[entry_key][]
-                try
-                    updated[section_key][pkey] = string_to_value(text, original_val)
-                catch e
-                    @warn "Could not parse value for $section_key.$pkey: $text" exception=e
+                text = textboxes[entry_key].stored_string[]
+                if text !== nothing
+                    try
+                        updated[section_key][pkey] = string_to_value(text, original_val)
+                    catch e
+                        @warn "Could not parse value for $section_key.$pkey: $text" exception=e
+                    end
                 end
             end
         end
@@ -119,84 +120,33 @@ function read_params_from_entries(entries::Dict, params::Dict)
 end
 
 """
-    populate_entries!(entries::Dict, params::Dict)
+    set_textbox_text!(tb::Textbox, text::String)
 
-Update all GUI entry widgets with values from the parameter dictionary.
+Set the displayed and stored text of a GLMakie Textbox widget.
 """
-function populate_entries!(entries::Dict, params::Dict)
+function set_textbox_text!(tb, text::String)
+    tb.displayed_string[] = text
+    tb.stored_string[] = text
+end
+
+"""
+    populate_textboxes!(textboxes::Dict, params::Dict)
+
+Update all GUI Textbox widgets with values from the parameter dictionary.
+"""
+function populate_textboxes!(textboxes::Dict, params::Dict)
     for (section_label, section_key, param_keys) in PARAM_SECTIONS
         if !haskey(params, section_key)
             continue
         end
         for pkey in param_keys
             entry_key = (section_key, pkey)
-            if haskey(entries, entry_key) && haskey(params[section_key], pkey)
+            if haskey(textboxes, entry_key) && haskey(params[section_key], pkey)
                 val = params[section_key][pkey]
-                buf = Gtk4.G_.get_buffer(entries[entry_key])
-                buf[] = value_to_string(val)
+                set_textbox_text!(textboxes[entry_key], value_to_string(val))
             end
         end
     end
-end
-
-"""
-    create_parameter_panel(params::Dict)
-
-Create a scrollable panel with organized parameter editing fields.
-Returns `(scroll_window, entries_dict)` where `entries_dict` maps
-`(section_key, param_key)` to `GtkEntry` widgets.
-"""
-function create_parameter_panel(params::Dict)
-    entries = Dict{Tuple{String,String}, GtkEntry}()
-    main_box = GtkBox(:v, 4)
-
-    for (section_label, section_key, param_keys) in PARAM_SECTIONS
-        if !haskey(params, section_key)
-            continue
-        end
-
-        # Create grid for this section's parameters
-        grid = GtkGrid()
-        Gtk4.G_.set_column_spacing(grid, 8)
-        Gtk4.G_.set_row_spacing(grid, 4)
-
-        row = 0
-        for pkey in param_keys
-            if !haskey(params[section_key], pkey)
-                continue
-            end
-            val = params[section_key][pkey]
-
-            label = GtkLabel(pkey)
-            Gtk4.G_.set_halign(label, Gtk4.Align_START)
-            Gtk4.G_.set_hexpand(label, false)
-
-            entry = GtkEntry()
-            Gtk4.G_.set_hexpand(entry, true)
-            buf = Gtk4.G_.get_buffer(entry)
-            buf[] = value_to_string(val)
-
-            grid[1, row] = label
-            grid[2, row] = entry
-            entries[(section_key, pkey)] = entry
-            row += 1
-        end
-
-        # Wrap in expander for collapsible sections
-        expander = Gtk4.G_.Expander_new(section_label)
-        Gtk4.G_.set_expanded(expander, true)
-        Gtk4.G_.set_child(expander, grid)
-        push!(main_box, expander)
-    end
-
-    # Wrap in scrolled window
-    scroll = GtkScrolledWindow()
-    Gtk4.G_.set_child(scroll, main_box)
-    Gtk4.G_.set_hexpand(scroll, false)
-    Gtk4.G_.set_vexpand(scroll, true)
-    Gtk4.G_.set_min_content_width(scroll, 380)
-
-    return scroll, entries
 end
 
 """
@@ -217,171 +167,187 @@ function run_simulation_from_params(params::Dict)
 end
 
 """
-    render_plot_to_file(case, states, timesteps)
+    plot_results!(fig, case, states, timesteps)
 
-Render the outlet plot to a temporary PNG file using CairoMakie.
-Returns the file path.
+Plot simulation results (outlet cell variables over time) into the given Figure layout.
+Clears existing plot axes in the right-side grid and draws new ones.
 """
-function render_plot_to_file(case, states, timesteps)
-    f = Mocca.plot_outlet(case, states, timesteps)
-    tmpfile = tempname() * ".png"
-    CairoMakie.save(tmpfile, f; px_per_unit=2)
-    return tmpfile
+function plot_results!(plot_grid, case, states, timesteps)
+    # Clear previous content
+    empty!(plot_grid)
+
+    model = case.model
+    pvars = model.primary_variables.keys
+    comp_names = model.system.component_names
+    unit_label = units_dict()
+    pretty_names = prettyVarNames(pvars)
+    outlet_cell = size(states[1][:y][1,:], 1)
+    t = Float64.(cumsum(timesteps))
+
+    r = 1
+    for (i, symb) in enumerate(pvars)
+        c = i
+        if i > 3
+            c = i - 3
+            r = 2
+        end
+        ax = Axis(plot_grid[r, c],
+            title = pretty_names[symb],
+            xlabel = "t [s]",
+            ylabel = string(unit_label[symb]))
+
+        if size(states[end][symb], 2) == 1
+            lines!(ax, t, [result[symb][outlet_cell] for result in states])
+        else
+            for k in 1:size(states[end][symb], 1)
+                lines!(ax, t, [result[symb][k, outlet_cell] for result in states], label = comp_names[k])
+            end
+            Legend(plot_grid[2, 3], ax, tellwidth=false)
+        end
+    end
 end
 
 """
     launch_gui()
 
-Launch the Mocca parameter editor and simulation GUI.
+Launch the Mocca parameter editor and simulation GUI using GLMakie.
 Loads the default haghpanah cyclic simulation parameters on startup.
 """
 function launch_gui()
     # Load default parameters
     params = Ref(load_default_parameters())
 
-    app = GtkApplication("org.mocca.simulator", 0)
-
-    signal_connect(app, "activate") do app
-        # Create main window
-        win = GtkApplicationWindow(app, "Mocca Simulator")
-        Gtk4.G_.set_default_size(win, 1200, 800)
-
-        # Main vertical layout
-        main_vbox = GtkBox(:v, 4)
-
-        # === Toolbar ===
-        toolbar = GtkBox(:h, 8)
-
-        btn_import = GtkButton("Import JSON")
-        btn_export = GtkButton("Export JSON")
-        btn_run = GtkButton("Run Simulation")
-        btn_reset = GtkButton("Reset Defaults")
-
-        # Status label
-        status_label = GtkLabel("Ready — Default haghpanah cyclic parameters loaded.")
-        Gtk4.G_.set_hexpand(status_label, true)
-        Gtk4.G_.set_halign(status_label, Gtk4.Align_START)
-
-        push!(toolbar, btn_import)
-        push!(toolbar, btn_export)
-        push!(toolbar, btn_run)
-        push!(toolbar, btn_reset)
-        push!(toolbar, status_label)
-
-        push!(main_vbox, toolbar)
-
-        # === Content area: parameter editor (left) + plot (right) ===
-        hpane = GtkPaned(:h)
-
-        # Left: parameter editor
-        param_scroll, entries = create_parameter_panel(params[])
-        hpane[1] = param_scroll
-
-        # Right: plot display area
-        plot_box = GtkBox(:v, 4)
-        Gtk4.G_.set_hexpand(plot_box, true)
-        Gtk4.G_.set_vexpand(plot_box, true)
-
-        plot_label = GtkLabel("Simulation results will appear here after running.")
-        Gtk4.G_.set_vexpand(plot_label, true)
-        Gtk4.G_.set_hexpand(plot_label, true)
-        push!(plot_box, plot_label)
-
-        # Scrolled window for plot
-        plot_scroll = GtkScrolledWindow()
-        Gtk4.G_.set_child(plot_scroll, plot_box)
-        Gtk4.G_.set_hexpand(plot_scroll, true)
-        Gtk4.G_.set_vexpand(plot_scroll, true)
-
-        hpane[2] = plot_scroll
-        Gtk4.G_.set_position(hpane, 400)
-
-        push!(main_vbox, hpane)
-        Gtk4.G_.set_vexpand(hpane, true)
-
-        # Set main_vbox as window child
-        Gtk4.G_.set_child(win, main_vbox)
-
-        # === Signal handlers ===
-
-        # Import JSON
-        signal_connect(btn_import, "clicked") do _
-            open_dialog("Import JSON Parameter File", win, ["*.json"]) do filepath
-                if filepath != "" && isfile(filepath)
-                    try
-                        params[] = load_parameters_from_file(filepath)
-                        populate_entries!(entries, params[])
-                        Gtk4.G_.set_label(status_label, "Loaded parameters from: $(basename(filepath))")
-                    catch e
-                        Gtk4.G_.set_label(status_label, "Error loading file: $e")
-                    end
+    # Count total parameter rows to size the figure
+    total_rows = 0
+    for (_, section_key, param_keys) in PARAM_SECTIONS
+        if haskey(params[], section_key)
+            total_rows += 1  # section header
+            for pkey in param_keys
+                if haskey(params[][section_key], pkey)
+                    total_rows += 1
                 end
             end
         end
-
-        # Export JSON
-        signal_connect(btn_export, "clicked") do _
-            save_dialog("Export JSON Parameter File", win, ["*.json"]) do filepath
-                if filepath != ""
-                    try
-                        current_params = read_params_from_entries(entries, params[])
-                        if !endswith(filepath, ".json")
-                            filepath = filepath * ".json"
-                        end
-                        export_parameters_to_file(filepath, current_params)
-                        params[] = current_params
-                        Gtk4.G_.set_label(status_label, "Parameters exported to: $(basename(filepath))")
-                    catch e
-                        Gtk4.G_.set_label(status_label, "Error exporting: $e")
-                    end
-                end
-            end
-        end
-
-        # Run Simulation
-        signal_connect(btn_run, "clicked") do _
-            try
-                Gtk4.G_.set_label(status_label, "Running simulation... please wait.")
-
-                # Read current parameters from GUI
-                current_params = read_params_from_entries(entries, params[])
-                params[] = current_params
-
-                # Run simulation
-                case, states, timesteps = run_simulation_from_params(current_params)
-
-                # Render plot
-                plot_file = render_plot_to_file(case, states, timesteps)
-
-                # Update plot display
-                # Remove old children from plot_box
-                for child in collect(plot_box)
-                    delete!(plot_box, child)
-                end
-
-                pic = GtkPicture(plot_file)
-                Gtk4.G_.set_can_shrink(pic, true)
-                Gtk4.G_.set_hexpand(pic, true)
-                Gtk4.G_.set_vexpand(pic, true)
-                push!(plot_box, pic)
-
-                Gtk4.G_.set_label(status_label, "Simulation complete. Results plotted.")
-            catch e
-                Gtk4.G_.set_label(status_label, "Simulation error: $e")
-                @error "Simulation failed" exception=(e, catch_backtrace())
-            end
-        end
-
-        # Reset Defaults
-        signal_connect(btn_reset, "clicked") do _
-            params[] = load_default_parameters()
-            populate_entries!(entries, params[])
-            Gtk4.G_.set_label(status_label, "Reset to default haghpanah cyclic parameters.")
-        end
-
-        show(win)
     end
 
-    # Run the application
-    Gtk4.run(app)
+    fig = Figure(size = (1400, 900), title = "Mocca Simulator")
+
+    # === Left side: parameter editor in a scrollable grid ===
+    # Use column 1 for the parameter panel, column 2 for the plot panel
+    left_layout = fig[1:2, 1] = GridLayout(tellwidth=true)
+    right_layout = fig[1:2, 2] = GridLayout()
+    colsize!(fig.layout, 1, Relative(0.35))
+    colsize!(fig.layout, 2, Relative(0.65))
+
+    # === Toolbar row at top-left ===
+    toolbar = left_layout[1, 1] = GridLayout()
+    btn_import = Button(toolbar[1, 1]; label="Import JSON", fontsize=11)
+    btn_export = Button(toolbar[1, 2]; label="Export JSON", fontsize=11)
+    btn_run = Button(toolbar[1, 3]; label="Run Simulation", fontsize=11)
+    btn_reset = Button(toolbar[1, 4]; label="Reset Defaults", fontsize=11)
+
+    # Status label at top-right
+    status_label = Label(right_layout[1, 1:3],
+        text="Ready — Default haghpanah cyclic parameters loaded.",
+        fontsize=12, halign=:left)
+
+    # === Parameter editing area ===
+    param_grid = left_layout[2, 1] = GridLayout()
+
+    textboxes = Dict{Tuple{String,String}, Textbox}()
+    grid_row = 1
+    for (section_label, section_key, param_keys) in PARAM_SECTIONS
+        if !haskey(params[], section_key)
+            continue
+        end
+
+        # Section header
+        Label(param_grid[grid_row, 1:2], text=section_label,
+            fontsize=13, halign=:left, color=:steelblue)
+        grid_row += 1
+
+        for pkey in param_keys
+            if !haskey(params[][section_key], pkey)
+                continue
+            end
+            val = params[][section_key][pkey]
+
+            Label(param_grid[grid_row, 1], text=pkey,
+                fontsize=11, halign=:right)
+            tb = Textbox(param_grid[grid_row, 2];
+                stored_string=value_to_string(val),
+                fontsize=11,
+                width=220)
+            textboxes[(section_key, pkey)] = tb
+            grid_row += 1
+        end
+    end
+
+    # === Plot area (right side) ===
+    plot_grid = right_layout[2, 1:3] = GridLayout()
+    Label(plot_grid[1, 1], text="Simulation results will appear here after running.",
+        fontsize=14, color=:gray)
+
+    # === Button callbacks ===
+
+    # Import JSON
+    on(btn_import.clicks) do _
+        try
+            filepath = open_file(; filterlist="json")
+            if filepath != ""
+                params[] = load_parameters_from_file(filepath)
+                populate_textboxes!(textboxes, params[])
+                status_label.text[] = "Loaded parameters from: $(basename(filepath))"
+            end
+        catch e
+            status_label.text[] = "Error importing: $e"
+        end
+    end
+
+    # Export JSON
+    on(btn_export.clicks) do _
+        try
+            filepath = save_file(; filterlist="json")
+            if filepath != ""
+                current_params = read_params_from_textboxes(textboxes, params[])
+                if !endswith(filepath, ".json")
+                    filepath = filepath * ".json"
+                end
+                export_parameters_to_file(filepath, current_params)
+                params[] = current_params
+                status_label.text[] = "Parameters exported to: $(basename(filepath))"
+            end
+        catch e
+            status_label.text[] = "Error exporting: $e"
+        end
+    end
+
+    # Run Simulation
+    on(btn_run.clicks) do _
+        try
+            status_label.text[] = "Running simulation... please wait."
+
+            current_params = read_params_from_textboxes(textboxes, params[])
+            params[] = current_params
+
+            case, states, timesteps = run_simulation_from_params(current_params)
+
+            plot_results!(plot_grid, case, states, timesteps)
+
+            status_label.text[] = "Simulation complete. Results plotted."
+        catch e
+            status_label.text[] = "Simulation error: $e"
+            @error "Simulation failed" exception=(e, catch_backtrace())
+        end
+    end
+
+    # Reset Defaults
+    on(btn_reset.clicks) do _
+        params[] = load_default_parameters()
+        populate_textboxes!(textboxes, params[])
+        status_label.text[] = "Reset to default haghpanah cyclic parameters."
+    end
+
+    display(fig)
+    return fig
 end
