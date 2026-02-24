@@ -213,6 +213,10 @@ const BREAKPOINT_MD = 992
 const BREAKPOINT_LG = 1200
 const BREAKPOINT_XL = 1400
 
+# Default window dimensions
+const DEFAULT_WINDOW_WIDTH = 1400
+const DEFAULT_WINDOW_HEIGHT = 1100
+
 """
     responsive_colsizes!(fig, window_width)
 
@@ -253,7 +257,7 @@ function launch_gui()
     # Load default parameters
     params = Ref(load_default_parameters())
 
-    fig = Figure(size = (1400, 1100), title = "Mocca Simulator")
+    fig = Figure(size = (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT), title = "Mocca Simulator")
 
     # === Top bar: toolbar + file I/O + status (spans full width) ===
     top_bar = fig[1, 1:2] = GridLayout()
@@ -275,15 +279,16 @@ function launch_gui()
     right_layout = fig[2, 2] = GridLayout()
 
     # Set initial responsive column sizes
-    responsive_colsizes!(fig, 1400)
+    responsive_colsizes!(fig, DEFAULT_WINDOW_WIDTH)
 
     # === Parameter editing: split into 2 columns for better vertical fit ===
-    # Col 1: Physical Constants(4), DSL Isotherm(7), Adsorbent Props(9), Column Props(11) ≈ 31 rows
-    # Col 2: Feed Props(7), Boundary Cond(6), Initial Cond(5), Process Spec(4), Simulation(5), Solver(3) ≈ 30 rows
     param_col1 = param_layout[1, 1] = GridLayout()
     param_col2 = param_layout[1, 2] = GridLayout()
 
-    split_at = 4  # first 4 sections in column 1, remaining in column 2
+    # Split after section 4 ("Column Properties") for a balanced layout:
+    # Col 1: Physical Constants(4) + DSL Isotherm(7) + Adsorbent Props(9) + Column Props(11) ≈ 31 rows
+    # Col 2: Feed Props(7) + Boundary Cond(6) + Initial Cond(5) + Process Spec(4) + Simulation(5) + Solver(3) ≈ 30 rows
+    split_at = 4
 
     textboxes = Dict{Tuple{String,String}, Textbox}()
 
