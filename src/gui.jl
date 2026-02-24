@@ -106,7 +106,7 @@ function read_params_from_textboxes(textboxes::Dict, params::Dict)
             if haskey(textboxes, entry_key) && haskey(updated[section_key], pkey)
                 original_val = params[section_key][pkey]
                 text = textboxes[entry_key].stored_string[]
-                if text !== nothing
+                if !isnothing(text)
                     try
                         updated[section_key][pkey] = string_to_value(text, original_val)
                     catch e
@@ -239,15 +239,22 @@ function launch_gui()
     colsize!(fig.layout, 1, Relative(0.35))
     colsize!(fig.layout, 2, Relative(0.65))
 
-    # === Toolbar row at top-left ===
+    # === Toolbar rows at top ===
     toolbar = left_layout[1, 1] = GridLayout()
-    btn_import = Button(toolbar[1, 1]; label="Import JSON", fontsize=11)
-    btn_export = Button(toolbar[1, 2]; label="Export JSON", fontsize=11)
-    btn_run = Button(toolbar[1, 3]; label="Run Simulation", fontsize=11)
-    btn_reset = Button(toolbar[1, 4]; label="Reset Defaults", fontsize=11)
+    btn_run = Button(toolbar[1, 1:2]; label="Run Simulation", fontsize=12)
+    btn_reset = Button(toolbar[1, 3:4]; label="Reset Defaults", fontsize=12)
 
-    # Status label at top-right
-    status_label = Label(right_layout[1, 1:3],
+    # File I/O row: textbox for file path + import/export buttons
+    file_row = right_layout[1, 1:3] = GridLayout()
+    Label(file_row[1, 1], text="JSON file path:", fontsize=11, halign=:right)
+    filepath_tb = Textbox(file_row[1, 2];
+        stored_string=DEFAULT_CYCLIC_JSON,
+        fontsize=10, width=400)
+    btn_import = Button(file_row[1, 3]; label="Import", fontsize=11)
+    btn_export = Button(file_row[1, 4]; label="Export", fontsize=11)
+
+    # Status label
+    status_label = Label(file_row[2, 1:4],
         text="Ready — Default haghpanah cyclic parameters loaded.",
         fontsize=12, halign=:left)
 
@@ -290,25 +297,27 @@ function launch_gui()
 
     # === Button callbacks ===
 
-    # Import JSON
+    # Import JSON from file path in textbox
     on(btn_import.clicks) do _
         try
-            filepath = open_file(; filterlist="json")
-            if filepath != ""
+            filepath = filepath_tb.stored_string[]
+            if !isnothing(filepath) && filepath != "" && isfile(filepath)
                 params[] = load_parameters_from_file(filepath)
                 populate_textboxes!(textboxes, params[])
                 status_label.text[] = "Loaded parameters from: $(basename(filepath))"
+            else
+                status_label.text[] = "File not found: $(something(filepath, ""))"
             end
         catch e
             status_label.text[] = "Error importing: $e"
         end
     end
 
-    # Export JSON
+    # Export JSON to file path in textbox
     on(btn_export.clicks) do _
         try
-            filepath = save_file(; filterlist="json")
-            if filepath != ""
+            filepath = filepath_tb.stored_string[]
+            if !isnothing(filepath) && filepath != ""
                 current_params = read_params_from_textboxes(textboxes, params[])
                 if !endswith(filepath, ".json")
                     filepath = filepath * ".json"
@@ -316,6 +325,8 @@ function launch_gui()
                 export_parameters_to_file(filepath, current_params)
                 params[] = current_params
                 status_label.text[] = "Parameters exported to: $(basename(filepath))"
+            else
+                status_label.text[] = "Enter a file path to export."
             end
         catch e
             status_label.text[] = "Error exporting: $e"
