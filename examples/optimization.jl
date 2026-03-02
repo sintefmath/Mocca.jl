@@ -184,7 +184,6 @@ for outer_it in 1:num_outer_it
     push!(initial_states, states[end])
 end
 
-error()
 ##
 using CairoMakie
 offset = 0
