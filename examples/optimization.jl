@@ -158,13 +158,13 @@ for outer_it in 1:num_outer_it
     end
     setup_case_inner = (arg...) -> setup_case(arg...; state0 = states[end], num_cycles = num_cycles_optimizer)
 
-    dict_opt = DictParameters(current_parameters, verbose = false)
+    global dict_opt = DictParameters(current_parameters, verbose = false)
     free_optimization_parameter!(dict_opt, "v_feed"; abs_min = 0.1, abs_max = 2.0)
     free_optimization_parameter!(dict_opt, "p_intermediate"; abs_min = 0.05bar, abs_max = 0.5bar)
     free_optimization_parameter!(dict_opt, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 
     println("Starting optimization with $maxit iterations:")
-    current_parameters = optimize(dict_opt, wrapped_global_objective, setup_case;
+    global current_parameters = optimize(dict_opt, wrapped_global_objective, setup_case;
         max_it=maxit,
         maximize=true,
         info_level=-1,
