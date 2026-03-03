@@ -104,28 +104,30 @@ function setup_case(prm, step_info = missing; num_cycles = cycle_definition()[2]
         print(v)
         setproperty!(constants, Symbol(k), v)
     end
-    if false
-        case,  = Mocca.setup_mocca_case(constants, info)
-    else
-        (; model, parameters) = basecase
-        if false
-            tmp, = Mocca.setup_mocca_case(constants, info)
-            dt = tmp.dt
-            forces = tmp.forces
-        else
-            forces, dt = Mocca.setup_forces(model,
-                info.stage_durations,
-                info.stage_types;
-                num_cycles = info.num_cycles,
-                # max_dt = info.maxdt,
-                max_dt = 1.0,
-                constants = constants # !! Use updated constants
-            );
-        end
-        case = Mocca.MoccaCase(model, dt, forces, state0 = state0, parameters = parameters)
-    end
+
+
+    (; model, parameters) = basecase
+
+        forces, dt = Mocca.setup_forces(model,
+            info.stage_durations,
+            info.stage_types;
+            num_cycles = info.num_cycles,
+            # max_dt = info.maxdt,
+            max_dt = 1.0,
+            constants = constants # !! Use updated constants
+        );
+
+    case = Mocca.MoccaCase(model, dt, forces, state0 = state0, parameters = parameters)
+
     return case
 end;
+
+function find_steady_state(case, sim, cfg)
+    cfg[:info_level] = 0
+    states, = Mocca.simulate_process(case, simulator = sim, config = cfg)
+    restart = setup_process_state(case.model; state0 = states[end])
+    return restart
+end
 
 # c = setup_case(prm_guess);
 ##
@@ -136,7 +138,7 @@ bar = Jutul.si_unit(:bar)
 sim, cfg = Mocca.setup_process_simulator(basecase.model, basecase.state0, basecase.parameters,
     info_level = -1, end_report = false);
 
-num_cycles_outer = 500
+num_cycles_outer = 10
 num_cycles_optimizer = 3
 current_parameters = prm_guess
 maxit = 10
@@ -147,17 +149,8 @@ results = []
 histories = []
 initial_states = []
 for outer_it in 1:num_outer_it
-    case_full = setup_case(current_parameters; num_cycles = num_cycles_outer)
-    cfg[:info_level] = 0
-    states, = Mocca.simulate_process(case_full, simulator = sim, config = cfg)
-    cfg[:info_level] = -1
 
-    println("Results after $num_cycles_outer cycles:")
-    for (k, v) in states[end]
-        @info "$k => Mean: $(Statistics.mean(v)) Min: $(minimum(v)) Max: $(maximum(v))"
-    end
-
-    restart = setup_process_state(case_full.model; state0 = states[end])
+    restart = find_steady_state(setup_case(current_parameters; num_cycles = num_cycles_outer), sim, cfg)
     setup_case_inner = (arg...) -> setup_case(arg...; state0 = restart, num_cycles = num_cycles_optimizer)
 
     global dict_opt = DictParameters(current_parameters, verbose = false)
