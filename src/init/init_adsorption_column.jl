@@ -33,19 +33,22 @@ function setup_process_model(system::AdsorptionSystem;
 end
 
 function setup_process_state(model; kwargs...)
-    # If not provided, the initial adsorbed concentration is calculated from the other state variables
-    if haskey(kwargs, :AdsorbedConcentration)
-        q_init = kwargs[:AdsorbedConcentration]
-    else
-        T0 = get(kwargs, :Temperature, missing)
-        p_init = get(kwargs, :Pressure, missing)
-        y_init = get(kwargs, :y, missing)
-        q_init = initial_adsorbed_concentration(model, T0, p_init, y_init)
-    end
+        # Check if a state is already provided, otherwise use kwargs
+        vars = get(kwargs, :state0, kwargs)
 
-    state0 = Jutul.setup_state(model;
-        AdsorbedConcentration = q_init,
-        kwargs...)
+        # If not provided, the initial adsorbed concentration is calculated from the other state variables
+        if haskey(kwargs, :AdsorbedConcentration)
+            q_init = vars[:AdsorbedConcentration]
+        else
+            T0 = get(vars, :Temperature, missing)
+            p_init = get(vars, :Pressure, missing)
+            y_init = get(vars, :y, missing)
+            q_init = initial_adsorbed_concentration(model, T0, p_init, y_init)
+        end
+
+        state0 = Jutul.setup_state(model;
+            AdsorbedConcentration = q_init,
+            vars...)
 
     return state0
 end
