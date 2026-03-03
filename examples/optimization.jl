@@ -156,7 +156,9 @@ for outer_it in 1:num_outer_it
     for (k, v) in states[end]
         @info "$k => Mean: $(Statistics.mean(v)) Min: $(minimum(v)) Max: $(maximum(v))"
     end
-    setup_case_inner = (arg...) -> setup_case(arg...; state0 = states[end], num_cycles = num_cycles_optimizer)
+
+    restart = setup_process_state(case_full.model; state0 = states[end])
+    setup_case_inner = (arg...) -> setup_case(arg...; state0 = restart, num_cycles = num_cycles_optimizer)
 
     global dict_opt = DictParameters(current_parameters, verbose = false)
     free_optimization_parameter!(dict_opt, "v_feed"; abs_min = 0.1, abs_max = 2.0)
@@ -164,7 +166,7 @@ for outer_it in 1:num_outer_it
     free_optimization_parameter!(dict_opt, "p_low"; abs_min = 0.05bar, abs_max = 0.5bar)
 
     println("Starting optimization with $maxit iterations:")
-    global current_parameters = optimize(dict_opt, wrapped_global_objective, setup_case;
+    global current_parameters = optimize(dict_opt, wrapped_global_objective, setup_case_inner;
         max_it=maxit,
         maximize=true,
         info_level=-1,
@@ -198,7 +200,7 @@ for (i, history) in enumerate(histories)
     iterations = 1:length(history.objectives)
     objectives = history.objectives
     scatter!(ax, iterations .+ offset, objectives; label = "Outer it $i")
-    offset += length(iterations)
+    global offset += length(iterations)
 end
 axislegend(position = :rb)
 ax = Axis(fig[2, 1];
@@ -215,62 +217,3 @@ scatterlines!(ax, relstate0(:AdsorbedConcentration), label = "AdsorbedConcentrat
 
 axislegend(position = :lb)
 fig
-# # Run the optimization
-
-# We call the optimizer provided by Jutul.
-# Note that we are maximizing the objective function.
-# import Jutul: Simulator, simulator_config
-# sim = Simulator(basecase)
-# lsolve = LUSolver()
-# lsolve = Jutul.GenericKrylov(:bicgstab, preconditioner = Jutul.ILUZeroPreconditioner())
-# cfg = simulator_config(sim, linear_solver = lsolve, end_report = false)
-timestep_selector_cfg = (
-    y=0.05,
-    Temperature=10.0,
-    Pressure=10.0
-)
-sim, cfg = Mocca.setup_process_simulator(basecase.model, basecase.state0, basecase.parameters,
-    timestep_selector_cfg = timestep_selector_cfg,
-    output_substates = true,
-    info_level = 2
-);
-##
-prm_opt = optimize(dprm, wrapped_global_objective, setup_case;
-    max_it=10,
-    maximize=true,
-    # info_level=-1,
-        backend_arg = (
-        use_sparsity = true,
-        di_sparse = true,
-        single_step_sparsity = :unique_forces,
-        do_prep = true,
-        deps = :case,
-        deps_ad = :di
-    ),
-    # simulator = sim,
-    # config = cfg
-)
-
-# We can plot the optimization history to see how the objective function has changed throughout the optimization
-Mocca.plot_optimization_history(dprm; yscale = identity, ylabel = "Recovery")
-
-# Finally, we look at the optimized parameters.
-# We see that the optimized intermediate and low pressure values have reached their prescribed limits,
-# meaning that we could have increased the objective function further if we were allowed to change the limits.
-dprm
-
-
-# Optimization: Objective #12: 3.95121e-01 (f/f0=1.870e+00), gradient 2-norm: 1.21684e-04
-#   10 | 1.7712e+01 | 1.5777e-01 | 1
-# Optimization: Finished in 143.1014966 seconds.     
-# DictParameters with 3 parameters (3 active), and 0 multipliers:
-# Active optimization parameters
-# ┌────────────────┬───────────────┬───────┬────────┬─────────┬─────────────────┬────────┐
-# │           Name │ Initial value │ Count │    Min │     Max │ Optimized value │ Change │
-# ├────────────────┼───────────────┼───────┼────────┼─────────┼─────────────────┼────────┤
-# │         v_feed │ 0.37          │     1 │    0.1 │     2.0 │ 0.684           │  85.0% │
-# │ p_intermediate │ 20000.0       │     1 │ 5000.0 │ 50000.0 │ 50000.0         │ 150.0% │
-# │          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │ 5000.0          │ -50.0% │
-# └────────────────┴───────────────┴───────┴────────┴─────────┴─────────────────┴────────┘
-# 143 -> 48
-##
