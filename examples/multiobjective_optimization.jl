@@ -26,6 +26,9 @@ import Jutul
 import Jutul: si_unit
 import Jutul.DictOptimization: optimize, DictParameters, free_optimization_parameter!
 
+# Fixed pressurisation duration (not optimized)
+const T_PRESSURISATION = 15.0
+
 # # Performance metrics
 #
 # **Recovery** is the fraction of the input CO₂ that is captured during evacuation:
@@ -92,7 +95,7 @@ function make_setup_case(t_stage, num_cycles)
         RealT = valtype(param_dict_symb)
 
         input = Mocca.haghpanah_cyclic_input()
-        input["processSpecification"]["stage_durations"] = [15.0, t_stage...]
+        input["processSpecification"]["stage_durations"] = [T_PRESSURISATION, t_stage...]
         input["processSpecification"]["num_cycles"] = num_cycles
 
         constants, info = Mocca.parse_input(input; typeT = RealT)
@@ -134,7 +137,7 @@ function inner_gradient_optimization(t_stage;
     free_optimization_parameter!(dprm, "p_intermediate"; abs_min = 0.01bar, abs_max = 0.5bar)
     free_optimization_parameter!(dprm, "p_low";          abs_min = 0.01bar, abs_max = 0.5bar)
 
-    full_t_stage = [15.0, t_stage...]
+    full_t_stage = [T_PRESSURISATION, t_stage...]
 
     function objective_func(model, state0, states, step_infos, forces, input_data)
         metrics = compute_purity_recovery(model, states, step_infos, forces,
@@ -171,6 +174,7 @@ end;
 function nelder_mead_maximize(f, x0, lower, upper;
     max_iter = 20,
     tol = 1e-4,
+    simplex_scale = 0.1,  # initial simplex vertex displacement as fraction of range
     nm_α = 1.0,   # reflection coefficient
     nm_γ = 2.0,   # expansion coefficient
     nm_ρ = 0.5,   # contraction coefficient
@@ -184,7 +188,7 @@ function nelder_mead_maximize(f, x0, lower, upper;
     simplex[1] = clamp_to_bounds(collect(Float64, x0))
     for i in 1:n
         xi = copy(simplex[1])
-        xi[i] += 0.1 * (upper[i] - lower[i])
+        xi[i] += simplex_scale * (upper[i] - lower[i])
         simplex[i + 1] = clamp_to_bounds(xi)
     end
 
@@ -208,7 +212,7 @@ function nelder_mead_maximize(f, x0, lower, upper;
         x_r = clamp_to_bounds(x_c .+ nm_α .* (x_c .- simplex[end]))
         f_r = f(x_r)
 
-        if fvals[1] >= f_r > fvals[n]
+        if fvals[1] >= f_r && f_r > fvals[n]
             simplex[end] = x_r
             fvals[end] = f_r
         elseif f_r > fvals[1]
@@ -297,7 +301,7 @@ final = inner_gradient_optimization(result.x;
 println("\n===== Multi-objective Optimization Results =====")
 println("Weight α = $α_weight  (objective = α·purity + (1-α)·recovery)\n")
 println("Stage durations (global search):")
-println("  t_pressurisation = 15.0 s  (fixed)")
+println("  t_pressurisation = $T_PRESSURISATION s  (fixed)")
 println("  t_adsorption     = $(round(result.x[1]; digits=2)) s")
 println("  t_blowdown       = $(round(result.x[2]; digits=2)) s")
 println("  t_evacuation     = $(round(result.x[3]; digits=2)) s")
