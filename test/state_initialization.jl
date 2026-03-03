@@ -162,3 +162,29 @@ end
     @test all(state_hot[:Temperature] .≈ T_high)
     @test all(state_cold[:Temperature] .≈ T_low)
 end
+
+
+@testset "State Initialization with Restart State" begin
+
+    (constants, info )= Mocca.parse_input(haghpanah_DCB_input())
+    case, ts_config = Mocca.setup_mocca_case(constants, info)
+
+    # #Run simulation
+    states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
+        output_substates = true, info_level = -1)
+
+    restart = states[end]
+
+    state0 = Mocca.setup_process_state(case.model;
+        state0 = restart,
+    )
+
+    # Check values are correct
+    @test all(state0[:Pressure] .≈ restart[:Pressure])
+    @test all(state0[:y] .≈ restart[:y])
+    @test all(state0[:Temperature] .≈ restart[:Temperature])
+    @test all(state0[:AdsorbedConcentration] .≈ restart[:AdsorbedConcentration])
+    @test all(state0[:WallTemperature] .≈ restart[:WallTemperature])
+
+end
+
