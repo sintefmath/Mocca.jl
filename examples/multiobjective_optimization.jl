@@ -10,7 +10,8 @@
 #   Jutul's adjoint-based optimization.
 # * **Derivative-free outer loop**: `t_ads`, `t_blow`, `t_evac` — stage durations affect
 #   the simulation structure (timesteps and forces) and cannot be differentiated through,
-#   so we use a Nelder–Mead simplex method for global search.
+#   so we use a derivative-free method from Optim.jl (e.g. Nelder–Mead, Particle Swarm,
+#   or Simulated Annealing).
 #
 # The multi-objective problem is handled via weighted-sum scalarization:
 # ```math
@@ -25,6 +26,7 @@ import Mocca
 import Jutul
 import Jutul: si_unit
 import Jutul.DictOptimization: optimize, DictParameters, free_optimization_parameter!
+using Optim
 
 # Fixed pressurisation duration (not optimized)
 const T_PRESSURISATION = 15.0
@@ -159,105 +161,63 @@ function inner_gradient_optimization(t_stage;
     end
 end;
 
-# # Nelder–Mead simplex method
+# # Outer derivative-free optimization via Optim.jl
 #
-# A derivative-free optimizer for the outer loop over stage durations.
-# The method maintains a simplex of `n+1` vertices in `n`-dimensional space
-# and iteratively improves the worst vertex through reflection, expansion,
-# contraction, or shrinkage operations.
+# The outer loop optimizes stage durations using a derivative-free method from
+# [Optim.jl](https://julianlsolvers.github.io/Optim.jl/stable/).
+# The function below is modular — you can swap in any Optim.jl method.
+#
+# Methods that require `Fminbox` for box constraints (e.g. `NelderMead`) are
+# automatically wrapped, while methods with native bounds support
+# (e.g. `ParticleSwarm`, `SAMIN`) are called directly.
+#
+# **Example methods** (pass as `method` argument):
+# * `NelderMead()`          — Nelder–Mead simplex (default, via Fminbox)
+# * `SAMIN()`               — Simulated Annealing with bounds (native)
+# * `ParticleSwarm(; lower, upper, n_particles)` — Particle Swarm (native)
 #
 # This is suitable here because:
 # * Stage durations are not differentiable through (they change simulation structure).
-# * We have only 3 outer parameters, so the simplex has just 4 vertices.
-# * Each vertex evaluation runs a full inner gradient optimization.
+# * We have only 3 outer parameters, so the search space is low-dimensional.
+# * Each evaluation runs a full inner gradient optimization.
 
-function nelder_mead_maximize(f, x0, lower, upper;
+const NATIVE_BOUNDS_METHODS = Union{ParticleSwarm, SAMIN}
+
+function outer_optimization(f, x0, lower, upper;
+    method = NelderMead(),
     max_iter = 20,
-    tol = 1e-4,
-    simplex_scale = 0.1,  # initial simplex vertex displacement as fraction of range
-    nm_α = 1.0,   # reflection coefficient
-    nm_γ = 2.0,   # expansion coefficient
-    nm_ρ = 0.5,   # contraction coefficient
-    nm_σ = 0.5    # shrink coefficient
+    tol = 1e-4
 )
-    n = length(x0)
-    clamp_to_bounds(x) = clamp.(x, lower, upper)
+    # Optim.jl minimizes, so we negate to maximize
+    neg_f(x) = -f(x)
 
-    # Initialize simplex with n+1 vertices
-    simplex = Vector{Vector{Float64}}(undef, n + 1)
-    simplex[1] = clamp_to_bounds(collect(Float64, x0))
-    for i in 1:n
-        xi = copy(simplex[1])
-        xi[i] += simplex_scale * (upper[i] - lower[i])
-        simplex[i + 1] = clamp_to_bounds(xi)
+    opts = Optim.Options(
+        iterations = max_iter,
+        f_reltol = tol,
+        show_trace = true,
+        show_every = 1
+    )
+
+    if method isa NATIVE_BOUNDS_METHODS
+        result = Optim.optimize(neg_f, lower, upper, x0, method, opts)
+    else
+        result = Optim.optimize(neg_f, lower, upper, x0, Fminbox(method), opts)
     end
 
-    # Evaluate all vertices
-    fvals = [f(x) for x in simplex]
-    best_history = Float64[]
+    best_x = Optim.minimizer(result)
+    best_obj = -Optim.minimum(result)
 
-    for iter in 1:max_iter
-        # Sort: best (highest) first for maximization
-        order = sortperm(fvals, rev = true)
-        simplex = simplex[order]
-        fvals = fvals[order]
+    println("Outer optimization finished: $(Optim.iterations(result)) iterations, " *
+            "best objective = $(round(best_obj; digits=6))")
 
-        push!(best_history, fvals[1])
-        println("Outer iteration $iter: best objective = $(round(fvals[1]; digits=6))")
-
-        # Centroid of the n best vertices (exclude worst)
-        x_c = sum(simplex[1:n]) ./ n
-
-        # Reflection
-        x_r = clamp_to_bounds(x_c .+ nm_α .* (x_c .- simplex[end]))
-        f_r = f(x_r)
-
-        if fvals[1] >= f_r && f_r > fvals[n]
-            simplex[end] = x_r
-            fvals[end] = f_r
-        elseif f_r > fvals[1]
-            # Expansion
-            x_e = clamp_to_bounds(x_c .+ nm_γ .* (x_r .- x_c))
-            f_e = f(x_e)
-            if f_e > f_r
-                simplex[end] = x_e
-                fvals[end] = f_e
-            else
-                simplex[end] = x_r
-                fvals[end] = f_r
-            end
-        else
-            # Contraction
-            x_co = clamp_to_bounds(x_c .+ nm_ρ .* (simplex[end] .- x_c))
-            f_co = f(x_co)
-            if f_co > fvals[end]
-                simplex[end] = x_co
-                fvals[end] = f_co
-            else
-                # Shrink towards best vertex
-                for i in 2:(n + 1)
-                    simplex[i] = clamp_to_bounds(simplex[1] .+ nm_σ .* (simplex[i] .- simplex[1]))
-                    fvals[i] = f(simplex[i])
-                end
-            end
-        end
-
-        # Convergence check
-        frange = maximum(fvals) - minimum(fvals)
-        if frange < tol
-            println("Converged after $iter iterations (objective range = $frange)")
-            break
-        end
-    end
-
-    best_idx = argmax(fvals)
-    return (x = simplex[best_idx], objective = fvals[best_idx], history = best_history)
+    return (x = best_x, objective = best_obj, optim_result = result)
 end;
 
 # # Running the hybrid optimization
 #
 # We now combine the inner gradient-based optimization with the outer
-# Nelder–Mead search. The weight `α` controls the purity–recovery trade-off:
+# derivative-free search from Optim.jl.
+# The weight `α` controls the purity–recovery trade-off:
 # * `α = 1.0`: maximize purity only
 # * `α = 0.0`: maximize recovery only
 # * `α = 0.5`: equal weight to both objectives
@@ -285,9 +245,19 @@ function outer_objective(t_stage)
     return result.objective
 end;
 
-# Run the Nelder–Mead outer optimization
-result = nelder_mead_maximize(outer_objective, t_stage_init, t_stage_lower, t_stage_upper;
-    max_iter = max_outer_it)
+# # Choose an optimization method
+#
+# The default is Nelder–Mead. To switch to a different method, simply change
+# the `outer_method` variable. For example:
+# * `outer_method = NelderMead()`  — Nelder–Mead simplex (default, wrapped in Fminbox)
+# * `outer_method = SAMIN()`      — Simulated Annealing (native bounds)
+# * `outer_method = ParticleSwarm(; lower = t_stage_lower, upper = t_stage_upper, n_particles = 5)` — Particle Swarm (native bounds)
+
+outer_method = NelderMead();
+
+# Run the outer optimization using Optim.jl
+result = outer_optimization(outer_objective, t_stage_init, t_stage_lower, t_stage_upper;
+    method = outer_method, max_iter = max_outer_it)
 
 # # Retrieve final results
 #
