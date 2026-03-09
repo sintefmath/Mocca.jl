@@ -172,15 +172,18 @@ end;
 # (e.g. `ParticleSwarm`, `SAMIN`) are called directly.
 #
 # **Example methods** (pass as `method` argument):
-# * `NelderMead()`          — Nelder–Mead simplex (default, via Fminbox)
-# * `SAMIN()`               — Simulated Annealing with bounds (native)
-# * `ParticleSwarm(; lower, upper, n_particles)` — Particle Swarm (native)
+# * `NelderMead()`                    — Nelder–Mead simplex (default, via Fminbox)
+# * `SAMIN()`                         — Simulated Annealing with bounds (native)
+# * `ParticleSwarm(; n_particles = 5)` — Particle Swarm (native)
 #
 # This is suitable here because:
 # * Stage durations are not differentiable through (they change simulation structure).
 # * We have only 3 outer parameters, so the search space is low-dimensional.
 # * Each evaluation runs a full inner gradient optimization.
 
+# Methods with native box-constraint support in Optim.jl.
+# Other Optim.jl methods that handle bounds natively should be added here;
+# all other methods will be wrapped in Fminbox automatically.
 const NATIVE_BOUNDS_METHODS = Union{ParticleSwarm, SAMIN}
 
 function outer_optimization(f, x0, lower, upper;
@@ -249,9 +252,9 @@ end;
 #
 # The default is Nelder–Mead. To switch to a different method, simply change
 # the `outer_method` variable. For example:
-# * `outer_method = NelderMead()`  — Nelder–Mead simplex (default, wrapped in Fminbox)
-# * `outer_method = SAMIN()`      — Simulated Annealing (native bounds)
-# * `outer_method = ParticleSwarm(; lower = t_stage_lower, upper = t_stage_upper, n_particles = 5)` — Particle Swarm (native bounds)
+# * `outer_method = NelderMead()`                   — Nelder–Mead simplex (default, wrapped in Fminbox)
+# * `outer_method = SAMIN()`                        — Simulated Annealing (native bounds)
+# * `outer_method = ParticleSwarm(; n_particles = 5)` — Particle Swarm (native bounds)
 
 outer_method = NelderMead();
 
