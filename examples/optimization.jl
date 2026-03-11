@@ -175,8 +175,8 @@ results = []
 push!(results, current_parameters)
 histories = []
 initial_states = []
-A = [0.0, -1.0, 1.0]
-b = [-0.01bar]
+A = [0.0 1.0 -1.0]
+b = [0.01bar]
 lin_ineq = (A = A, b = b)  # interpreted as Au \leq b
 
 for outer_it in 1:num_outer_it
