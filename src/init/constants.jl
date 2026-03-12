@@ -64,7 +64,7 @@ abstract type InfoStruct end
     v_feed::RealT = 0.37
 
     "Mole fraction of the components [-]"
-    y_feed::SVector{2,RealT} = [0.15, 0.85]
+    y_feed::SVector{2,RealT} = @SVector [0.15, 0.85]
 
     "p_high High pressure [Pa]"
     p_high::RealT = 1e5

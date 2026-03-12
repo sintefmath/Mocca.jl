@@ -1,2 +1,5 @@
 include("primary_variables.jl")
-include("secondary_variables.jl")
+include("fluid.jl")
+include("adsorption.jl")
+include("energy.jl")
+include("geometry.jl")
