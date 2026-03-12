@@ -20,7 +20,7 @@ import Jutul.DictOptimization: optimize, DictParameters, free_optimization_param
 
 # Create a helper function for getting timing for the stages and the number of cycles
 function cycle_definition()
-    t_press = 15.0
+    t_press = 20.0
     t_ads = 15.0
     t_blow = 30.0
     t_evac = 40.0
@@ -44,6 +44,8 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
     for (step_info, state, force_outer) in zip(step_infos, states, forces)
         dt = step_info[:dt]
         time = step_info[:time]
+
+
 
         force = force_outer.bc
 
@@ -78,6 +80,7 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
     end
 
     recovery = total_co2_flux_out/total_co2_flux_in
+   # println("Total CO2 flux in: $total_co2_flux_in, Total CO2 flux out: $total_co2_flux_out, Recovery: $recovery")
     return recovery
 end
 
@@ -88,10 +91,13 @@ end
 function setup_case(prm, step_info = missing; num_cycles = cycle_definition()[2], state0 = basecase.state0, absLims = missing)
     # @info "Solving with $num_cycles"
     param_dict_symb = Dict(Symbol(k) => v for (k, v) in prm)
-    paramLims_dict_symb = Dict(Symbol(k) => v for (k, v) in absLims)
+    if !ismissing(absLims)
+        paramLims_dict_symb = Dict(Symbol(k) => v for (k, v) in absLims)
+    end
 
     RealT = valtype(param_dict_symb)
     constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
+    info.stage_durations[1] = 20;
     for (k, v) in param_dict_symb
         print(k)
         print(v)
@@ -129,7 +135,7 @@ function find_steady_state(case, sim, cfg)
     cfg[:info_level] = 0
     states, = Mocca.simulate_process(case, simulator = sim, config = cfg)
     restart = Mocca.setup_process_state(case.model; state0 = states[end])
-    return restart
+    return states, restart
 end
 
 # c = setup_case(prm_guess);
@@ -140,6 +146,7 @@ wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func, depends_
 
 # We use the original parameter values as a starting point for the optimization
 constants_ref, info_ref = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
+info_ref.stage_durations[1] = 20;
 
 basecase, = Mocca.setup_mocca_case(constants_ref, info_ref)
 
@@ -181,7 +188,9 @@ lin_ineq = (A = A, b = b)  # interpreted as Au \leq b
 
 for outer_it in 1:num_outer_it
 
-    restart = find_steady_state(setup_case(current_parameters; num_cycles = num_cycles_outer, absLims = prm_absLims), sim, cfg)
+    print("\n\nStarting outer iteration $outer_it with parameters: $current_parameters\n")
+
+    states, restart = find_steady_state(setup_case(current_parameters; num_cycles = num_cycles_outer, absLims = prm_absLims), sim, cfg)
     setup_case_inner = (arg...) -> setup_case(arg...; state0 = restart, num_cycles = num_cycles_optimizer, absLims = prm_absLims)
 
     global dict_opt = DictParameters(current_parameters, verbose = false)
@@ -206,10 +215,25 @@ for outer_it in 1:num_outer_it
         simulator = sim,
         config = cfg
     )
+
+    if (current_parameters == results[end])
+        println("No improvement in parameters, stopping optimization.")
+        break
+    end
+   
     push!(results, current_parameters)
     push!(histories, dict_opt.history)
     push!(initial_states, restart)
 end
+
+case_final = setup_case(current_parameters; num_cycles = 500)
+(states, restart) = find_steady_state(case_final, sim, cfg)
+Jutul.evaluate_objective(wrapped_global_objective, case_final.model, states, case_final.dt, case_final.forces)
+
+
+(states, restart) = find_steady_state(basecase, sim, cfg)
+Jutul.evaluate_objective(wrapped_global_objective, basecase.model, states, basecase.dt, basecase.forces)
+
 
 ##
 using CairoMakie
