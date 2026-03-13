@@ -14,7 +14,7 @@ function initial_adsorbed_concentration(model, t_init, p_init, y_init)
     c = y_init' .* cTot
 
     q_init = map(1:ncells) do i
-        qstar = compute_equilibrium(model.system, c[i, :], temp_vec[i])
+        qstar = compute_equilibrium(model.system.isotherm, c[i, :], temp_vec[i])
     end
     q_init = stack(q_init) # Convert Vector of SVectors to Matrix
     return q_init

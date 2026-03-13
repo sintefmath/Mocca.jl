@@ -13,8 +13,8 @@ using StaticArrays
         include("adsorption_systems.jl")
     end
 
-    @testset "Equilibrium Calculations" begin
-        include("equilibrium.jl")
+    @testset "Mass Transfer" begin
+        include("mass_transfer.jl")
     end
 
     @testset "Permeability and Dispersion" begin
@@ -23,6 +23,10 @@ using StaticArrays
 
     @testset "State Initialization" begin
         include("state_initialization.jl")
+    end
+
+    @testset "Isotherm Models" begin
+        include("isotherms.jl")
     end
 
     @testset "Integration with Jutul" begin

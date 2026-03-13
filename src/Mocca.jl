@@ -15,6 +15,10 @@ export simulate_process
 
 export plot_state, plot_cell
 
+export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
+
+export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
+
 import Jutul
 import JutulDarcy
 using StaticArrays
@@ -37,13 +41,14 @@ end
 include("core_types/core_types.jl")
 
 include("init/init.jl")
+include("isotherms/isotherms.jl")
+include("mass_transfer/mass_transfer.jl")
 include("systems/systems.jl")
 include("variables/variables.jl")
 include("equations/equations.jl")
 include("forces/forces.jl")
 
 include("select_variable.jl")
-include("updates.jl")
 include("convergence.jl")
 include("utils.jl")
 include("plot.jl")
