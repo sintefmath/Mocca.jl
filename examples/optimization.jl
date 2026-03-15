@@ -52,6 +52,7 @@ end;
 function objective_func(model, state0, states, step_infos, forces, input_data)
     total_co2_flux_in = 0.0
     total_co2_flux_out = 0.0
+    co2_idx = findfirst(==("CO2"), model.system.component_names)
 
     t_stage, num_cycles = cycle_definition()
     start_time_last_cycle = sum(t_stage)*(num_cycles-1)
@@ -65,17 +66,17 @@ function objective_func(model, state0, states, step_infos, forces, input_data)
 
             if force isa Mocca.PressurisationBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+                total_co2_flux_in -= mass_flux[co2_idx] * dt
             end
 
             if force isa Mocca.AdsorptionBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+                total_co2_flux_in -= mass_flux[co2_idx] * dt
             end
 
             if force isa Mocca.EvacuationBC
                 mass_flux = Mocca.mass_flux_left(state, model, time, force)
-                total_co2_flux_out -= mass_flux[Mocca.CO2INDEX] * dt
+                total_co2_flux_out -= mass_flux[co2_idx] * dt
             end
         end
     end

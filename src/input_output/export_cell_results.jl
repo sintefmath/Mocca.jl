@@ -18,11 +18,11 @@ function export_cell_results(outputfile::String, case::MoccaCase, states, timest
     open(outputfile, "w") do io
         # Write header
         header = ["time", "P", "T", "Tw"]
-        for i in case.model.system.component_names
-            push!(header, "y$(i)")
+        for name in case.model.system.component_names
+            push!(header, "y$(name)")
         end
-        for i in case.model.system.component_names
-            push!(header, "q$(i)")
+        for name in case.model.system.component_names
+            push!(header, "q$(name)")
         end
         println(io, join(header, ","))
         # Write data

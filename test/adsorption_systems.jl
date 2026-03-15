@@ -16,6 +16,9 @@
     @test system.p === constants
     @test system.isotherm isa Mocca.DualSiteLangmuir
     @test system.mass_transfer isa Mocca.LinearDrivingForce
+    @test system.molecular_masses == SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2)
+    @test system.heat_capacity_gas == constants.C_pg
+    @test system.heat_capacity_adsorbed == constants.C_pa
 end
 
 @testset "AdsorptionSystem Properties" begin
