@@ -1,6 +1,7 @@
 # Overload JutulDarcy functions
 
-JutulDarcy.number_of_components(sys::AdsorptionSystem) = sys.number_of_components
+JutulDarcy.component_names(sys::AdsorptionSystem) = sys.component_names
+JutulDarcy.number_of_components(sys::AdsorptionSystem) = length(sys.component_names)
 JutulDarcy.has_other_phase(::AdsorptionSystem) = false
 JutulDarcy.phase_names(::AdsorptionSystem) = ["gas"]
 JutulDarcy.number_of_phases(::AdsorptionSystem) = 1

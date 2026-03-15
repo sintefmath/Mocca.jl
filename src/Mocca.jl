@@ -27,10 +27,6 @@ import Jutul: JutulCase
 
 const MoccaCase = JutulCase # Convenience alias for simulation cases
 
-# TODO: Remove these when n-component systems are implemented
-const CO2INDEX = 1 # TODO: We don't really need this
-const N2INDEX = 2 # TODO: We don't really need this
-
 const moccaResultsDir = joinpath(@__DIR__, "..", "results")
 
 if !isdir(moccaResultsDir)

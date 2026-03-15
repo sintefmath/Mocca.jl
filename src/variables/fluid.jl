@@ -28,10 +28,13 @@ end
 
 Jutul.@jutul_secondary function update_average_molecular_mass!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
+    mm = sys.molecular_masses
     for cell in ix
-        molecularMassOfCO2 = sys.p.molecularMassOfCO2
-        molecularMassOfN2 = sys.p.molecularMassOfN2
-        avm[cell] = y[CO2INDEX, cell] * molecularMassOfCO2 + y[N2INDEX, cell] * molecularMassOfN2
+        avm_val = zero(eltype(avm))
+        for component in 1:JutulDarcy.number_of_components(sys)
+            avm_val += y[component, cell] * mm[component]
+        end
+        avm[cell] = avm_val
     end
 end
 

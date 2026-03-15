@@ -52,12 +52,12 @@ end
 
 Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
-    N = JutulDarcy.number_of_components(sys)
+    C_pa = sys.heat_capacity_adsorbed
     T = eltype(cpa)
     for cell in ix
         cpa_i = zero(T)
-        for i in 1:N
-            cpa_i += y[i, cell] * sys.p.C_pa[i]
+        for component in 1:JutulDarcy.number_of_components(sys)
+            cpa_i += y[component, cell] * C_pa[component]
         end
         cpa[cell] = cpa_i
     end
@@ -65,12 +65,12 @@ end
 
 Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
-    N = JutulDarcy.number_of_components(sys)
+    C_pg = sys.heat_capacity_gas
     T = eltype(cpg)
     for cell in ix
         cpg_i = zero(T)
-        for i in 1:N
-            cpg_i += y[i, cell] * sys.p.C_pg[i]
+        for component in 1:JutulDarcy.number_of_components(sys)
+            cpg_i += y[component, cell] * C_pg[component]
         end
         cpg[cell] = cpg_i
     end
