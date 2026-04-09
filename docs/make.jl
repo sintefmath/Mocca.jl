@@ -16,8 +16,9 @@ function build_mocca_docs(; build_examples = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
-        "Simulate DCB" => "simulate_DCB"
-        "Simulate cyclic" => "simulate_cyclic"
+        "Haghpanah DCB" => "dcb_haghpanah_2013_co2_n2"
+        "Haghpanah cyclic VSA" => "cyclic_vsa_haghpanah_2013_co2_n2"
+        "Custom setup cyclic VSA" => "custom_setup_cyclic_vsa"
         "History matching" => "history_matching"
         "Optimization" => "optimization"
     ]
@@ -46,7 +47,7 @@ function build_mocca_docs(; build_examples = true)
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
-            "Quick start" => "quick_start.md",
+            "JSON input" => "json_input.md",
             "Examples" => examples_markdown
         ],
         format=Documenter.HTML(;

@@ -15,12 +15,13 @@ Jutul.default_value(model, ::ThermalConductivities) = 1e-3
 Jutul.associated_entity(::ThermalConductivities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::ThermalConductivities, symb)
-    if haskey(data_domain, :thermal_conductivity, Jutul.Cells())
-        U = data_domain[:thermal_conductivity]
+    if haskey(data_domain, :thermal_conductivity, Column())
+        K = first(data_domain[:thermal_conductivity, Column()])
         g = Jutul.physical_representation(data_domain)
-        T = Jutul.compute_face_trans(g, U)
+        nc = Jutul.number_of_cells(g)
+        T = Jutul.compute_face_trans(g, fill(K, nc))
     else
-        error(":thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":thermal_conductivity on Column() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end

@@ -11,15 +11,12 @@ function JutulDarcy.component_mass_fluxes!(
     # kgrad = TPFA(left, right, face_sign)
     # upw = SPU(left, right)
 
-    sys = model.system
-
     c = state.concentrations
-    μ = sys.p.fluid_viscosity
+    μ = state.FluidViscosity[1]
 
     T_f = JutulDarcy.effective_transmissibility(state, face, kgrad)
     ∇p = JutulDarcy.pressure_gradient(state, kgrad)
     q_darcy = -T_f * ∇p
-    R = sys.p.R
     L = kgrad.left
     R = kgrad.right
 

@@ -10,8 +10,6 @@
 )
     q = zero(Jutul.flux_vector_type(eq, T))
     kgrad, upw = flow_disc.face_disc(face)
-    # K_z = model.system.p.K_z
-
     T = state.Temperature
     q = state.ThermalConductivities[face] * JutulDarcy.gradient(T, kgrad)
     return q
@@ -31,10 +29,9 @@ end
 
     kgrad, upw = flow_disc.face_disc(face)
 
-    sys = model.system
     T_f = JutulDarcy.effective_transmissibility(state, face, kgrad)
     ∇p = JutulDarcy.pressure_gradient(state, kgrad)
-    μ = sys.p.fluid_viscosity
+    μ = state.FluidViscosity[1]
     v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
     P_face = JutulDarcy.upwind(upw, P_c, v)
@@ -73,11 +70,10 @@ function Jutul.update_equation_in_entity!(
     T_w = state.WallTemperature[self_cell]
 
     A_win = state.WallAreaIn[self_cell]
-    h_in = model.system.p.h_in
-    R = model.system.p.R
+    h_in = state.InnerHeatTransferCoeff[1]
     source_term = A_win * h_in * (T - T_w)
-    ρ_s = model.system.p.ρ_s
-    C_ps = model.system.p.C_ps
+    ρ_s = state.AdsorbentDensity[1]
+    C_ps = state.AdsorbentHeatCapacity[1]
     C_pa = state.C_pa[self_cell]
 
 
@@ -87,7 +83,7 @@ function Jutul.update_equation_in_entity!(
     pv = state.FluidVolume
     sv = state.SolidVolume[self_cell]
 
-    pressure_term = C_pg * avm / R * pv[self_cell] * ∂P∂t
+    pressure_term = C_pg * avm / GAS_CONSTANT * pv[self_cell] * ∂P∂t
 
     # HERE BE DRAGONS!
     #adsorption_term = state.SolidVolume[self_cell] * sum((state.C_pa[self_cell] * state.avm[self_cell] * state.Temperature[self_cell] .+ state.ΔH[:, self_cell]) .* ∂q∂t)
@@ -115,7 +111,7 @@ function Jutul.update_equation_in_entity!(
     adsorption_term *= sv
 
     accumulation_coeff = sv * (ρ_s * C_ps + C_pa * avm * sq)
-    coeff_pressure = C_pg * avm / R
+    coeff_pressure = C_pg * avm / GAS_CONSTANT
 
     for component in eachindex(eq_buf)
         #@info "Componennt" component size(eq_buf)

@@ -12,6 +12,7 @@
 #
 
 # First we load the necessary modules
+import Jutul
 import Jutul: si_unit
 import Mocca
 
@@ -52,7 +53,7 @@ system = Mocca.TwoComponentAdsorptionSystem(constants);
 # k = \frac{4}{150}\frac{\epsilon^3}{(1-\epsilon)^2} r_{i n}^2
 # ```
 ncells = 200
-model = Mocca.setup_process_model(system; ncells = ncells);
+model = Mocca.setup_process_model(system, constants; ncells = ncells);
 
 # # Setup the initial state and parameters of the simulation
 # Initial values for pressure and temperature of the system
@@ -86,8 +87,10 @@ maxdt = 5000.0;
 # velocity, concentration and temperature at the inlet, and fixed pressure at
 # the outlet. By convention we assume the inlet bc is applied on the left hand
 # side and the outlet bc is applied on the right hand side.
-sim_forces, timesteps = Mocca.setup_forces(model,[t_ads],["adsorption"];
-    num_cycles=1,max_dt = maxdt);
+bcs = Mocca.setup_boundary_conditions(constants, ["adsorption"])
+
+sim_forces, timesteps = Mocca.setup_forces(model, [t_ads], bcs;
+    num_cycles=1, max_dt = maxdt);
 
 # Specify target change of the different state variables for dynamic timestepping
 timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0);

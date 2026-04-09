@@ -1,10 +1,17 @@
+"""
+Adsorption boundary condition #TODO add more description!
+
+# Fields:
+* `y_feed`: Composition of feed gas
+* `PH`: High pressure [Pa]
+* `v_feed`: Feed velocity [m/s]
+* `T_feed`: Feed temperature [K]
+"""
 @with_kw struct AdsorptionBC{T, N}
     y_feed::SVector{N,T}
     PH::T
     v_feed::T
     T_feed::T
-    cell_left::Int
-    cell_right::Int
 end
 
 
@@ -15,12 +22,11 @@ function flux_left(model::AdsorptionModel, state, force::AdsorptionBC)
 end
 
 function mass_flux_left(state, model, time, force::AdsorptionBC)
-    pars = model.system.p
-    R = pars.R
-    mob = 1.0 / pars.fluid_viscosity
-    trans = calc_bc_trans(model, state)
+    μ = first(model.data_domain[:fluid_viscosity, Column()])
+    mob = 1.0 / μ
+    cell_left = 1
+    trans = calc_bc_trans(model, state, cell_left)
 
-    cell_left = force.cell_left
     P = state.Pressure[cell_left]
     y = state.y[:, cell_left]
     y_bc = force.y_feed
@@ -29,7 +35,7 @@ function mass_flux_left(state, model, time, force::AdsorptionBC)
     q = flux_left(model, state, force)
     P_bc = q / (trans * mob) + P
 
-    c_tot = P_bc / (T_bc * R)
+    c_tot = P_bc / (T_bc * GAS_CONSTANT)
     c = y_bc .* c_tot
 
     mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
@@ -49,15 +55,14 @@ function Jutul.apply_forces_to_equation!(
     state = storage.state
 
     y = state.y
-    pars = model.system.p
-    R = pars.R
-    μ = pars.fluid_viscosity
+    μ = state.FluidViscosity[1]
     mob = 1.0 / μ
-    trans = calc_bc_trans(model, state)
+    cell_left = 1
+    cell_right = Jutul.number_of_cells(model.domain)
+    trans = calc_bc_trans(model, state, cell_left)
 
 
     # left side
-    cell_left = force.cell_left
     mass_flux = mass_flux_left(state, model, time, force)
     for i in axes(y, 1)
         acc[i, cell_left] += mass_flux[i]
@@ -65,7 +70,6 @@ function Jutul.apply_forces_to_equation!(
 
     # right side
     @inbounds begin
-        cell_right = force.cell_right
         P = state.Pressure[cell_right]
         T = state.Temperature[cell_right]
 
@@ -75,7 +79,7 @@ function Jutul.apply_forces_to_equation!(
 
         q = -trans * mob * (P_bc - P)
 
-        cTot = P / (T * R)
+        cTot = P / (T * GAS_CONSTANT)
 
         for i in axes(y, 1)
             c = y[i, cell_right] *cTot
@@ -83,7 +87,6 @@ function Jutul.apply_forces_to_equation!(
             acc[i, cell_right] -= mysource
         end
     end
-  
 end
 
 
@@ -99,18 +102,17 @@ function Jutul.apply_forces_to_equation!(
 )
     state = storage.state
 
-    pars = model.system.p
-    ρ_g = pars.ρ_g
-    R = pars.R
-    μ = pars.fluid_viscosity
+    ρ_g = state.FluidDensity[1]
+    μ = state.FluidViscosity[1]
     mob = 1.0 / μ
-    trans = calc_bc_trans(model, state)
+    cell_left = 1
+    cell_right = Jutul.number_of_cells(model.domain)
+    trans = calc_bc_trans(model, state, cell_left)
 
 
     # left side
     @inbounds begin
 
-        cell_left = force.cell_left
         P = state.Pressure[cell_left]
         T = state.Temperature[cell_left]
         C_pg = state.C_pg[cell_left]
@@ -123,18 +125,16 @@ function Jutul.apply_forces_to_equation!(
         T_bc = force.T_feed
 
 
-        cTot = P_bc / (T_bc * pars.R)
+        cTot = P_bc / (T_bc * GAS_CONSTANT)
         c = y_bc .* cTot
 
-        bc_src = -((q * ρ_g * C_pg * (T_bc - T)) + (q * P_bc / R) * C_pg * avm)
+        bc_src = -((q * ρ_g * C_pg * (T_bc - T)) + (q * P_bc / GAS_CONSTANT) * C_pg * avm)
         acc[cell_left] -= bc_src
-
     end
 
     # right side
     @inbounds begin
 
-        cell_right = force.cell_right
         P = state.Pressure[cell_right]
         C_pg = state.C_pg[cell_right]
         avm = state.avm[cell_right]
@@ -145,13 +145,10 @@ function Jutul.apply_forces_to_equation!(
 
         q = -trans * mob * (P_bc - P)
 
-        bc_src = -(q * P / R * C_pg * avm)
+        bc_src = -(q * P / GAS_CONSTANT * C_pg * avm)
         acc[cell_right] -= bc_src
 
     end
-
-
-
 end
 
 
@@ -168,15 +165,15 @@ function Jutul.apply_forces_to_equation!(
 
     state = storage.state
 
-    pars = model.system.p
+    T_bc = first(model.data_domain[:ambient_temperature, Column()])
+    cell_left = 1
+    cell_right = Jutul.number_of_cells(model.domain)
 
     # left side
     begin
-        cell_left = force.cell_left
-        trans_wall = calc_bc_wall_trans(model, state)
+        trans_wall = calc_bc_wall_trans(model, state, cell_left)
 
         T = state.WallTemperature[cell_left]
-        T_bc = pars.T_a
 
         bc_src = -(trans_wall * (T - T_bc))
         acc[cell_left] -= bc_src
@@ -184,17 +181,13 @@ function Jutul.apply_forces_to_equation!(
 
     # right side
     begin
-        cell_right = force.cell_right
-        trans_wall = calc_bc_wall_trans(model, state)
+        trans_wall = calc_bc_wall_trans(model, state, cell_right)
 
         T = state.WallTemperature[cell_right]
-        T_bc = pars.T_a
 
         bc_src = -(trans_wall * (T - T_bc))
         acc[cell_right] -= bc_src
     end
-
-  
 end
 
 function Jutul.vectorization_length(bc::AdsorptionBC, variant)
@@ -235,7 +228,7 @@ function Jutul.devectorize_force(bc::AdsorptionBC, X::AbstractVector{T}, meta, v
             tmp[i] = X[i + 3]
         end
         y_feed = SVector{N, T}(tmp)
-        return AdsorptionBC(y_feed, PH, v_feed, T_feed, bc.cell_left, bc.cell_right)
+        return AdsorptionBC(y_feed, PH, v_feed, T_feed)
     else
         error("Variant $variant not supported")
     end

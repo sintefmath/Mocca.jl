@@ -9,12 +9,13 @@ Jutul.default_value(model, ::DiffusionTransmissibilities) = 1e-3
 Jutul.associated_entity(::DiffusionTransmissibilities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::DiffusionTransmissibilities, symb)
-    if haskey(data_domain, :diffusion_coefficient, Jutul.Cells())
-        U = data_domain[:diffusion_coefficient]
+    if haskey(data_domain, :diffusion_coefficient, Column())
+        D = first(data_domain[:diffusion_coefficient, Column()])
         g = Jutul.physical_representation(data_domain)
-        T = Jutul.compute_face_trans(g, model.system.p.Φ .* U)
+        porosity = data_domain[:porosity]
+        T = Jutul.compute_face_trans(g, porosity .* D)
     else
-        error(":diffusion_coefficient symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":diffusion_coefficient on Column() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
@@ -22,7 +23,7 @@ end
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
     for cell in ix
-        ctot[cell] = Pressure[cell] / (sys.p.R * Temperature[cell])
+        ctot[cell] = Pressure[cell] / (GAS_CONSTANT * Temperature[cell])
     end
 end
 
