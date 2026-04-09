@@ -25,4 +25,4 @@ Pkg.add("Mocca")
 
 This will add Mocca to the current environment and install all necessary dependencies. Mocca is now installed and ready to use.
 
-To get started try the [Quick start example](@ref) or [Direct Column Breakthrough simulation](@ref) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+To get started try the [Cyclic VSA simulation with explicit parameter setup](@ref) or [Direct Column Breakthrough simulation](@ref) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!

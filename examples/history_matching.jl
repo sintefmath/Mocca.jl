@@ -2,7 +2,7 @@
 
 # We demonstrate history matching of a Direct Column Breakthrough (DCB) simulation model in Mocca. 
 # We leverage the powerful and flexible optimization functionality of Jutul to set up and perform the history matching.
-# For more details about the DCB modelling, see the [Simulate DCB](simulate_DCB.md) example.
+# For more details about the DCB modelling, see the [Haghpanah DCB](dcb_haghpanah_2013_co2_n2.md) example.
 
 # Import necessary modules
 import Jutul

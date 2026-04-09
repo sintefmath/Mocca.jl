@@ -12,7 +12,7 @@
     q = zero(Jutul.flux_vector_type(eq, T))
 
     kgrad, upw = flow_disc.face_disc(face)
-    K_w = model.system.p.K_w
+    K_w = state.WallConductivity[1]
     T = state.WallTemperature
     q = K_w * JutulDarcy.gradient(T, kgrad)
     return q
@@ -37,20 +37,17 @@ function Jutul.update_equation_in_entity!(
     flux_temp(face) = face_flux_temperature(face, eq, state, model, Δt, disc, ldisc, Val(T_e))
     div_temp = ldisc.div(flux_temp)
 
-
     T = state.Temperature[self_cell]
     T_w = state.WallTemperature[self_cell]
     aw_in = state.WallAreaIn[self_cell]
     aw_out = state.WallAreaOut[self_cell]
     Δx = state.CellDx[self_cell]
 
-    h_in = model.system.p.h_in
-    h_out = model.system.p.h_out
-    r_in = model.system.p.r_in
-    r_out = model.system.p.r_out
-    T_a = model.system.p.T_a
-    C_pw = model.system.p.C_pw
-    ρ_w = model.system.p.ρ_w
+    h_in = state.InnerHeatTransferCoeff[1]
+    h_out = state.OuterHeatTransferCoeff[1]
+    T_a = state.AmbientTemperature[1]
+    C_pw = state.WallHeatCapacity[1]
+    ρ_w = state.WallDensity[1]
 
     # This is from the paper:
     #source_term = 2 * r_in*h_in / (r_out^2-r_in^2)*(T-T_w) - 2 * r_out*h_out/(r_out^2-r_in^2) * (T_w - T_a)
@@ -58,9 +55,8 @@ function Jutul.update_equation_in_entity!(
     source_term = aw_in * h_in * (T-T_w) - aw_out * h_out * (T_w - T_a)
 
     for component in eachindex(eq_buf)
-        #@info "Componennt" component size(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        A_w = area_wall(model.system)
+        A_w = state.WallCrossSectionArea[1]
         wall_volume = A_w * Δx
         eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - A_w * div_temp / Δx - source_term
     end

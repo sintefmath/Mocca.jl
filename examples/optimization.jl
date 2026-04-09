@@ -8,7 +8,7 @@
 # * Intermediate pressure
 #
 # We leverage the powerful and flexible optimization functionality of Jutul.
-# For more details about the VSA modelling, see the [Simulate cyclic](simulate_cyclic.md) example.
+# For more details about the VSA modelling, see the [Haghpanah cyclic VSA](cyclic_vsa_haghpanah_2013_co2_n2.md) example.
 
 # # Setting up the optimization problem
 

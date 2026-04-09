@@ -1,7 +1,7 @@
 @testset "Parse JSON" begin
     # Test parsing data from JSON files and dictionaries
     @testset "Parse simple JSON input" begin
-        filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input_simple.json")
+        filepath = joinpath(@__DIR__, "../models/json/dcb_haghpanah_2013_co2_n2_input_simple.json")
         (constants_simple_JSON, info_simple_JSON) = Mocca.parse_input(filepath)
 
         @test constants_simple_JSON isa Mocca.adsorptionConstants{Float64}
@@ -12,7 +12,7 @@
     end
 
     @testset "Parse detailed JSON input" begin
-        filepath = joinpath(@__DIR__, "../models/json/haghpanah_DCB_input.json")
+        filepath = joinpath(@__DIR__, "../models/json/dcb_haghpanah_2013_co2_n2_input.json")
         (constants_JSON, info_JSON) = Mocca.parse_input(filepath)
 
         @test constants_JSON isa Mocca.adsorptionConstants{Float64}

@@ -16,7 +16,6 @@ function Jutul.update_equation_in_entity!(
     M = state[conserved]
 
     forcing_term = state[:AdsorptionMassTransfer]
-    ϵ = model.system.p.Φ
     solid_volume = state[:SolidVolume]
 
     for component in eachindex(eq_buf)

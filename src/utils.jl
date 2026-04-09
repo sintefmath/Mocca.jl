@@ -1,15 +1,47 @@
-export mocca_domain
 """
-    mocca_domain(mesh::Jutul.CartesianMesh, system::AdsorptionSystem)
+    mocca_domain(mesh; porosity, permeability, r_in, r_out, ...)
 
-Set up a data domain for carbon capture simulation.
+Set up a DataDomain for an adsorption column simulation.
+Cell-level data (porosity, permeability) goes on Cells.
+Column-level data (geometry, material, transport, heat transfer) goes on a
+single Column entity.
 """
-function mocca_domain(mesh, system::AdsorptionSystem; kwarg...)
-    domain = JutulDarcy.reservoir_domain(mesh, porosity = system.p.Φ, permeability = system.permeability)
-    domain[:diffusion_coefficient] = system.dispersion
-    domain[:thermal_conductivity] = system.p.K_z
+function mocca_domain(mesh;
+    porosity, permeability,
+    r_in, r_out,
+    diffusion_coefficient, thermal_conductivity,
+    adsorbent_density, adsorbent_heat_capacity,
+    wall_density, wall_heat_capacity, wall_conductivity,
+    fluid_viscosity, fluid_density,
+    inner_htc, outer_htc, ambient_temperature,
+    kwarg...
+)
+    domain = JutulDarcy.reservoir_domain(mesh, porosity = porosity, permeability = permeability)
+
+    # Register Column entity (count = 1)
+    domain.entities[Column()] = 1
+
+    # Column-level geometry
+    domain[:r_in, Column()] = r_in
+    domain[:r_out, Column()] = r_out
+
+    # Column-level transport coefficients
+    domain[:diffusion_coefficient, Column()] = diffusion_coefficient
+    domain[:thermal_conductivity, Column()] = thermal_conductivity
+
+    # Column-level material properties
+    domain[:adsorbent_density, Column()] = adsorbent_density
+    domain[:adsorbent_heat_capacity, Column()] = adsorbent_heat_capacity
+    domain[:wall_density, Column()] = wall_density
+    domain[:wall_heat_capacity, Column()] = wall_heat_capacity
+    domain[:wall_conductivity, Column()] = wall_conductivity
+    domain[:fluid_viscosity, Column()] = fluid_viscosity
+    domain[:fluid_density, Column()] = fluid_density
+    domain[:inner_htc, Column()] = inner_htc
+    domain[:outer_htc, Column()] = outer_htc
+    domain[:ambient_temperature, Column()] = ambient_temperature
+
     nc = Jutul.number_of_cells(mesh)
-
     dx = map(i -> first(Jutul.cell_dims(mesh, i)), 1:nc)
     domain[:dx] = dx
 

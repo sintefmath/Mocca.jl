@@ -23,7 +23,7 @@ test = ["Test", "Statistics"]
 [compat]
 CairoMakie = "0.14.0"
 JSON = "1.4.0"
-Jutul = "0.4.11"
+Jutul = "0.4.20"
 JutulDarcy = "0.3.1"
 Parameters = "0.12.3"
 StaticArrays = "1.9.16"

@@ -11,7 +11,7 @@ function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 	end
 
 	# Define the model
-	model = Mocca.setup_process_model(system; ncells = info.ncells);
+	model = Mocca.setup_process_model(system, constants; ncells = info.ncells);
 	push!(model.output_variables, :CellDx)
 
 	# # Setup the initial state
@@ -51,10 +51,10 @@ function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 
 	# Define the full cyclic simulation by stacking subsequent stages in time
 	# for a specified number of cycles
-	
+	bcs = Mocca.setup_boundary_conditions(constants, stage_types);
 
-	sim_forces, timesteps = Mocca.setup_forces(model,stage_durations,stage_types;
-	num_cycles=num_cycles, max_dt = maxdt);
+	sim_forces, timesteps = Mocca.setup_forces(model, stage_durations, bcs;
+		num_cycles = num_cycles, max_dt = maxdt);
 
 
 	# # Simulate
@@ -80,4 +80,3 @@ function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 	return case, timestep_selector_cfg, info.info_level
 
 end
-

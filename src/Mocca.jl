@@ -3,21 +3,25 @@ __precompile__(true)
 module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
-export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem
+export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem, Column
 export MoccaCase
 
-export setup_process_simulator
 export setup_process_model
+export setup_process_simulator
 export setup_process_parameters
 export setup_process_state
+export setup_boundary_conditions
 export setup_dcb_forces
 export simulate_process
+export mocca_domain
+export column_mesh
 
 export plot_state, plot_cell
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
 export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
+export compute_permeability, compute_dispersion
 
 import Jutul
 import JutulDarcy
@@ -26,6 +30,8 @@ using StaticArrays
 import Jutul: JutulCase
 
 const MoccaCase = JutulCase # Convenience alias for simulation cases
+
+const GAS_CONSTANT = 8.3144598 # J/(mol·K)
 
 const moccaResultsDir = joinpath(@__DIR__, "..", "results")
 

@@ -1,33 +1,46 @@
-using Parameters
-
-@with_kw struct TwoComponentAdsorptionSystem{T, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer} <: AdsorptionSystem where T<:ConstantsStruct
-    component_names::Vector{String} = ["CO2","N2"]
-    molecular_masses::SVector{2, RealT}
-    heat_capacity_gas::SVector{2, RealT}
-    heat_capacity_adsorbed::SVector{2, RealT}
-    permeability::RealT
-    dispersion::RealT
+struct TwoComponentAdsorptionSystem{RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer} <: AdsorptionSystem
+    component_names::Vector{String}
+    molecular_masses::SVector{2, RealT}         # Molecular masses per component [kg/mol]
+    heat_capacity_gas::SVector{2, RealT}        # Heat capacity of gas per component [J/(kg·K)]
+    heat_capacity_adsorbed::SVector{2, RealT}   # Heat capacity of adsorbed phase per component [J/(kg·K)]
     isotherm::IsoT
     mass_transfer::MtT
-    p::T
+end
+
+"""
+    TwoComponentAdsorptionSystem(; isotherm, mass_transfer, molecular_masses,
+        component_names = ["CO2", "N2"], heat_capacity_gas, heat_capacity_adsorbed)
+
+Construct a two-component adsorption system from explicit physics objects.
+"""
+function TwoComponentAdsorptionSystem(;
+    isotherm::AbstractIsotherm,
+    mass_transfer::AbstractMassTransfer,
+    molecular_masses,
+    component_names = ["CO2", "N2"],
+    heat_capacity_gas,
+    heat_capacity_adsorbed,
+)
+    return TwoComponentAdsorptionSystem(
+        component_names,
+        SVector{2}(molecular_masses),
+        SVector{2}(heat_capacity_gas),
+        SVector{2}(heat_capacity_adsorbed),
+        isotherm,
+        mass_transfer,
+    )
 end
 
 function TwoComponentAdsorptionSystem(constants::ConstantsStruct)
-    permeability = compute_permeability(constants)
-    axial_dispersion = calc_dispersion(constants)
     isotherm = DualSiteLangmuir(constants)
     mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
-    molecular_masses = SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2)
 
-    return TwoComponentAdsorptionSystem(;
-        molecular_masses = molecular_masses,
-        heat_capacity_gas = constants.C_pg,
-        heat_capacity_adsorbed = constants.C_pa,
-        permeability = permeability,
-        dispersion = axial_dispersion,
+    return TwoComponentAdsorptionSystem(
         isotherm = isotherm,
         mass_transfer = mass_transfer,
-        p = constants
+        molecular_masses = SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2),
+        heat_capacity_gas = constants.C_pg,
+        heat_capacity_adsorbed = constants.C_pa,
     )
 end
 

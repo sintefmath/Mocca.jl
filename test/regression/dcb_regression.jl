@@ -5,7 +5,7 @@ using Jutul
 function run_dcb_simulation(; ncells = 200, t_ads = 5000.0, maxdt = 5000.0)
     constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0)
     system = Mocca.TwoComponentAdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system; ncells = ncells)
+    model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     bar = si_unit(:bar)
     state0 = Mocca.setup_process_state(model;
@@ -16,7 +16,10 @@ function run_dcb_simulation(; ncells = 200, t_ads = 5000.0, maxdt = 5000.0)
     )
 
     parameters = Mocca.setup_process_parameters(model)
-    sim_forces, timesteps = Mocca.setup_forces(model, [t_ads], ["adsorption"];
+
+    bcs = Mocca.setup_boundary_conditions(constants, ["adsorption"])
+
+    sim_forces, timesteps = Mocca.setup_forces(model, [t_ads], bcs;
         num_cycles = 1, max_dt = maxdt)
 
     case = Mocca.MoccaCase(model, timesteps, sim_forces;

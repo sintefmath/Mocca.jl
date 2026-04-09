@@ -6,7 +6,7 @@ using Statistics: mean
 function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
     constants = Mocca.HaghpanahConstants{Float64}()
     system = Mocca.TwoComponentAdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system; ncells = ncells)
+    model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     bar = si_unit(:bar)
     state0 = Mocca.setup_process_state(model;
@@ -20,7 +20,9 @@ function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
 
     stage_times = [15.0, 15.0, 30.0, 40.0]
     stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
-    sim_forces, timesteps = Mocca.setup_forces(model, stage_times, stage_names;
+    bcs = Mocca.setup_boundary_conditions(constants, stage_names)
+
+    sim_forces, timesteps = Mocca.setup_forces(model, stage_times, bcs;
         num_cycles = num_cycles, max_dt = max_dt)
 
     case = Mocca.MoccaCase(model, timesteps, sim_forces;
@@ -38,11 +40,9 @@ function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
     nc = number_of_cells(model.domain)
     final = states[end]
 
-    # Find start of last cycle by tracking cumulative time
     cycle_duration = sum(stage_times)
     last_cycle_start_time = (num_cycles - 1) * cycle_duration
 
-    # Find index where last cycle starts
     cumtime = 0.0
     last_cycle_start_idx = 1
     for i in 1:length(timesteps_out)

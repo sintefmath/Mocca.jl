@@ -1,8 +1,6 @@
 @testset "AdsorptionSystem Construction" begin
     # Test TwoComponentAdsorptionSystem creation
     constants = Mocca.HaghpanahConstants{Float64}()
-    permeability = Mocca.compute_permeability(constants)
-    dispersion = Mocca.calc_dispersion(constants)
 
     system = Mocca.TwoComponentAdsorptionSystem(constants)
 
@@ -11,9 +9,6 @@
     @test JutulDarcy.number_of_phases(system) == 1
     @test JutulDarcy.get_reference_phase_index(system) == 1
     @test system.component_names == ["CO2", "N2"]
-    @test system.permeability == permeability
-    @test system.dispersion == dispersion
-    @test system.p === constants
     @test system.isotherm isa Mocca.DualSiteLangmuir
     @test system.mass_transfer isa Mocca.LinearDrivingForce
     @test system.molecular_masses == SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2)

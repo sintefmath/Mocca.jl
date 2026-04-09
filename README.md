@@ -9,7 +9,7 @@
 
 To learn more about using Mocca please see the [documentation](https://sintefmath.github.io/Mocca.jl/dev/).
 
-Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) and [Cyclic Vacuum Swing Adsorption simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_cyclic.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
+Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) and [Haghpanah Cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl). For an example of setting up a simulation through defining your own parameters and potentially custom models in a script, see [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
 
 In the future we hope to implement examples of other systems and isotherms e.g. temperature swing adsorption for Direct Air Capture (DAC).
 
@@ -38,7 +38,7 @@ Pkg.add("Mocca")
 
 This will add Mocca to the current environment and install all necessary dependencies. Mocca is now installed and ready to use.
 
-To get started try the [quick start](https://github.com/sintefmath/Mocca.jl/blob/main/examples/quick_start.jl) or [Direct Column Breakthrough simulation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+To get started try the [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl) or [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
 
 
 # Quick start example
@@ -47,14 +47,14 @@ Direct Column breakthrough adsorption simulation using predefined input paramete
 
 The example uses some utility functions which simplify the simulation setup.
 To see the steps used in more detail, please refer to the
-[Simulate DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/simulate_DCB.jl) example.
+[Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) example.
 
 ```julia
 using Mocca
 
 # Import and load input parameters
 json_dir = joinpath(dirname(pathof(Mocca)), "../models/json/")
-filepath = joinpath(json_dir, "haghpanah_DCB_input_simple.json")
+filepath = joinpath(json_dir, "dcb_haghpanah_2013_co2_n2_input_simple.json")
 (constants, info ) = Mocca.parse_input(filepath)
 
 # Setup and run simulation
@@ -63,7 +63,7 @@ states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_conf
     output_substates = true, info_level = 0)
 
 # Save results to CSV and plot
-Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "haghpanah_DCB_results.csv"),
+Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "dcb_haghpanah_2013_co2_n2_results.csv"),
     case, states, timesteps; format="csv")
 f = Mocca.plot_outlet(case, states, timesteps)
 display(f)

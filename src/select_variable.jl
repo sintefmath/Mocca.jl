@@ -45,14 +45,28 @@ function Jutul.select_equations!(
 end
 
 function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.SimulationModel)
+    # Per-cell parameters
     S[:SolidVolume] = JutulDarcy.BulkVolume()
     S[:FluidVolume] = JutulDarcy.FluidVolume()
     S[:WallAreaOut] = WallArea{:out}()
     S[:WallAreaIn] = WallArea{:in}()
     S[:CellDx] = CellDx()
+
+    # Face transmissibilities
     S[:ThermalConductivities] = ThermalConductivities()
     S[:DiffusionTransmissibilities] = DiffusionTransmissibilities()
-    # S[:solidVolume] = JutulDarcy.BulkVolume()
-    # S[:fluidVolume] = JutulDarcy.FluidVolume()
+
+    # Column-entity parameters (single scalars)
+    S[:AdsorbentDensity] = AdsorbentDensity()
+    S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
+    S[:WallDensity] = WallDensity()
+    S[:WallHeatCapacity] = WallHeatCapacity()
+    S[:WallConductivity] = WallConductivity()
+    S[:FluidViscosity] = FluidViscosity()
+    S[:FluidDensity] = FluidDensity()
+    S[:InnerHeatTransferCoeff] = InnerHeatTransferCoeff()
+    S[:OuterHeatTransferCoeff] = OuterHeatTransferCoeff()
+    S[:AmbientTemperature] = AmbientTemperature()
+    S[:WallCrossSectionArea] = WallCrossSectionArea()
 end
 

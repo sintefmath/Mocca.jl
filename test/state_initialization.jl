@@ -2,10 +2,10 @@
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    system = Mocca.TwoComponentAdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
-    model = Mocca.setup_process_model(system; ncells = ncells);
+    model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
     bar = 1e5  # Pa
@@ -23,7 +23,7 @@
         WallTemperature = Tw_init,
         y = y_init
     )
-    parameters = Mocca.setup_process_parameters(model);
+    parameters = Mocca.setup_process_parameters(model)
 
     @test state0 isa Dict
     @test parameters isa Dict
@@ -68,10 +68,10 @@ end
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    system = Mocca.TwoComponentAdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
-    model = Mocca.setup_process_model(system; ncells = ncells);
+    model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
     bar = 1e5  # Pa
@@ -110,10 +110,10 @@ end
 @testset "State Initialization with Different Conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants);
+    system = Mocca.TwoComponentAdsorptionSystem(constants)
 
     ncells = 5
-    model = Mocca.setup_process_model(system; ncells = ncells);
+    model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test with different pressures
     bar = 1e5
@@ -166,7 +166,7 @@ end
 
 @testset "State Initialization with Restart State" begin
 
-    (constants, info )= Mocca.parse_input(haghpanah_DCB_input())
+    (constants, info) = Mocca.parse_input(haghpanah_DCB_input())
     case, ts_config = Mocca.setup_mocca_case(constants, info)
 
     # #Run simulation

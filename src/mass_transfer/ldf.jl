@@ -16,6 +16,18 @@ struct LinearDrivingForce{T} <: AbstractMassTransfer
     d_p::T
 end
 
+"""
+    LinearDrivingForce(; D_m, τ, ϵ_p, d_p)
+
+Construct a Linear Driving Force mass transfer model from named parameters.
+
+- `D_m`: molecular diffusivity [m²/s]
+- `τ`: tortuosity [-]
+- `ϵ_p`: particle porosity [-]
+- `d_p`: particle diameter [m]
+"""
+LinearDrivingForce(; D_m, τ, ϵ_p, d_p) = LinearDrivingForce(D_m, τ, ϵ_p, d_p)
+
 
 function compute_mass_transfer_rate(mt::LinearDrivingForce, C, q, qstar)
     D_p = mt.D_m / mt.τ
