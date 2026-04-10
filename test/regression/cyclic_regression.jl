@@ -5,7 +5,7 @@ using Statistics: mean
 
 function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     bar = si_unit(:bar)

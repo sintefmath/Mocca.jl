@@ -3,7 +3,7 @@ __precompile__(true)
 module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
-export AdsorptionSystem, AdsorptionModel, TwoComponentAdsorptionSystem, Column
+export AdsorptionSystem, AdsorptionModel, Column
 export MoccaCase
 
 export setup_process_model
@@ -40,12 +40,11 @@ if !isdir(moccaResultsDir)
 end
 
 
-include("core_types/core_types.jl")
-
-include("init/init.jl")
+include("init/constants.jl")
 include("isotherms/isotherms.jl")
 include("mass_transfer/mass_transfer.jl")
 include("systems/systems.jl")
+include("init/init_adsorption_column.jl")
 include("variables/variables.jl")
 include("equations/equations.jl")
 include("forces/forces.jl")

@@ -2,10 +2,8 @@ using Mocca
 
 function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
 
-	# We set up a two component adsorption system. This system type is associated
-	# with the appropriate equations and primary and secondary variables.
-	if info.system_type == "TwoComponentAdsorptionSystem"
-		system = Mocca.TwoComponentAdsorptionSystem(constants);
+	if info.system_type == "AdsorptionSystem"
+		system = Mocca.AdsorptionSystem(constants);
 	else
 		error("System type $(info.system_type) not recognized")
 	end

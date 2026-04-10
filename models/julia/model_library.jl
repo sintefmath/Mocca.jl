@@ -7,8 +7,8 @@ function haghpanah_DCB_input()
 # Define a dictionary containing the Haghpanah DCB case input parameters
 haghpanah_input = Dict{String, Any}(
     "physicalConstants" => Dict(
-        "molecularMassOfCO2" => 0.04401,
-        "molecularMassOfN2" => 0.028,
+        "component_names" => ["CO2", "N2"],
+        "molecular_masses" => [0.04401, 0.028],
         "R" => 8.3144598),
     "dslPars" => Dict(
         "b0" => [8.65e-7, 2.5e-6],
@@ -67,16 +67,16 @@ haghpanah_input = Dict{String, Any}(
         "stage_types" => ["adsorption"]
     ),
     "simulation" => Dict(
-        "system_type" => "TwoComponentAdsorptionSystem",
+        "system_type" => "AdsorptionSystem",
         "ncells" => 200,
         "t_ads" => 5000,
         "maxdt" => 5000.0,
         "t_stage" => [5000],
-         "timestep_selectors" => Dict( 
+         "timestep_selectors" => Dict(
                 "y" => Dict("change" => 0.01, "relative" => false),
                 "Temperature" => Dict("change" => 10.0, "relative" => false),
                 "Pressure" => Dict("change" => 10.0, "relative" => false)
-            )       
+            )
     ),
     "solver" => Dict(
             "info_level" => 0,
@@ -93,8 +93,8 @@ function haghpanah_cyclic_input()
 # Define a dictionary containing the Haghpanah DCB case input parameters
 haghpanah_input = Dict{String, Any}(
     "physicalConstants" => Dict(
-        "molecularMassOfCO2" => 0.04401,
-        "molecularMassOfN2" => 0.028,
+        "component_names" => ["CO2", "N2"],
+        "molecular_masses" => [0.04401, 0.028],
         "R" => 8.3144598),
     "dslPars" => Dict(
         "b0" => [8.65e-7, 2.5e-6],
@@ -153,10 +153,10 @@ haghpanah_input = Dict{String, Any}(
 
     ),
     "simulation" => Dict(
-        "system_type" => "TwoComponentAdsorptionSystem",
+        "system_type" => "AdsorptionSystem",
         "ncells" => 200,
         "maxdt" => 1.0,
-         "timestep_selectors" => Dict( )     
+         "timestep_selectors" => Dict( )
     ),
     "solver" => Dict(
             "info_level" => 0,

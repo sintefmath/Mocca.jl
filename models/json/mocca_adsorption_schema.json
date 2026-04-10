@@ -9,17 +9,17 @@
     "physicalConstants": {
       "type": "object",
       "properties": {
-        "molecularMassOfCO2": {
-          "$ref": "#/definitions/parameter"
+        "component_names": {
+          "$ref": "#/definitions/parameterArray"
         },
-        "molecularMassOfN2": {
-          "$ref": "#/definitions/parameter"
+        "molecular_masses": {
+          "$ref": "#/definitions/parameterArray"
         },
         "R": {
           "$ref": "#/definitions/parameter"
         }
       },
-      "required": ["molecularMassOfCO2", "molecularMassOfN2", "R"]
+      "required": ["component_names", "molecular_masses", "R"]
     },
     "dslPars": {
       "type": "object",

@@ -39,10 +39,11 @@ mass_transfer = Mocca.LinearDrivingForce(
 )
 
 # Assemble the adsorption system
-system = Mocca.TwoComponentAdsorptionSystem(
+system = Mocca.AdsorptionSystem(
     isotherm            = isotherm,
     mass_transfer       = mass_transfer,
     molecular_masses    = SVector(44.01e-3, 28.0e-3),     # [kg/mol]
+    component_names     = ["CO2", "N2"],
     heat_capacity_gas      = SVector(697.5687, 1096.4),   # C_pg [J/(kg·K)]
     heat_capacity_adsorbed = SVector(697.5687, 1096.4),   # C_pa [J/(kg·K)]
 )

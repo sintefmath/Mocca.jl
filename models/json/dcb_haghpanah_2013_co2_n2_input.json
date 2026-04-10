@@ -1,13 +1,13 @@
 {
   "title": "HaghpanahConstants",
   "physicalConstants": {
-    "molecularMassOfCO2": {
-      "description": { "name": "Molecular mass of CO2", "symbol": "M_CO2", "units": "kg/mol" },
-      "value": 0.04401
+    "component_names": {
+      "description": { "name": "Component names", "symbol": "", "units": "" },
+      "value": ["CO2", "N2"]
     },
-    "molecularMassOfN2": {
-      "description": { "name": "Molecular mass of N2", "symbol": "M_N2", "units": "kg/mol" },
-      "value": 0.028
+    "molecular_masses": {
+      "description": { "name": "Molecular masses per component", "symbol": "M", "units": "kg/mol" },
+      "value": [0.04401, 0.028]
     },
     "R": {
       "description": { "name": "Universal gas constant", "symbol": "R", "units": "J/(mol·K)" },
@@ -200,7 +200,7 @@
   "simulation": {
     "system_type": {
       "description": { "name": "Type of system", "symbol": "system_type", "units": "dimensionless" },
-      "value": "TwoComponentAdsorptionSystem"
+      "value": "AdsorptionSystem"
     },
     "ncells": {
       "description": { "name": "Number of cells", "symbol": "ncells", "units": "dimensionless" },

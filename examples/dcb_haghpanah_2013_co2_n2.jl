@@ -26,7 +26,7 @@ constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0);
 
 # We set up a two component adsorption system. This system type is associated
 # with the appropriate equations and primary and secondary variables.
-system = Mocca.TwoComponentAdsorptionSystem(constants);
+system = Mocca.AdsorptionSystem(constants);
 
 # # Define the model
 # Next we need to make the model. This model contains information about

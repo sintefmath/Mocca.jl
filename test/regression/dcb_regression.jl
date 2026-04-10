@@ -4,7 +4,7 @@ using Jutul
 
 function run_dcb_simulation(; ncells = 200, t_ads = 5000.0, maxdt = 5000.0)
     constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0)
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     bar = si_unit(:bar)

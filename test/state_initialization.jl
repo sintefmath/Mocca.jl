@@ -2,9 +2,10 @@
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
+    nc = JutulDarcy.number_of_components(system)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
@@ -37,8 +38,8 @@
 
     # Check dimensions
     @test length(state0[:Pressure]) == ncells
-    @test size(state0[:y]) == (2, ncells)  # 2 components, ncells cells
-    @test size(state0[:AdsorbedConcentration]) == (2, ncells)
+    @test size(state0[:y]) == (nc, ncells)
+    @test size(state0[:AdsorbedConcentration]) == (nc, ncells)
     @test length(state0[:Temperature]) == ncells
     @test length(state0[:WallTemperature]) == ncells
 
@@ -68,9 +69,10 @@ end
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
+    nc = JutulDarcy.number_of_components(system)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
@@ -90,7 +92,7 @@ end
         y = y_init
     )
 
- # Check that all required fields are present
+    # Check that all required fields are present
     @test haskey(state0, :Pressure)
     @test haskey(state0, :y)
     @test haskey(state0, :AdsorbedConcentration)
@@ -99,8 +101,8 @@ end
 
     # Check dimensions
     @test length(state0[:Pressure]) == ncells
-    @test size(state0[:y]) == (2, ncells)  # 2 components, ncells cells
-    @test size(state0[:AdsorbedConcentration]) == (2, ncells)
+    @test size(state0[:y]) == (nc, ncells)
+    @test size(state0[:AdsorbedConcentration]) == (nc, ncells)
     @test length(state0[:Temperature]) == ncells
     @test length(state0[:WallTemperature]) == ncells
 
@@ -110,7 +112,7 @@ end
 @testset "State Initialization with Different Conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
 
     ncells = 5
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
