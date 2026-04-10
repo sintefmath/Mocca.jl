@@ -1,4 +1,77 @@
 """
+    column_mesh(ncells, L, r_in)
+
+Create a 1D `CartesianMesh` for a cylindrical column.
+The cross-section is a square with the same area as the circular column
+(side length `√(π r_in²)`).
+"""
+function column_mesh(ncells, L, r_in)
+    dx = sqrt(π * r_in^2)
+    return Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
+end
+
+function compute_permeability(porosity, d_p)
+    return 4 / 150 * ((porosity / (1 - porosity))^2) * (d_p / 2)^2 * porosity
+end
+
+function compute_dispersion(D_m, V0_inter, d_p)
+    return 0.7 * D_m + 0.5 * V0_inter * d_p
+end
+
+"""
+    mocca_domain(mesh; porosity, permeability, r_in, r_out, ...)
+
+Set up a DataDomain for an adsorption column simulation.
+Cell-level data (porosity, permeability) goes on Cells.
+Column-level data (geometry, material, transport, heat transfer) goes on a
+single Column entity.
+"""
+function mocca_domain(mesh;
+    porosity, permeability,
+    r_in, r_out,
+    diffusion_coefficient, thermal_conductivity,
+    adsorbent_density, adsorbent_heat_capacity,
+    wall_density, wall_heat_capacity, wall_conductivity,
+    fluid_viscosity, fluid_density,
+    inner_htc, outer_htc, ambient_temperature,
+    kwarg...
+)
+    domain = JutulDarcy.reservoir_domain(mesh, porosity = porosity, permeability = permeability)
+
+    # Register Column entity (count = 1)
+    domain.entities[Column()] = 1
+
+    # Column-level geometry
+    domain[:r_in, Column()] = r_in
+    domain[:r_out, Column()] = r_out
+
+    # Column-level transport coefficients
+    domain[:diffusion_coefficient, Column()] = diffusion_coefficient
+    domain[:thermal_conductivity, Column()] = thermal_conductivity
+
+    # Column-level material properties
+    domain[:adsorbent_density, Column()] = adsorbent_density
+    domain[:adsorbent_heat_capacity, Column()] = adsorbent_heat_capacity
+    domain[:wall_density, Column()] = wall_density
+    domain[:wall_heat_capacity, Column()] = wall_heat_capacity
+    domain[:wall_conductivity, Column()] = wall_conductivity
+    domain[:fluid_viscosity, Column()] = fluid_viscosity
+    domain[:fluid_density, Column()] = fluid_density
+    domain[:inner_htc, Column()] = inner_htc
+    domain[:outer_htc, Column()] = outer_htc
+    domain[:ambient_temperature, Column()] = ambient_temperature
+
+    nc = Jutul.number_of_cells(mesh)
+    dx = map(i -> first(Jutul.cell_dims(mesh, i)), 1:nc)
+    domain[:dx] = dx
+
+    for (k, v) in kwarg
+        domain[k] = v
+    end
+    return domain
+end
+
+"""
     setup_process_model(system, domain::Jutul.DataDomain)
 
 Build a `SimulationModel` from a prepared domain and system.

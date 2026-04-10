@@ -1,7 +1,7 @@
 @testset "Jutul Integration Tests" begin
     # Test that Mocca systems work with Jutul framework
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
@@ -39,7 +39,7 @@ end
 
 @testset "Model State Setup" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 3
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
@@ -77,7 +77,7 @@ end
 
 @testset "Domain Properties" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.TwoComponentAdsorptionSystem(constants)
+    system = Mocca.AdsorptionSystem(constants)
     ncells = 4
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 

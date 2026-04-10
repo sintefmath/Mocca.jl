@@ -86,21 +86,24 @@ abstract type InfoStruct end
 
 end
 
-@with_kw mutable struct adsorptionConstants{RealT} <: ConstantsStruct
-     
-    # Physical constants
-    molecularMassOfCO2::RealT
-    molecularMassOfN2::RealT
-    R::RealT #
+@with_kw mutable struct adsorptionConstants{N, RealT} <: ConstantsStruct
+
+    "Component names"
+    component_names::Vector{String}
+
+    "Molecular masses per component [kg/mol]"
+    molecular_masses::SVector{N, RealT}
+
+    R::RealT
     Φ::RealT # Porosity of the bed
 
     # Dual-site Langmuir adsorption isotherm parameters
-    b0::SVector{2,RealT}
-    d0::SVector{2,RealT}
-    ΔUbi::SVector{2,RealT}
-    ΔUdi::SVector{2,RealT}
-    qsbi::SVector{2,RealT}
-    qsdi::SVector{2,RealT}
+    b0::SVector{N, RealT}
+    d0::SVector{N, RealT}
+    ΔUbi::SVector{N, RealT}
+    ΔUdi::SVector{N, RealT}
+    qsbi::SVector{N, RealT}
+    qsdi::SVector{N, RealT}
 
     # Adsorbent properties
     ϵ_p::RealT
@@ -126,10 +129,10 @@ end
     ρ_g::RealT
 
     "Specific heat capacity per component for fluid phase [J kg^{-1}K^{-1}]"
-    C_pg::SVector{2,RealT}
+    C_pg::SVector{N, RealT}
     "Specific heat capacity per component for adsorbent phase [J kg^{-1}K^{-1}]"
-    C_pa::SVector{2,RealT}
-   
+    C_pa::SVector{N, RealT}
+
     "Column radius [m]"
     r_in::RealT
     "Wall radius [m]"
@@ -152,7 +155,7 @@ end
     v_feed::RealT
 
     "Mole fraction of the components [-]"
-    y_feed::SVector{2,RealT}
+    y_feed::SVector{N, RealT}
 
     "p_high High pressure [Pa]"
     p_high::RealT
@@ -175,15 +178,15 @@ end
     # Initial conditions
     "Initial pressure [Pa]"
     P_init::RealT
-    
+
     "Initial temperature [K]"
     T0::RealT
 
     "Initial wall temperature [K]"
     Tw_init::RealT
 
-    "Initial mole fractions of CO2 [-]"
-    y_init::SVector{2,RealT}
+    "Initial mole fractions [-]"
+    y_init::SVector{N, RealT}
 
 end
 

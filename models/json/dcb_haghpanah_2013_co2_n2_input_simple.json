@@ -1,7 +1,7 @@
 {
   "physicalConstants": {
-    "molecularMassOfCO2": 0.04401,
-    "molecularMassOfN2": 0.028,
+    "component_names": ["CO2", "N2"],
+    "molecular_masses": [0.04401, 0.028],
     "R": 8.3144598},
   "dslPars": {
     "b0": [8.65e-7, 2.5e-6],
@@ -60,7 +60,7 @@
     "stage_types": ["adsorption"]
   },
   "simulation": {
-    "system_type": "TwoComponentAdsorptionSystem",
+    "system_type": "AdsorptionSystem",
     "ncells": 200,
     "maxdt": 5000.0,
     "timestep_selectors": {

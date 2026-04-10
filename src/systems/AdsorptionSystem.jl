@@ -1,5 +1,73 @@
 struct Column <: Jutul.JutulEntity end
 
+struct AdsorptionSystem{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer} <: JutulDarcy.MultiComponentSystem
+    component_names::Vector{String}
+    molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
+    heat_capacity_gas::SVector{N, RealT}        # Heat capacity of gas per component [J/(kg·K)]
+    heat_capacity_adsorbed::SVector{N, RealT}   # Heat capacity of adsorbed phase per component [J/(kg·K)]
+    isotherm::IsoT
+    mass_transfer::MtT
+end
+
+const AdsorptionModel = Jutul.SimulationModel{<:Any,<:AdsorptionSystem,<:Any,<:Any}
+
+"""
+    AdsorptionSystem(; isotherm, mass_transfer, molecular_masses,
+        component_names, heat_capacity_gas, heat_capacity_adsorbed)
+
+Construct an N-component adsorption system from explicit physics objects.
+The number of components is inferred from the length of `component_names`.
+"""
+function AdsorptionSystem(;
+    isotherm::AbstractIsotherm,
+    mass_transfer::AbstractMassTransfer,
+    molecular_masses,
+    component_names,
+    heat_capacity_gas,
+    heat_capacity_adsorbed,
+)
+    N = length(component_names)
+    @assert length(molecular_masses) == N "molecular_masses length ($(length(molecular_masses))) must match component_names length ($N)"
+    @assert length(heat_capacity_gas) == N "heat_capacity_gas length must match component_names length ($N)"
+    @assert length(heat_capacity_adsorbed) == N "heat_capacity_adsorbed length must match component_names length ($N)"
+    return AdsorptionSystem(
+        component_names,
+        SVector{N}(molecular_masses),
+        SVector{N}(heat_capacity_gas),
+        SVector{N}(heat_capacity_adsorbed),
+        isotherm,
+        mass_transfer,
+    )
+end
+
+function AdsorptionSystem(constants::HaghpanahConstants)
+    isotherm = DualSiteLangmuir(constants)
+    mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
+
+    return AdsorptionSystem(
+        isotherm = isotherm,
+        mass_transfer = mass_transfer,
+        molecular_masses = SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2),
+        component_names = ["CO2", "N2"],
+        heat_capacity_gas = constants.C_pg,
+        heat_capacity_adsorbed = constants.C_pa,
+    )
+end
+
+function AdsorptionSystem(constants::adsorptionConstants)
+    isotherm = DualSiteLangmuir(constants)
+    mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
+
+    return AdsorptionSystem(
+        isotherm = isotherm,
+        mass_transfer = mass_transfer,
+        molecular_masses = constants.molecular_masses,
+        component_names = constants.component_names,
+        heat_capacity_gas = constants.C_pg,
+        heat_capacity_adsorbed = constants.C_pa,
+    )
+end
+
 # Overload JutulDarcy functions
 
 JutulDarcy.component_names(sys::AdsorptionSystem) = sys.component_names
@@ -7,6 +75,8 @@ JutulDarcy.number_of_components(sys::AdsorptionSystem) = length(sys.component_na
 JutulDarcy.has_other_phase(::AdsorptionSystem) = false
 JutulDarcy.phase_names(::AdsorptionSystem) = ["gas"]
 JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
+JutulDarcy.get_reference_phase_index(::AdsorptionSystem) = 1
+JutulDarcy.eachphase(::AdsorptionSystem) = (1,)
 
 # `AdsorptionSystem` is not a `JutulDarcy.MultiPhaseSystem` in the method table, so without this
 # forward the default `Jutul.discretize_domain(::DataDomain, ...)` would wrap the mesh only.
@@ -18,48 +88,4 @@ function Jutul.discretize_domain(d::Jutul.DataDomain, system::AdsorptionSystem, 
         d, system, Val(:default);
         kwarg...,
     )
-end
-
-# Specific functions needed for Mocca
-
-"""
-    column_mesh(ncells, L, r_in)
-
-Create a 1D `CartesianMesh` for a cylindrical adsorption column.
-The cross-section is a square with the same area as the circular column
-(side length `√(π r_in²)`).
-"""
-function column_mesh(ncells, L, r_in)
-    dx = sqrt(π * r_in^2)
-    return Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
-end
-
-function compute_permeability(porosity, d_p)
-    return 4 / 150 * ((porosity / (1 - porosity))^2) * (d_p / 2)^2 * porosity
-end
-
-function compute_dispersion(D_m, V0_inter, d_p)
-    return 0.7 * D_m + 0.5 * V0_inter * d_p
-end
-
-
-function compute_column_face_area(model::AdsorptionModel, state)
-    g = Jutul.physical_representation(model.data_domain)::Jutul.CartesianMesh
-    return (g.deltas[2] * g.deltas[3])
-end
-
-
-function calc_bc_trans(model::AdsorptionModel, state, cell)
-    k = model.data_domain[:permeability][cell]
-    r_in = first(model.data_domain[:r_in, Column()])
-    dx = state.CellDx[cell] / 2.0
-    A = (π * r_in^2)
-    return k * A / dx
-end
-
-function calc_bc_wall_trans(model::AdsorptionModel, state, cell)
-    k = state.WallConductivity[1]
-    dx = state.CellDx[cell] / 2.0
-    A = state.WallCrossSectionArea[1]
-    return k * A / dx
 end

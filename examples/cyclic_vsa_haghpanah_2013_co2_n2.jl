@@ -24,7 +24,7 @@ import Mocca
 
 # We define parameters, and set up the system and domain as in the [Haghpanah DCB](dcb_haghpanah_2013_co2_n2.md) example.
 constants = Mocca.HaghpanahConstants{Float64}()
-system = Mocca.TwoComponentAdsorptionSystem(constants);
+system = Mocca.AdsorptionSystem(constants);
 
 # # Create the model
 # Now we can assemble the model which contains the domain and the system of equations.
