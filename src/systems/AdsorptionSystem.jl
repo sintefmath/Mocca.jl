@@ -1,6 +1,6 @@
 struct Column <: Jutul.JutulEntity end
 
-struct AdsorptionSystem{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer} <: JutulDarcy.MultiComponentSystem
+struct AdsorptionSystem{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer} <: Jutul.JutulSystem
     component_names::Vector{String}
     molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
     heat_capacity_gas::SVector{N, RealT}        # Heat capacity of gas per component [J/(kg·K)]
@@ -68,24 +68,19 @@ function AdsorptionSystem(constants::adsorptionConstants)
     )
 end
 
-# Overload JutulDarcy functions
+# System interface functions
 
-JutulDarcy.component_names(sys::AdsorptionSystem) = sys.component_names
-JutulDarcy.number_of_components(sys::AdsorptionSystem) = length(sys.component_names)
-JutulDarcy.has_other_phase(::AdsorptionSystem) = false
-JutulDarcy.phase_names(::AdsorptionSystem) = ["gas"]
-JutulDarcy.number_of_phases(::AdsorptionSystem) = 1
-JutulDarcy.get_reference_phase_index(::AdsorptionSystem) = 1
-JutulDarcy.eachphase(::AdsorptionSystem) = (1,)
+component_names(sys::AdsorptionSystem) = sys.component_names
+number_of_components(sys::AdsorptionSystem) = length(sys.component_names)
 
-# `AdsorptionSystem` is not a `JutulDarcy.MultiPhaseSystem` in the method table, so without this
-# forward the default `Jutul.discretize_domain(::DataDomain, ...)` would wrap the mesh only.
-# Delegate to the `MultiPhaseSystem` implementation (TPFA + entity propagation from `DataDomain`).
-function Jutul.discretize_domain(d::Jutul.DataDomain, system::AdsorptionSystem, ::Val{:default}; kwarg...)
-    return invoke(
-        Jutul.discretize_domain,
-        Tuple{Jutul.DataDomain, JutulDarcy.MultiPhaseSystem, Val{:default}},
-        d, system, Val(:default);
-        kwarg...,
-    )
+# Set up a discretized domain with TPFA potential flow for the adsorption system.
+function Jutul.discretize_domain(d::Jutul.DataDomain, system::AdsorptionSystem, ::Val{:default}; general_ad = true, kwarg...)
+    g = Jutul.physical_representation(d)
+    N = d[:neighbors]
+    nc = Jutul.number_of_cells(g)
+    flow_disc = Jutul.PotentialFlow(N, nc)
+    disc = (mass_flow = flow_disc,)
+    domain = Jutul.DiscretizedDomain(g, disc; kwarg...)
+    Jutul.transfer_entities!(domain, d)
+    return domain
 end

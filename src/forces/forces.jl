@@ -1,3 +1,7 @@
+function Jutul.setup_forces(model::AdsorptionModel; bc = nothing)
+    return (bc = bc,)
+end
+
 function compute_column_face_area(model::AdsorptionModel, state)
     g = Jutul.physical_representation(model.data_domain)::Jutul.CartesianMesh
     return (g.deltas[2] * g.deltas[3])

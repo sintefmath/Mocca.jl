@@ -4,6 +4,7 @@ module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
 export AdsorptionSystem, AdsorptionModel, Column
+export number_of_components, component_names
 export MoccaCase
 
 export setup_process_model
@@ -24,7 +25,6 @@ export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
 export compute_permeability, compute_dispersion
 
 import Jutul
-import JutulDarcy
 using StaticArrays
 
 import Jutul: JutulCase

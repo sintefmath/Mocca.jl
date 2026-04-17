@@ -27,7 +27,7 @@ function Jutul.apply_forces_to_equation!(
     acc,
     storage,
     model::AdsorptionModel,
-    eq::Jutul.ConservationLaw{:TotalMasses},
+    eq::Jutul.ConservationLaw{:ComponentMasses},
     eq_s,
     force::BlowdownBC,
     time,
@@ -85,7 +85,7 @@ function Jutul.apply_forces_to_equation!(
         P = state.Pressure[cell_right]
 
         C_pg = state.C_pg[cell_right]
-        avm = state.avm[cell_right]        
+        avm = state.AverageMolarMass[cell_right]
 
         P_bc = pressure_right(force, time)
 

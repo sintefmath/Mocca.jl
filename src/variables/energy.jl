@@ -2,7 +2,7 @@ abstract type Energy <: Jutul.ScalarVariable end
 struct ColumnEnergy <: Energy end
 struct WallEnergy <: Energy end
 
-struct EnthalpyChange <: JutulDarcy.ComponentVariables end
+struct EnthalpyChange <: ComponentVariable end
 
 abstract type SpecificHeatCapacity <: Jutul.ScalarVariable end
 struct SpecificHeatCapacityAdsorbent <: SpecificHeatCapacity end
@@ -38,12 +38,12 @@ Jutul.@jutul_secondary function update_wall_conserved_energy!(wall_energy, tv::W
     end
 end
 
-Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G, S}, concentrations, Temperature, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G, S}, MolarConcentration, Temperature, ix) where {G, S <: AdsorptionSystem}
     iso = model.system.isotherm
-    N = JutulDarcy.number_of_components(model.system)
+    N = number_of_components(model.system)
     T = eltype(ΔH)
     for cell in ix
-        C = SVector{N, T}(@view concentrations[:, cell])
+        C = SVector{N, T}(@view MolarConcentration[:, cell])
         ΔH_values = compute_enthalpy(iso, C, Temperature[cell])
         for i in 1:N
             ΔH[i, cell] = ΔH_values[i]
@@ -57,7 +57,7 @@ Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::Specifi
     T = eltype(cpa)
     for cell in ix
         cpa_i = zero(T)
-        for component in 1:JutulDarcy.number_of_components(sys)
+        for component in 1:number_of_components(sys)
             cpa_i += y[component, cell] * C_pa[component]
         end
         cpa[cell] = cpa_i
@@ -70,7 +70,7 @@ Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHea
     T = eltype(cpg)
     for cell in ix
         cpg_i = zero(T)
-        for component in 1:JutulDarcy.number_of_components(sys)
+        for component in 1:number_of_components(sys)
             cpg_i += y[component, cell] * C_pg[component]
         end
         cpg[cell] = cpg_i

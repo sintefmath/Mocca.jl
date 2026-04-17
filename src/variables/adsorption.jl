@@ -1,10 +1,10 @@
-struct AdsorptionMassTransfer <: JutulDarcy.ComponentVariables end
+struct AdsorptionMassTransfer <: ComponentVariable end
 
 Jutul.@jutul_secondary function update_adsorption_mass_transfer!(
     adsorption_mass_transfer,
     tv::AdsorptionMassTransfer,
     model::AdsorptionModel,
-    concentrations,
+    MolarConcentration,
     Temperature,
     AdsorbedConcentration,
     ix
@@ -12,10 +12,10 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer!(
     sys = model.system
     iso = sys.isotherm
     mt = sys.mass_transfer
-    N = JutulDarcy.number_of_components(sys)
+    N = number_of_components(sys)
     T = eltype(adsorption_mass_transfer)
     for cell in ix
-        C = SVector{N, T}(@view concentrations[:, cell])
+        C = SVector{N, T}(@view MolarConcentration[:, cell])
         q = SVector{N, T}(@view AdsorbedConcentration[:, cell])
         qstar = compute_equilibrium(iso, C, Temperature[cell])
         rate = compute_mass_transfer_rate(mt, C, q, qstar)

@@ -1,7 +1,6 @@
 using Test
 using Mocca
 using Jutul
-using JutulDarcy
 using LinearAlgebra
 using StaticArrays
 

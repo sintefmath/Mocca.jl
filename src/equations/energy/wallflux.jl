@@ -14,7 +14,7 @@
     kgrad, upw = flow_disc.face_disc(face)
     K_w = state.WallConductivity[1]
     T = state.WallTemperature
-    q = K_w * JutulDarcy.gradient(T, kgrad)
+    q = K_w * Jutul.gradient(T, kgrad)
     return q
 end
 
