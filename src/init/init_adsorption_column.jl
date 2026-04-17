@@ -36,7 +36,7 @@ function mocca_domain(mesh;
     inner_htc, outer_htc, ambient_temperature,
     kwarg...
 )
-    domain = JutulDarcy.reservoir_domain(mesh, porosity = porosity, permeability = permeability)
+    domain = Jutul.DataDomain(mesh, porosity = porosity, permeability = permeability)
 
     # Register Column entity (count = 1)
     domain.entities[Column()] = 1

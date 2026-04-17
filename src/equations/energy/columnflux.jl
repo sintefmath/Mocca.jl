@@ -11,7 +11,7 @@
     q = zero(Jutul.flux_vector_type(eq, T))
     kgrad, upw = flow_disc.face_disc(face)
     T = state.Temperature
-    q = state.ThermalConductivities[face] * JutulDarcy.gradient(T, kgrad)
+    q = state.ThermalConductivities[face] * Jutul.gradient(T, kgrad)
     return q
 end
 
@@ -29,12 +29,12 @@ end
 
     kgrad, upw = flow_disc.face_disc(face)
 
-    T_f = JutulDarcy.effective_transmissibility(state, face, kgrad)
-    ∇p = JutulDarcy.pressure_gradient(state, kgrad)
+    T_f = state.Transmissibilities[face]
+    ∇p = Jutul.gradient(state.Pressure, kgrad)
     μ = state.FluidViscosity[1]
     v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
-    P_face = JutulDarcy.upwind(upw, P_c, v)
+    P_face = Jutul.upwind(upw, P_c, v)
     q = v * P_face
     return q
 end
@@ -64,7 +64,7 @@ function Jutul.update_equation_in_entity!(
     div_pressure = ldisc.div(flux_pressure)
 
     C_pg = state.C_pg[self_cell]
-    avm = state.avm[self_cell]
+    avm = state.AverageMolarMass[self_cell]
 
     T = state.Temperature[self_cell]
     T_w = state.WallTemperature[self_cell]

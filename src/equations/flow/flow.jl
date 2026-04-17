@@ -1,39 +1,37 @@
-function JutulDarcy.component_mass_fluxes!(
+@inline function Jutul.face_flux!(
     q,
     face,
+    eq::Jutul.ConservationLaw{:ComponentMasses},
     state,
-    model::Jutul.SimulationModel{G,S},
-    flux_type,
-    kgrad,
-    upw,
-) where {G<:Any,S<:AdsorptionSystem}
-    # This is defined for us:
-    # kgrad = TPFA(left, right, face_sign)
-    # upw = SPU(left, right)
+    model::AdsorptionModel,
+    dt,
+    flow_disc::Jutul.PotentialFlow,
+    ldisc,
+)
+    kgrad, upw = ldisc.face_disc(face)
 
-    c = state.concentrations
+    c = state.MolarConcentration
     μ = state.FluidViscosity[1]
 
-    T_f = JutulDarcy.effective_transmissibility(state, face, kgrad)
-    ∇p = JutulDarcy.pressure_gradient(state, kgrad)
+    T_f = state.Transmissibilities[face]
+    ∇p = Jutul.gradient(state.Pressure, kgrad)
     q_darcy = -T_f * ∇p
     L = kgrad.left
     R = kgrad.right
 
-    cL = state.cTot[L]
-    cR = state.cTot[R]
+    cL = state.TotalMolarConcentration[L]
+    cR = state.TotalMolarConcentration[R]
     y = state.y
     C = (cL + cR)/2.0
 
     D_l = state.DiffusionTransmissibilities[face]
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
-        c_face = JutulDarcy.upwind(upw, F_c, q_darcy)
-        q_i = c_face * q_darcy - C * D_l * JutulDarcy.gradient(y, component, kgrad)
+        c_face = Jutul.upwind(upw, F_c, q_darcy)
+        q_i = c_face * q_darcy - C * D_l * Jutul.gradient(y, component, kgrad)
 
         q = setindex(q, q_i, component)
     end
-    # @info "Flux $face" q
     return q
 end
 
@@ -42,7 +40,7 @@ function Jutul.update_equation_in_entity!(
     self_cell,
     state,
     state0,
-    eq::Jutul.ConservationLaw{:TotalMasses},
+    eq::Jutul.ConservationLaw{:ComponentMasses},
     model::AdsorptionModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),

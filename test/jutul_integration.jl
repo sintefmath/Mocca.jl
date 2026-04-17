@@ -33,8 +33,7 @@
 
     # Test that the model has the expected properties
     @test Jutul.number_of_cells(model2.domain) == ncells
-    @test JutulDarcy.number_of_components(model2.system) == 2
-    @test JutulDarcy.number_of_phases(model2.system) == 1
+    @test Mocca.number_of_components(model2.system) == 2
 end
 
 @testset "Model State Setup" begin

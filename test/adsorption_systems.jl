@@ -4,9 +4,7 @@
     system = Mocca.AdsorptionSystem(constants)
 
     @test system isa Mocca.AdsorptionSystem
-    @test JutulDarcy.number_of_components(system) == 2
-    @test JutulDarcy.number_of_phases(system) == 1
-    @test JutulDarcy.get_reference_phase_index(system) == 1
+    @test Mocca.number_of_components(system) == 2
     @test system.component_names == ["CO2", "N2"]
     @test system.isotherm isa Mocca.DualSiteLangmuir
     @test system.mass_transfer isa Mocca.LinearDrivingForce
@@ -19,9 +17,7 @@ end
     constants = Mocca.HaghpanahConstants{Float64}()
     system = Mocca.AdsorptionSystem(constants)
 
-    @test !JutulDarcy.has_other_phase(system)
-    @test JutulDarcy.phase_names(system) == ["gas"]
-    @test collect(JutulDarcy.eachphase(system)) == [1]
+    @test Mocca.component_names(system) == ["CO2", "N2"]
 end
 
 @testset "N-component AdsorptionSystem" begin
@@ -52,7 +48,7 @@ end
     )
 
     @test system isa Mocca.AdsorptionSystem{3}
-    @test JutulDarcy.number_of_components(system) == 3
+    @test Mocca.number_of_components(system) == 3
     @test system.component_names == ["CO2", "N2", "H2O"]
     @test length(system.molecular_masses) == 3
 end

@@ -1,6 +1,14 @@
-struct AverageMolecularMass <: Jutul.ScalarVariable end
+struct AverageMolarMass <: Jutul.ScalarVariable end
 
-struct Concentrations <: JutulDarcy.ComponentVariables end
+struct MolarConcentration <: ComponentVariable end
+
+# Total molar concentration (scalar per cell, computed from ideal gas law)
+struct TotalMolarConcentration <: Jutul.ScalarVariable end
+Jutul.minimum_value(::TotalMolarConcentration) = 0.0
+
+# Per-component moles in cell (mol)
+struct ComponentMasses <: ComponentVariable end
+Jutul.minimum_value(::ComponentMasses) = 0.0
 
 struct DiffusionTransmissibilities <: Jutul.ScalarVariable end
 Jutul.variable_scale(::DiffusionTransmissibilities) = 1e-10
@@ -20,37 +28,37 @@ function Jutul.default_parameter_values(data_domain, model, param::DiffusionTran
     return T
 end
 
-Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::JutulDarcy.TotalMass, model::Jutul.SimulationModel{G, S}, Pressure, Temperature, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::Jutul.SimulationModel{G, S}, Pressure, Temperature, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
     for cell in ix
         ctot[cell] = Pressure[cell] / (GAS_CONSTANT * Temperature[cell])
     end
 end
 
-Jutul.@jutul_secondary function update_average_molecular_mass!(avm, tv::AverageMolecularMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_average_molar_mass!(avm, tv::AverageMolarMass, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
     sys = model.system
     mm = sys.molecular_masses
     for cell in ix
         avm_val = zero(eltype(avm))
-        for component in 1:JutulDarcy.number_of_components(sys)
+        for component in 1:number_of_components(sys)
             avm_val += y[component, cell] * mm[component]
         end
         avm[cell] = avm_val
     end
 end
 
-Jutul.@jutul_secondary function update_concentrations!(concentrations, tv::Concentrations, model::Jutul.SimulationModel{G, S}, y, cTot, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_molar_concentration!(c, tv::MolarConcentration, model::Jutul.SimulationModel{G, S}, y, TotalMolarConcentration, ix) where {G, S <: AdsorptionSystem}
     for cell in ix
-        for component in 1:JutulDarcy.number_of_components(model.system)
-            concentrations[component, cell] = y[component, cell] * cTot[cell]
+        for component in 1:number_of_components(model.system)
+            c[component, cell] = y[component, cell] * TotalMolarConcentration[cell]
         end
     end
 end
 
-Jutul.@jutul_secondary function update_total_masses!(totmass, tv::JutulDarcy.TotalMasses, model::AdsorptionModel, concentrations, FluidVolume, ix)
+Jutul.@jutul_secondary function update_component_masses!(m, tv::ComponentMasses, model::AdsorptionModel, MolarConcentration, FluidVolume, ix)
     for cell in ix
-        for component in 1:JutulDarcy.number_of_components(model.system)
-            totmass[component, cell] = concentrations[component, cell] * FluidVolume[cell]
+        for component in 1:number_of_components(model.system)
+            m[component, cell] = MolarConcentration[component, cell] * FluidVolume[cell]
         end
     end
 end

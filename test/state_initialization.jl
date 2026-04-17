@@ -5,7 +5,7 @@
     system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
-    nc = JutulDarcy.number_of_components(system)
+    nc = Mocca.number_of_components(system)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
@@ -72,7 +72,7 @@ end
     system = Mocca.AdsorptionSystem(constants)
     # Create a simple mesh
     ncells = 10
-    nc = JutulDarcy.number_of_components(system)
+    nc = Mocca.number_of_components(system)
     model = Mocca.setup_process_model(system, constants; ncells = ncells)
 
     # Test state initialization
