@@ -86,12 +86,13 @@ function boundary_ports(fs::Flowsheet)
 end
 
 """
-    setup_flowsheet_model(fs; danckwerts = true) → Jutul.MultiModel
+    setup_flowsheet_model(fs; legacy_inlet = false) → Jutul.MultiModel
 
 Assemble the flowsheet into a `MultiModel` with a [`PortStateCT`](@ref) and a
-[`StreamCT`](@ref) for every connection.
+[`StreamCT`](@ref) for every connection. `legacy_inlet = true` reproduces the
+inlet treatment of Mocca 0.1.0 (see [`StreamCT`](@ref)).
 """
-function setup_flowsheet_model(fs::Flowsheet; danckwerts = true)
+function setup_flowsheet_model(fs::Flowsheet; legacy_inlet = false)
     for (d, p) in boundary_ports(fs)
         haskey(fs.boundaries, (d, p)) || error("Port $p of device $d is not connected and has no boundary condition; use set_boundary!")
     end
@@ -102,9 +103,9 @@ function setup_flowsheet_model(fs::Flowsheet; danckwerts = true)
         cell = ports(unit)[up]
         k = port_index(fs.units[d], dp)
         Jutul.add_cross_term!(mm, PortStateCT(cell); target = d, source = u, equation = port_equation(dp))
-        Jutul.add_cross_term!(mm, StreamCT(cell, k; danckwerts = danckwerts); target = u, source = d, equation = :mass_conservation)
+        Jutul.add_cross_term!(mm, StreamCT(cell, k; legacy_inlet = legacy_inlet); target = u, source = d, equation = :mass_conservation)
         if haskey(unit.equations, :energy_column) && unit.equations[:energy_column] isa Jutul.ConservationLaw
-            Jutul.add_cross_term!(mm, StreamCT(cell, k; danckwerts = danckwerts); target = u, source = d, equation = :energy_column)
+            Jutul.add_cross_term!(mm, StreamCT(cell, k; legacy_inlet = legacy_inlet); target = u, source = d, equation = :energy_column)
         end
     end
     return mm

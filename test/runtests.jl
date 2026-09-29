@@ -20,6 +20,10 @@ using StaticArrays
         include("flowsheet.jl")
     end
 
+    @testset "Process metrics and cyclic steady state" begin
+        include("process.jl")
+    end
+
     @testset "Mass Transfer" begin
         include("mass_transfer.jl")
     end

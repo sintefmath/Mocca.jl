@@ -12,7 +12,10 @@ export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, V
 export PortCondition, ExponentialRamp, port_conductance
 export Flowsheet, add_unit!, connect!, set_boundary!, setup_flowsheet_model
 export setup_flowsheet_state, setup_flowsheet_parameters
-export Stage, setup_schedule, four_stage_vsa_flowsheet
+export Stage, setup_schedule, four_stage_vsa_flowsheet, two_bed_vsa_flowsheet
+export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass
+export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
+export restart_state, cycle_change, simulate_to_cyclic_steady_state
 export number_of_components, component_names
 export MoccaCase
 
@@ -85,6 +88,8 @@ include("flowsheet/flowsheet.jl")
 # L5: process operation
 include("process/schedule.jl")
 include("process/vsa.jl")
+include("process/metrics.jl")
+include("process/css.jl")
 
 include("core/convergence.jl")
 include("utils.jl")

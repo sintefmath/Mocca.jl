@@ -62,7 +62,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
 end
 
 """
-    StreamCT(cell, port; danckwerts = true)
+    StreamCT(cell, port; legacy_inlet = false)
 
 Cross term adding the flow through device port `port` (1 = inlet, 2 = outlet)
 to the balances of unit `cell`. Registered with the unit as target and the
@@ -70,16 +70,20 @@ device as source, once for the `:mass_conservation` equation and, if the unit
 has an energy balance, once for `:energy_column`.
 
 The stream composition, temperature and pressure are those of the upstream
-device port. For flow into the unit, `danckwerts = true` adds the dispersive
-inlet correction `F·(y_s − y)`, as the original Mocca inlet boundary
-conditions do.
+device port, so component `i` enters or leaves at `F·y_s,i` and every
+component is conserved across the connection.
+
+`legacy_inlet = true` reproduces the inlet boundary conditions of Mocca 0.1.0,
+which add `F·(y_s,i − y_i)` on top of the inflow `F·y_s,i`. That keeps the
+total molar flow but not the flow of each component: the unit receives more of
+a component than the stream carries when the inlet cell is depleted in it.
 """
 struct StreamCT <: Jutul.AdditiveCrossTerm
     cell::Int
     port::Int
-    danckwerts::Bool
+    legacy_inlet::Bool
 end
-StreamCT(cell, port; danckwerts = true) = StreamCT(cell, port, danckwerts)
+StreamCT(cell, port; legacy_inlet = false) = StreamCT(cell, port, legacy_inlet)
 
 Jutul.cross_term_entities(ct::StreamCT, eq::Jutul.JutulEquation, model) = [ct.cell]
 Jutul.cross_term_entities_source(ct::StreamCT, eq::Jutul.JutulEquation, model) = [1]
@@ -100,9 +104,9 @@ function Jutul.update_cross_term_in_entity!(out, i,
     F_inflow = ifelse(F_in > 0, F_in, zero(F_in))
     for k in eachindex(out)
         y_s = port_composition(state_s, up, k)
-        # Danckwerts inlet correction, only for flow into the unit
+        # Legacy inlet correction, only for flow into the unit
         correction = F_inflow * (y_s - state_t.y[k, c])
-        if !ct.danckwerts
+        if !ct.legacy_inlet
             correction = _target_anchor(correction)
         end
         out[k] = -F_in * y_s - correction

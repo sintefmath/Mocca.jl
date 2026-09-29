@@ -70,9 +70,9 @@ function _vsa_legacy(constants, init; ncells, num_cycles)
     return (states, timesteps)
 end
 
-function _vsa_flowsheet(constants, init; ncells, num_cycles)
+function _vsa_flowsheet(constants, init; ncells, num_cycles, legacy_inlet = false)
     fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = ncells)
-    mm = Mocca.setup_flowsheet_model(fs)
+    mm = Mocca.setup_flowsheet_model(fs; legacy_inlet = legacy_inlet)
     state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
     prm = Mocca.setup_flowsheet_parameters(fs)
     forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = num_cycles, max_dt = 1.0)
@@ -90,7 +90,7 @@ _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
     init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
     ncells = 30
     legacy, legacy_dt = _vsa_legacy(constants, init; ncells = ncells, num_cycles = 1)
-    fs, states, timesteps, state0, prm = _vsa_flowsheet(constants, init; ncells = ncells, num_cycles = 1)
+    fs, states, timesteps, state0, prm = _vsa_flowsheet(constants, init; ncells = ncells, num_cycles = 1, legacy_inlet = true)
     @test sum(timesteps) ≈ sum(legacy_dt) ≈ 100.0
 
     for t in (15.0, 30.0, 60.0, 100.0)  # end of each stage
@@ -114,5 +114,47 @@ _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
     end
     ΔM = inventory(states[end][:Bed]) - inventory(state0[:Bed])
     throughput = sum(abs(s[:V_feed][:MolarFlow][1]) * dt for (s, dt) in zip(states, timesteps))
+    @test abs(net_in - ΔM) < 1e-8 * throughput
+end
+
+@testset "Two-bed VSA with pressure equalisation" begin
+    constants = Mocca.HaghpanahConstants{Float64}()
+    fs, stages = Mocca.two_bed_vsa_flowsheet(constants; ncells = 20)
+    @test length(stages) == 6
+    mm = Mocca.setup_flowsheet_model(fs)
+    init(P) = Mocca.setup_process_state(fs[:A]; Pressure = P, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
+    state0 = Mocca.setup_flowsheet_state(fs; A = init(constants.p_high / 2), B = init(constants.p_low))
+    prm = Mocca.setup_flowsheet_parameters(fs)
+    forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 1, max_dt = 1.0)
+    states, timesteps = Mocca.simulate_process(Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = prm);
+        info_level = -1, output_substates = true)
+    @test sum(timesteps) ≈ 80.0
+
+    P_mean(s, b) = sum(s[b][:Pressure]) / length(s[b][:Pressure])
+    before = _state_at(states, timesteps, 30.0)
+    after = _state_at(states, timesteps, 40.0)
+    # A gives gas to B through the equalisation valve, closing most of the gap
+    @test after[:V_eq][:MolarFlow][1] > 0
+    gap_before = P_mean(before, :A) - P_mean(before, :B)
+    gap_after = P_mean(after, :A) - P_mean(after, :B)
+    @test gap_before > 0.5 * constants.p_high
+    @test abs(gap_after) < 0.2 * gap_before
+    # In the second equalisation B gives gas back to A
+    @test _state_at(states, timesteps, 80.0)[:V_eq][:MolarFlow][1] < 0
+
+    # Moles are conserved across both beds; the equalisation flow is internal
+    R = Mocca.GAS_CONSTANT
+    inventory(s, b) = sum(s[b][:Pressure] ./ (R .* s[b][:Temperature]) .* prm[b][:FluidVolume]) +
+        sum(sum(s[b][:AdsorbedConcentration], dims = 1)' .* prm[b][:SolidVolume])
+    net_in = 0.0
+    throughput = 0.0
+    for (s, h) in zip(states, timesteps)
+        for b in (:A, :B)
+            F_feed = s[Symbol(:V_feed_, b)][:MolarFlow][1]
+            net_in += (F_feed - s[Symbol(:V_product_, b)][:MolarFlow][1] - s[Symbol(:V_vacuum_, b)][:MolarFlow][1]) * h
+            throughput += abs(F_feed) * h
+        end
+    end
+    ΔM = sum(inventory(states[end], b) - inventory(state0, b) for b in (:A, :B))
     @test abs(net_in - ΔM) < 1e-8 * throughput
 end

@@ -12,6 +12,9 @@ Stage("adsorption", 15.0;
     V_feed = (law = VolumetricFlow(v_feed * A),),
     V_product = (law = LinearValve(C),))
 ```
+
+Settings can also be passed as `device => settings` pairs, which is convenient
+when they are built programmatically: `Stage("adsorption", 15.0, :V_feed => (law = Closed(),))`.
 """
 struct Stage
     name::String
@@ -19,6 +22,7 @@ struct Stage
     settings::Dict{Symbol, Any}
 end
 Stage(name, duration; settings...) = Stage(String(name), Float64(duration), Dict{Symbol, Any}(settings))
+Stage(name, duration, settings::Pair{Symbol}...) = Stage(String(name), Float64(duration), Dict{Symbol, Any}(settings...))
 
 """
     setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 1.0) → (forces, timesteps)
