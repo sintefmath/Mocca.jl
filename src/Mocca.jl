@@ -8,6 +8,11 @@ export Unit, Column
 export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
 export AbstractThermalModel, WithWall, Adiabatic, Isothermal
 export AbstractSourceTerm
+export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, VolumetricFlow
+export PortCondition, ExponentialRamp, port_conductance
+export Flowsheet, add_unit!, connect!, set_boundary!, setup_flowsheet_model
+export setup_flowsheet_state, setup_flowsheet_parameters
+export Stage, setup_schedule, four_stage_vsa_flowsheet
 export number_of_components, component_names
 export MoccaCase
 
@@ -71,6 +76,15 @@ include("blocks/wall.jl")
 
 include("units/fixed_bed/legacy_bcs/forces.jl")
 include("units/fixed_bed/select.jl")
+include("units/equipment/device.jl")
+
+# L3/L4: coupling units into flowsheets
+include("coupling/ports.jl")
+include("flowsheet/flowsheet.jl")
+
+# L5: process operation
+include("process/schedule.jl")
+include("process/vsa.jl")
 
 include("core/convergence.jl")
 include("utils.jl")

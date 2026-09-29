@@ -36,6 +36,10 @@ function mass_flux_left(state, model, time, force::PressurisationBC)
     y_bc = force.y_feed
     T_bc = force.T_feed
 
+    # NOTE: this sign is the opposite of the other boundary conditions (it
+    # should be -trans * mob * (P_bc - P), negative for inflow). It works because
+    # the half-cell conductance is large enough to act as a penalty holding the
+    # inlet cell at P_bc. Kept as is so results match earlier versions.
     q = -trans * mob * (P - P_bc)
 
     c_tot = P_bc / (T_bc * GAS_CONSTANT)
@@ -96,7 +100,7 @@ function Jutul.apply_forces_to_equation!(
         y_bc = force.y_feed
         T_bc = force.T_feed
 
-        q = -trans * mob * (P - P_bc)
+        q = -trans * mob * (P - P_bc)  # see the note in mass_flux_left
 
         cTot = P_bc / (T_bc * GAS_CONSTANT)
         c = y_bc .* cTot

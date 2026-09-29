@@ -13,8 +13,14 @@ function setup_process_simulator(model, state0, parameters;
     push!(timesteppers, t_base)
     if !isnothing(timestep_selector_cfg)
         for (k, v) in pairs(timestep_selector_cfg)
-            t_i = Jutul.VariableChangeTimestepSelector(k, v, relative=false)
-            push!(timesteppers, t_i)
+            if model isa Jutul.MultiModel && haskey(model.models, k)
+                # Per-unit form, e.g. (Bed = (Pressure = 1e4, y = 0.05),)
+                for (k2, v2) in pairs(v)
+                    push!(timesteppers, Jutul.VariableChangeTimestepSelector(k2, v2; model = k, relative = false))
+                end
+            else
+                push!(timesteppers, Jutul.VariableChangeTimestepSelector(k, v, relative = false))
+            end
         end
     end
 

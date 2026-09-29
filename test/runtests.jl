@@ -16,6 +16,10 @@ using StaticArrays
         include("architecture.jl")
     end
 
+    @testset "Flowsheets" begin
+        include("flowsheet.jl")
+    end
+
     @testset "Mass Transfer" begin
         include("mass_transfer.jl")
     end
