@@ -2,6 +2,8 @@
 
 *Architecture proposal — draft for discussion. 25 September 2026. Based on Mocca.jl `main` at v0.1.0 (commit `70f6cd6`) and Jutul 0.4.31.*
 
+*Status, 29 September 2026: phases 0–2 are implemented, 3 and 4 in part. Section 10 lists what was built, where it departs from this proposal, and issues found in the existing code.*
+
 Mocca simulates one fixed-bed adsorption column today. This proposal restructures it into a set of unit models — fixed, moving, rotating and fluidised beds, membranes, solvent absorbers, and equipment such as valves, pumps and compressors — that connect into a flowsheet through Jutul `MultiModel`. The whole flowsheet stays differentiable.
 
 ## What changes
@@ -54,7 +56,7 @@ abstract type SorbentBed      <: DistributedUnit end      # gas + sorbent in the
 abstract type FlowChannel     <: DistributedUnit end      # one side of a two-channel device
 abstract type LumpedUnit      <: MoccaSystem end          # 0D with holdup: tank, node, flash drum
 abstract type FlowElement     <: MoccaSystem end          # no holdup: valve, pump, compressor, vacuum pump
-abstract type BoundaryUnit    <: MoccaSystem end          # feed, product, ambient
+abstract type BoundaryUnit    <: MoccaSystem end          # feed, product, ambient (see section 10: implemented as port conditions)
 
 struct FixedBed{N,R,Iso,MT,Th,Mom,Eos} <: SorbentBed  end   # today's AdsorptionSystem
 struct MovingBed{...}                  <: SorbentBed  end
@@ -200,3 +202,43 @@ A 0D well-mixed model is much less work than a 1D bubble/emulsion model. The rig
 - Mocca.jl `main` at v0.1.0 (commit `70f6cd6`), and the feature branches named above.
 - Jutul APIs checked in the installed source (0.4.31): `MultiModel`, `AdditiveCrossTerm`, `CTSkewSymmetry`, `add_cross_term!`, `vectorize_forces` for `MultiModel`, `solve_adjoint_sensitivities`, `WrappedGlobalObjective`, `CompositeSystem`.
 - Not yet checked: support for sensitivities with respect to `state0`, which the CSS gradient in section 6 depends on.
+
+## 10. Implementation status
+
+Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. All 162 original tests still pass unchanged; the suite now has 261.
+
+| Phase | Status | What exists |
+|---|---|---|
+| 0 | Done | `MoccaSystem` hierarchy in `src/core/types.jl`; `Unit` entity (`Column` alias); `FixedBed` (`AdsorptionSystem` alias); boundary conditions read `Permeability`, `BedCrossSectionArea` and unit parameters instead of `data_domain`. |
+| 1 | Done, except Ergun | One residual per conservation law with source-term tuples (`src/core/conservation.jl`); blocks in `src/blocks/`; thermal options `WithWall`, `Adiabatic`, `Isothermal(T)`. |
+| 2 | Done | `FlowDevice` with `Closed`, `LinearValve`, `VolumetricFlow`; `PortStateCT` and `StreamCT`; `Flowsheet`, `connect!`, `set_boundary!`, `setup_flowsheet_model`; `Stage` and `setup_schedule`; `four_stage_vsa_flowsheet`; `examples/flowsheet_vsa.jl`. |
+| 3 | Partly | `two_bed_vsa_flowsheet` with pressure equalisation. Not done: the membrane rebase and `counter_current_pair`. |
+| 4 | Partly | Metrics from device streams (`stream_totals`, `purity`, `recovery`, `productivity`, `vacuum_pump_energy`, `specific_energy_kwh_per_tonne`); `simulate_to_cyclic_steady_state` with Anderson acceleration; adjoint gradients through flowsheets, tested against finite differences. Not done: the gradient of the cyclic steady state itself. |
+| 5 | Not started | |
+
+### Departures from the proposal
+
+- **Boundaries are port conditions, not models.** An unconnected device port is a boundary with a `PortCondition` (pressure, which may follow an `ExponentialRamp`, temperature and composition). This avoids a model with no unknowns of its own.
+- **A device is a one-cell model.** It holds its flow and a copy of the state at each port. Jutul forces only carry derivatives with respect to the entity they act on, so keeping every device variable in one cell is what lets the device law change per stage through forces and keep exact derivatives.
+- **Cross-term rules.** Jutul adds a cross term's residual through its derivatives with respect to the target, and finds what a cross term depends on by tracing it once, at the current state. So cross terms must not hide a dependency behind a value-dependent branch (use `ifelse`), and a term that does not otherwise depend on the target touches it with zero weight (`_target_anchor`).
+- **Adjoints need stored sub-steps.** Run the forward simulation with `output_substates = true` before calling `Jutul.solve_adjoint_sensitivities`; otherwise a step the solver split is linearised as one step.
+
+### Issues found in the existing code
+
+Each is left at its old behaviour unless noted, so earlier results are reproduced.
+
+1. **Heat of sorption and adsorbed-phase heat capacity only include the first component.** The loop in the old `columnflux.jl` ran over the length-1 energy equation buffer. `FixedBed(...; sorption_heat_all_components = true)` includes every component.
+2. **`PressurisationBC` has the sign of its flow reversed** relative to the other boundary conditions. It works because its large half-cell conductance acts as a penalty holding the inlet at the set-point. Fixing it changes one regression reference value by 0.56%. It is annotated in the code, not changed.
+3. **The inlet boundary conditions over-supply components.** They add `F·(y_feed − y)` on top of the inflow `F·y_feed`, which keeps the total flow but not the flow of each component. Flowsheets conserve each component by default; `setup_flowsheet_model(fs; legacy_inlet = true)` reproduces the old inlet.
+4. **Adjoint gradients with respect to unit parameters fail with the legacy boundary conditions** ("cannot determine ordering of Dual tags"), on `main` as well. Forces mix unit-parameter derivatives into cell equations. Flowsheets do not have this problem.
+5. **The adjoint gradient with respect to `SolidVolume` is about twice the finite-difference value**, on `main` as well. Other parameters agree to 1e-8. Cause not found.
+6. **`setup_forces` drops the remainder of a stage** when its duration is not a multiple of `max_dt` (15 s stages with `max_dt = 2` become 14 s).
+
+### Next steps
+
+- Rebase the membrane branch onto `FlowChannel`, with `counter_current_pair` for the tube and shell sides.
+- `vectorize_force!` for device laws and port conditions, so schedules and set-points can be optimised with Jutul's force gradients.
+- The gradient of the cyclic steady state, via the implicit function theorem; the DI adjoints accept `deps = :parameters_and_state0`.
+- Ergun momentum, a Peng–Robinson EOS, and the Phase 5 units.
+- Move plotting into a Makie package extension (a breaking change for `plot_*` users).
+
