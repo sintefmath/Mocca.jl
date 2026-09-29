@@ -28,9 +28,11 @@ end
 ports(model::FlowDeviceModel) = (inlet = 1, outlet = 2)
 
 # Jutul adds a cross term's residual through its derivatives with respect to the
-# target, and finds which target entities it depends on by tracing the term at
-# the current state. A term that depends on the target only in some branches,
-# or not at all, must still touch it; this adds that dependence with zero weight.
+# target, and finds which target entities (and, for parameter sensitivities,
+# which parameters) it depends on by tracing the term once, at the current
+# state. So cross terms here avoid branches that change what they read, using
+# ifelse on values instead, and a term that does not otherwise depend on the
+# target touches it with zero weight through _target_anchor.
 @inline _target_anchor(x) = zero(x) * x
 
 """
@@ -124,13 +126,12 @@ function Jutul.update_cross_term_in_entity!(out, i,
     C_pg = state_t.C_pg[c]
     avm = state_t.AverageMolarMass[c]
     # Enthalpy carried with the pressure-flux term, as in the interior faces
-    v = -F_in * T_s * C_pg * avm
-    if F_in > 0
-        # Sensible heat of the incoming gas relative to the cell
-        q_vol = F_in * GAS_CONSTANT * T_s / P_s
-        v -= q_vol * state_t.FluidDensity[1] * C_pg * (T_s - state_t.Temperature[c])
-    end
-    out[1] = v
+    advective = -F_in * T_s * C_pg * avm
+    # Sensible heat of incoming gas relative to the cell, only for inflow
+    F_inflow = ifelse(F_in > 0, F_in, zero(F_in))
+    q_vol = F_inflow * GAS_CONSTANT * T_s / P_s
+    sensible = q_vol * state_t.FluidDensity[1] * C_pg * (T_s - state_t.Temperature[c])
+    out[1] = advective - sensible
     return out
 end
 

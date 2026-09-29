@@ -175,8 +175,14 @@ function device_flow(law::VolumetricFlow, state, time)
 end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::FlowDeviceModel, eq::DeviceLawEquation, eq_s, law::AbstractDeviceLaw, time)
+    isnothing(acc) && return  # parameter sensitivities, see below
     acc[1] -= DEVICE_FLOW_SCALE * device_flow(law, storage.state, time)
 end
+
+# When Jutul computes sensitivities with respect to parameters it swaps each
+# model's primary variables for its parameters. A device has no parameters, so
+# its equations have no diagonal entries then and forces get `nothing`; the
+# device equations do not depend on any parameter, so there is nothing to add.
 
 # ------------------------------------------------------------------------------
 # Port conditions (boundaries)
@@ -225,6 +231,7 @@ end
 PortSetpoint{K}(c::PortCondition) where K = PortSetpoint{K, typeof(c)}(c)
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::FlowDeviceModel, eq::PortStateEquation{K}, eq_s, force::PortSetpoint{K}, time) where K
+    isnothing(acc) && return  # parameter sensitivities, see the device law force
     c = force.condition
     N = number_of_components(model.system)
     acc[1] -= evaluate_profile(c.pressure, time)

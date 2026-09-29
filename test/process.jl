@@ -79,3 +79,35 @@ end
     n_out = Mocca.stream_totals(fres.states, fres.timesteps, :V_product) .+ Mocca.stream_totals(fres.states, fres.timesteps, :V_vacuum)
     @test isapprox(sum(n_feed), sum(n_out), rtol = 1e-2)
 end
+
+@testset "Flowsheet adjoint gradients" begin
+    # Gradients of a product stream with respect to bed parameters, through the
+    # devices and cross terms, match central finite differences
+    constants = Mocca.HaghpanahConstants{Float64}()
+    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
+    fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 8, stage_durations = [5.0, 5.0, 5.0, 5.0])
+    mm = Mocca.setup_flowsheet_model(fs)
+    state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
+    prm = Mocca.setup_flowsheet_parameters(fs)
+    forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 1, max_dt = 1.0)
+    G(model, state, dt, step_info, forces) = dt * state[:V_vacuum][:MolarFlow][1] * state[:V_vacuum][:InletComposition][1, 1]
+    function run(p)
+        case = Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = p)
+        # Sub-steps must be stored: the adjoint linearises each step that was solved
+        sim, cfg = Mocca.setup_process_simulator(mm, state0, p; info_level = -1, nonlinear_tolerance = 1e-8, output_substates = true)
+        result = Jutul.simulate!(sim, dt; forces = forces, config = cfg)
+        states, ts = Jutul.expand_to_ministeps(result)
+        return (case, result, sum(G(mm, s, h, nothing, nothing) for (s, h) in zip(states, ts)))
+    end
+    case, result, obj = run(prm)
+    @test obj > 0
+    grad = Jutul.solve_adjoint_sensitivities(case, result, G; info_level = -1)
+    for p in (:FluidViscosity, :FluidDensity, :InnerHeatTransferCoeff, :Transmissibilities)
+        h = 1e-4 .* abs.(prm[:Bed][p])
+        pp = deepcopy(prm); pp[:Bed][p] .+= h
+        pm = deepcopy(prm); pm[:Bed][p] .-= h
+        dG_fd = (run(pp)[3] - run(pm)[3]) / 2
+        dG_adj = sum(grad[:Bed][p] .* h)
+        @test isapprox(dG_adj, dG_fd, rtol = 1e-5)
+    end
+end
