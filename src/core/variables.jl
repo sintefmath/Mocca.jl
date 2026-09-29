@@ -1,10 +1,13 @@
-# Primary variables
+# Base type for per-component variables (one value per component per entity)
+abstract type ComponentVariable <: Jutul.VectorVariables end
 
+Jutul.degrees_of_freedom_per_entity(model::MoccaModel, ::ComponentVariable) = number_of_components(model.system)
+Jutul.values_per_entity(model::MoccaModel, ::ComponentVariable) = number_of_components(model.system)
+
+# Primary variables shared by all Mocca units:
 # pressure: p
 # component concentration in the gas phase (mol. frac.): yi (i-1 dofs)
-# temperature in the column: T
-# temperature in the wall: Tw
-# adsorbed concentration: qi (i dofs)
+# temperature: T (also used for the wall temperature Tw)
 
 
 struct Pressure <: Jutul.ScalarVariable
@@ -55,17 +58,3 @@ function Jutul.maximum_value(::GasMoleFractions)
 end
 
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max
-
-struct AdsorbedConcentration <: Jutul.VectorVariables
-end
-
-function Jutul.minimum_value(::AdsorbedConcentration)
-    return 1e-10
-end
-
-function Jutul.degrees_of_freedom_per_entity(model::SorbentBedModel, ::AdsorbedConcentration)
-    number_of_components(model.system)
-end
-Jutul.values_per_entity(model::SorbentBedModel, ::AdsorbedConcentration) = number_of_components(model.system)
-
-

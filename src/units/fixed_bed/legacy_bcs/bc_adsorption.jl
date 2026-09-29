@@ -15,7 +15,6 @@ Adsorption boundary condition #TODO add more description!
 end
 
 
-
 function flux_left(model::AdsorptionModel, state, force::AdsorptionBC)
     Af = compute_column_face_area(model, state)
     return -force.v_feed * Af
@@ -90,7 +89,6 @@ function Jutul.apply_forces_to_equation!(
 end
 
 
-
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
@@ -151,44 +149,6 @@ function Jutul.apply_forces_to_equation!(
     end
 end
 
-
-
-function Jutul.apply_forces_to_equation!(
-    acc,
-    storage,
-    model::AdsorptionModel,
-    eq::Jutul.ConservationLaw{:WallConservedEnergy},
-    eq_s,
-    force::AdsorptionBC,
-    time,
-)
-
-    state = storage.state
-
-    T_bc = state.AmbientTemperature[1]
-    cell_left = 1
-    cell_right = Jutul.number_of_cells(model.domain)
-
-    # left side
-    begin
-        trans_wall = calc_bc_wall_trans(model, state, cell_left)
-
-        T = state.WallTemperature[cell_left]
-
-        bc_src = -(trans_wall * (T - T_bc))
-        acc[cell_left] -= bc_src
-    end
-
-    # right side
-    begin
-        trans_wall = calc_bc_wall_trans(model, state, cell_right)
-
-        T = state.WallTemperature[cell_right]
-
-        bc_src = -(trans_wall * (T - T_bc))
-        acc[cell_right] -= bc_src
-    end
-end
 
 function Jutul.vectorization_length(bc::AdsorptionBC, variant)
     # y_feed::SVector{N,T}

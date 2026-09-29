@@ -22,7 +22,6 @@ function pressure_right(force::BlowdownBC, time)
 end
 
 
-
 function Jutul.apply_forces_to_equation!(
     acc,
     storage,
@@ -98,46 +97,6 @@ function Jutul.apply_forces_to_equation!(
 
     end
 
-end
-
-
-
-
-function Jutul.apply_forces_to_equation!(
-    acc,
-    storage,
-    model::AdsorptionModel,
-    eq::Jutul.ConservationLaw{:WallConservedEnergy},
-    eq_s,
-    force::BlowdownBC,
-    time,
-)
-
-    state = storage.state
-
-    T_bc = state.AmbientTemperature[1]
-    cell_left = 1
-    cell_right = Jutul.number_of_cells(model.domain)
-
-    # left side
-    begin
-        trans_wall = calc_bc_wall_trans(model, state, cell_left)
-
-        T = state.WallTemperature[cell_left]
-
-        bc_src = -(trans_wall * (T - T_bc))
-        acc[cell_left] -= bc_src
-    end
-
-    # right side
-    begin
-        trans_wall = calc_bc_wall_trans(model, state, cell_right)
-
-        T = state.WallTemperature[cell_right]
-
-        bc_src = -(trans_wall * (T - T_bc))
-        acc[cell_right] -= bc_src
-    end 
 end
 
 

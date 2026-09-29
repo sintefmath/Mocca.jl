@@ -31,13 +31,6 @@ function calc_bc_trans(model::AdsorptionModel, state, cell)
     return k * A / dx
 end
 
-function calc_bc_wall_trans(model::AdsorptionModel, state, cell)
-    k = state.WallConductivity[1]
-    dx = state.CellDx[cell] / 2.0
-    A = state.WallCrossSectionArea[1]
-    return k * A / dx
-end
-
 include("bc_pressurisation.jl")
 include("bc_adsorption.jl")
 include("bc_blowdown.jl")

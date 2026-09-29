@@ -6,6 +6,8 @@ export ConstantsStruct, HaghpanahConstants, InfoStruct
 export MoccaSystem, MoccaModel, DistributedUnit, SorbentBed, FlowChannel, LumpedUnit, FlowElement
 export Unit, Column
 export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
+export AbstractThermalModel, WithWall, Adiabatic, Isothermal
+export AbstractSourceTerm
 export number_of_components, component_names
 export MoccaCase
 
@@ -44,6 +46,9 @@ end
 
 # Core: system hierarchy, entities, shared interfaces
 include("core/types.jl")
+include("core/variables.jl")
+include("core/conservation.jl")
+include("core/thermal.jl")
 
 # Input structs
 include("io/constants.jl")
@@ -56,9 +61,14 @@ include("physics/mass_transfer/mass_transfer.jl")
 include("units/fixed_bed/system.jl")
 include("units/fixed_bed/setup.jl")
 
-# Variables and equations (to be split into reusable blocks)
-include("variables/variables.jl")
-include("equations/equations.jl")
+# L1: reusable blocks of variables, fluxes and source terms
+include("blocks/geometry.jl")
+include("blocks/unit_parameters.jl")
+include("blocks/gas.jl")
+include("blocks/sorbent.jl")
+include("blocks/energy.jl")
+include("blocks/wall.jl")
+
 include("units/fixed_bed/legacy_bcs/forces.jl")
 include("units/fixed_bed/select.jl")
 

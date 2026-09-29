@@ -7,7 +7,9 @@ function Jutul.select_primary_variables!(
     S[:y] = GasMoleFractions()
     S[:AdsorbedConcentration] = AdsorbedConcentration()
     S[:Temperature] = Temperature()
-    S[:WallTemperature] = Temperature()
+    if has_wall(system)
+        S[:WallTemperature] = Temperature()
+    end
 end
 
 function Jutul.select_secondary_variables!(
@@ -21,10 +23,11 @@ function Jutul.select_secondary_variables!(
     S[:ComponentMasses] = ComponentMasses()
     S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
 
-
     # For the energy equations
     S[:ColumnConservedEnergy] = ColumnEnergy()
-    S[:WallConservedEnergy] = WallEnergy()
+    if has_wall(system)
+        S[:WallConservedEnergy] = WallEnergy()
+    end
     S[:ΔH] = EnthalpyChange()
     S[:C_pa] = SpecificHeatCapacityAdsorbent()
     S[:C_pg] = SpecificHeatCapacityFluid()
@@ -40,11 +43,17 @@ function Jutul.select_equations!(
 
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :ComponentMasses, nc)
     eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :AdsorbedConcentration, nc)
-    eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
-    eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
+    if has_energy_balance(sys)
+        eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
+    else
+        eqs[:energy_column] = FixedTemperatureEquation()
+    end
+    if has_wall(sys)
+        eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
+    end
 end
 
-function Jutul.select_parameters!(S, ::FixedBed, model::Jutul.SimulationModel)
+function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel)
     # Per-cell parameters
     S[:SolidVolume] = BulkVolume()
     S[:FluidVolume] = FluidVolume()
@@ -57,7 +66,7 @@ function Jutul.select_parameters!(S, ::FixedBed, model::Jutul.SimulationModel)
     S[:ThermalConductivities] = ThermalConductivities()
     S[:DiffusionTransmissibilities] = DiffusionTransmissibilities()
 
-    # Column-entity parameters (single scalars)
+    # Unit-entity parameters (single scalars)
     S[:AdsorbentDensity] = AdsorbentDensity()
     S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
     S[:WallDensity] = WallDensity()
@@ -70,5 +79,7 @@ function Jutul.select_parameters!(S, ::FixedBed, model::Jutul.SimulationModel)
     S[:AmbientTemperature] = AmbientTemperature()
     S[:WallCrossSectionArea] = WallCrossSectionArea()
     S[:BedCrossSectionArea] = BedCrossSectionArea()
+    if !has_energy_balance(sys)
+        S[:IsothermalTemperature] = IsothermalTemperature()
+    end
 end
-
