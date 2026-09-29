@@ -3,7 +3,9 @@ __precompile__(true)
 module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
-export AdsorptionSystem, AdsorptionModel, Column
+export MoccaSystem, MoccaModel, DistributedUnit, SorbentBed, FlowChannel, LumpedUnit, FlowElement
+export Unit, Column
+export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
 export number_of_components, component_names
 export MoccaCase
 
@@ -40,19 +42,29 @@ if !isdir(moccaResultsDir)
 end
 
 
-include("init/constants.jl")
-include("isotherms/isotherms.jl")
-include("mass_transfer/mass_transfer.jl")
-include("systems/systems.jl")
-include("init/init_adsorption_column.jl")
+# Core: system hierarchy, entities, shared interfaces
+include("core/types.jl")
+
+# Input structs
+include("io/constants.jl")
+
+# L0: physics functions dispatched on physics objects
+include("physics/isotherms/isotherms.jl")
+include("physics/mass_transfer/mass_transfer.jl")
+
+# L2: unit operations
+include("units/fixed_bed/system.jl")
+include("units/fixed_bed/setup.jl")
+
+# Variables and equations (to be split into reusable blocks)
 include("variables/variables.jl")
 include("equations/equations.jl")
-include("forces/forces.jl")
+include("units/fixed_bed/legacy_bcs/forces.jl")
+include("units/fixed_bed/select.jl")
 
-include("select_variable.jl")
-include("convergence.jl")
+include("core/convergence.jl")
 include("utils.jl")
 include("plot.jl")
-include("input_output/input_output.jl")
+include("io/input_output.jl")
 include("../models/models.jl")
 end

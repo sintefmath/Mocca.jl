@@ -3,10 +3,10 @@ struct WallArea{T} <: Jutul.ScalarVariable end
 function Jutul.default_parameter_values(data_domain, model, param::WallArea{T}, symb) where T
     dx = data_domain[:dx]
     if T == :in
-        r = first(data_domain[:r_in, Column()])
+        r = first(data_domain[:r_in, Unit()])
     else
         @assert T == :out
-        r = first(data_domain[:r_out, Column()])
+        r = first(data_domain[:r_out, Unit()])
     end
     return 2π .* r .* dx  # Lateral surface area of cylindrical shell
 end
@@ -42,6 +42,25 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidVolume, 
     end
 end
 
+# Cell permeability [m²], used for the half-cell connection at a port
+struct Permeability <: Jutul.ScalarVariable end
+Jutul.variable_scale(::Permeability) = 1e-10
+Jutul.minimum_value(::Permeability) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::Permeability, symb)
+    return copy(data_domain[:permeability])
+end
+
+# Flow cross-section of the bed [m²]
+struct BedCrossSectionArea <: Jutul.ScalarVariable end
+Jutul.associated_entity(::BedCrossSectionArea) = Unit()
+Jutul.minimum_value(::BedCrossSectionArea) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, ::BedCrossSectionArea, symb)
+    r_in = first(data_domain[:r_in, Unit()])
+    return [π * r_in^2]
+end
+
 # TPFA transmissibilities (face parameter)
 struct Transmissibilities <: Jutul.ScalarVariable end
 Jutul.variable_scale(::Transmissibilities) = 1e-10
@@ -61,6 +80,6 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
 end
 
 # Inject Transmissibilities when PotentialFlow discretization is present
-function Jutul.select_parameters!(S, disc::Jutul.PotentialFlow, model::Jutul.SimulationModel{D, S2}) where {D, S2 <: AdsorptionSystem}
+function Jutul.select_parameters!(S, disc::Jutul.PotentialFlow, model::Jutul.SimulationModel{D, S2}) where {D, S2 <: DistributedUnit}
     S[:Transmissibilities] = Transmissibilities()
 end

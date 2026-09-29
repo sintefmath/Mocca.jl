@@ -22,7 +22,7 @@ function flux_left(model::AdsorptionModel, state, force::AdsorptionBC)
 end
 
 function mass_flux_left(state, model, time, force::AdsorptionBC)
-    μ = first(model.data_domain[:fluid_viscosity, Column()])
+    μ = first(_state_or_domain(state, model, :FluidViscosity, :fluid_viscosity, Unit()))
     mob = 1.0 / μ
     cell_left = 1
     trans = calc_bc_trans(model, state, cell_left)
@@ -165,7 +165,7 @@ function Jutul.apply_forces_to_equation!(
 
     state = storage.state
 
-    T_bc = first(model.data_domain[:ambient_temperature, Column()])
+    T_bc = state.AmbientTemperature[1]
     cell_left = 1
     cell_right = Jutul.number_of_cells(model.domain)
 

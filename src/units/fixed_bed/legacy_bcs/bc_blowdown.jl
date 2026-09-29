@@ -115,7 +115,7 @@ function Jutul.apply_forces_to_equation!(
 
     state = storage.state
 
-    T_bc = first(model.data_domain[:ambient_temperature, Column()])
+    T_bc = state.AmbientTemperature[1]
     cell_left = 1
     cell_right = Jutul.number_of_cells(model.domain)
 

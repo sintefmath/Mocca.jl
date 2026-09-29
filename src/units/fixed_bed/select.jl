@@ -1,6 +1,6 @@
 function Jutul.select_primary_variables!(
     S,
-    system::AdsorptionSystem,
+    system::FixedBed,
     model::Jutul.SimulationModel,
 )
     S[:Pressure] = Pressure()
@@ -12,7 +12,7 @@ end
 
 function Jutul.select_secondary_variables!(
     S,
-    system::AdsorptionSystem,
+    system::FixedBed,
     model::Jutul.SimulationModel,
 )
     S[:TotalMolarConcentration] = TotalMolarConcentration()
@@ -32,7 +32,7 @@ end
 
 function Jutul.select_equations!(
     eqs,
-    sys::AdsorptionSystem,
+    sys::FixedBed,
     model::Jutul.SimulationModel,
 )
     fdisc = model.domain.discretizations.mass_flow
@@ -44,13 +44,14 @@ function Jutul.select_equations!(
     eqs[:energy_wall] = Jutul.ConservationLaw(fdisc, :WallConservedEnergy, 1)
 end
 
-function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.SimulationModel)
+function Jutul.select_parameters!(S, ::FixedBed, model::Jutul.SimulationModel)
     # Per-cell parameters
     S[:SolidVolume] = BulkVolume()
     S[:FluidVolume] = FluidVolume()
     S[:WallAreaOut] = WallArea{:out}()
     S[:WallAreaIn] = WallArea{:in}()
     S[:CellDx] = CellDx()
+    S[:Permeability] = Permeability()
 
     # Face transmissibilities
     S[:ThermalConductivities] = ThermalConductivities()
@@ -68,5 +69,6 @@ function Jutul.select_parameters!(S, ::AdsorptionSystem, model::Jutul.Simulation
     S[:OuterHeatTransferCoeff] = OuterHeatTransferCoeff()
     S[:AmbientTemperature] = AmbientTemperature()
     S[:WallCrossSectionArea] = WallCrossSectionArea()
+    S[:BedCrossSectionArea] = BedCrossSectionArea()
 end
 

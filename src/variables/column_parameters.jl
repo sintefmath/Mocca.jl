@@ -1,71 +1,71 @@
-# Column-entity Jutul parameters
-# Each is a single scalar associated with the Column entity (count=1),
+# Unit-entity Jutul parameters
+# Each is a single scalar associated with the Unit entity (count=1),
 # accessed at runtime as state.ParamName[1].
 
 struct AdsorbentDensity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::AdsorbentDensity) = Column()
+Jutul.associated_entity(::AdsorbentDensity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::AdsorbentDensity, symb)
-    return copy(data_domain[:adsorbent_density, Column()])
+    return copy(data_domain[:adsorbent_density, Unit()])
 end
 
 struct AdsorbentHeatCapacity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::AdsorbentHeatCapacity) = Column()
+Jutul.associated_entity(::AdsorbentHeatCapacity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::AdsorbentHeatCapacity, symb)
-    return copy(data_domain[:adsorbent_heat_capacity, Column()])
+    return copy(data_domain[:adsorbent_heat_capacity, Unit()])
 end
 
 struct WallDensity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::WallDensity) = Column()
+Jutul.associated_entity(::WallDensity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::WallDensity, symb)
-    return copy(data_domain[:wall_density, Column()])
+    return copy(data_domain[:wall_density, Unit()])
 end
 
 struct WallHeatCapacity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::WallHeatCapacity) = Column()
+Jutul.associated_entity(::WallHeatCapacity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::WallHeatCapacity, symb)
-    return copy(data_domain[:wall_heat_capacity, Column()])
+    return copy(data_domain[:wall_heat_capacity, Unit()])
 end
 
 struct WallConductivity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::WallConductivity) = Column()
+Jutul.associated_entity(::WallConductivity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::WallConductivity, symb)
-    return copy(data_domain[:wall_conductivity, Column()])
+    return copy(data_domain[:wall_conductivity, Unit()])
 end
 
 struct FluidViscosity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::FluidViscosity) = Column()
+Jutul.associated_entity(::FluidViscosity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::FluidViscosity, symb)
-    return copy(data_domain[:fluid_viscosity, Column()])
+    return copy(data_domain[:fluid_viscosity, Unit()])
 end
 
 struct FluidDensity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::FluidDensity) = Column()
+Jutul.associated_entity(::FluidDensity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::FluidDensity, symb)
-    return copy(data_domain[:fluid_density, Column()])
+    return copy(data_domain[:fluid_density, Unit()])
 end
 
 struct InnerHeatTransferCoeff <: Jutul.ScalarVariable end
-Jutul.associated_entity(::InnerHeatTransferCoeff) = Column()
+Jutul.associated_entity(::InnerHeatTransferCoeff) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::InnerHeatTransferCoeff, symb)
-    return copy(data_domain[:inner_htc, Column()])
+    return copy(data_domain[:inner_htc, Unit()])
 end
 
 struct OuterHeatTransferCoeff <: Jutul.ScalarVariable end
-Jutul.associated_entity(::OuterHeatTransferCoeff) = Column()
+Jutul.associated_entity(::OuterHeatTransferCoeff) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::OuterHeatTransferCoeff, symb)
-    return copy(data_domain[:outer_htc, Column()])
+    return copy(data_domain[:outer_htc, Unit()])
 end
 
 struct AmbientTemperature <: Jutul.ScalarVariable end
-Jutul.associated_entity(::AmbientTemperature) = Column()
+Jutul.associated_entity(::AmbientTemperature) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::AmbientTemperature, symb)
-    return copy(data_domain[:ambient_temperature, Column()])
+    return copy(data_domain[:ambient_temperature, Unit()])
 end
 
 struct WallCrossSectionArea <: Jutul.ScalarVariable end
-Jutul.associated_entity(::WallCrossSectionArea) = Column()
+Jutul.associated_entity(::WallCrossSectionArea) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::WallCrossSectionArea, symb)
-    r_in = first(data_domain[:r_in, Column()])
-    r_out = first(data_domain[:r_out, Column()])
+    r_in = first(data_domain[:r_in, Unit()])
+    r_out = first(data_domain[:r_out, Unit()])
     return [π * (r_out^2 - r_in^2)]
 end

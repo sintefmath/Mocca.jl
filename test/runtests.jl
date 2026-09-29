@@ -12,6 +12,10 @@ using StaticArrays
         include("adsorption_systems.jl")
     end
 
+    @testset "Architecture" begin
+        include("architecture.jl")
+    end
+
     @testset "Mass Transfer" begin
         include("mass_transfer.jl")
     end

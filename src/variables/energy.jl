@@ -15,30 +15,30 @@ Jutul.default_value(model, ::ThermalConductivities) = 1e-3
 Jutul.associated_entity(::ThermalConductivities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::ThermalConductivities, symb)
-    if haskey(data_domain, :thermal_conductivity, Column())
-        K = first(data_domain[:thermal_conductivity, Column()])
+    if haskey(data_domain, :thermal_conductivity, Unit())
+        K = first(data_domain[:thermal_conductivity, Unit()])
         g = Jutul.physical_representation(data_domain)
         nc = Jutul.number_of_cells(g)
         T = Jutul.compute_face_trans(g, fill(K, nc))
     else
-        error(":thermal_conductivity on Column() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        error(":thermal_conductivity on Unit() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
     return T
 end
 
-Jutul.@jutul_secondary function update_column_conserved_energy!(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G, S}, Temperature, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_column_conserved_energy!(column_energy, tv::ColumnEnergy, model::Jutul.SimulationModel{G, S}, Temperature, ix) where {G, S <: SorbentBed}
     for cell in ix
         column_energy[cell] = Temperature[cell]
     end
 end
 
-Jutul.@jutul_secondary function update_wall_conserved_energy!(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G, S}, WallTemperature, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_wall_conserved_energy!(wall_energy, tv::WallEnergy, model::Jutul.SimulationModel{G, S}, WallTemperature, ix) where {G, S <: SorbentBed}
     for cell in ix
         wall_energy[cell] = WallTemperature[cell]
     end
 end
 
-Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G, S}, MolarConcentration, Temperature, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange, model::Jutul.SimulationModel{G, S}, MolarConcentration, Temperature, ix) where {G, S <: SorbentBed}
     iso = model.system.isotherm
     N = number_of_components(model.system)
     T = eltype(ΔH)
@@ -51,7 +51,7 @@ Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange,
     end
 end
 
-Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::SpecificHeatCapacityAdsorbent, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: SorbentBed}
     sys = model.system
     C_pa = sys.heat_capacity_adsorbed
     T = eltype(cpa)
@@ -64,7 +64,7 @@ Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::Specifi
     end
 end
 
-Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: AdsorptionSystem}
+Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHeatCapacityFluid, model::Jutul.SimulationModel{G, S}, y, ix) where {G, S <: MoccaSystem}
     sys = model.system
     C_pg = sys.heat_capacity_gas
     T = eltype(cpg)

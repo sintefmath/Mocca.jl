@@ -3,7 +3,7 @@ struct AdsorptionMassTransfer <: ComponentVariable end
 Jutul.@jutul_secondary function update_adsorption_mass_transfer!(
     adsorption_mass_transfer,
     tv::AdsorptionMassTransfer,
-    model::AdsorptionModel,
+    model::SorbentBedModel,
     MolarConcentration,
     Temperature,
     AdsorbedConcentration,

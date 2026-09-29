@@ -42,7 +42,7 @@ struct GasMoleFractions <: Jutul.FractionVariables
     GasMoleFractions(; dz_max=0.2) = new(dz_max)
 end
 
-Jutul.values_per_entity(model::AdsorptionModel, ::GasMoleFractions) = number_of_components(model.system)
+Jutul.values_per_entity(model::MoccaModel, ::GasMoleFractions) = number_of_components(model.system)
 
 const MIN_GAS_MOLEFRACTION = 1e-12
 
@@ -63,9 +63,9 @@ function Jutul.minimum_value(::AdsorbedConcentration)
     return 1e-10
 end
 
-function Jutul.degrees_of_freedom_per_entity(model::AdsorptionModel, ::AdsorbedConcentration)
+function Jutul.degrees_of_freedom_per_entity(model::SorbentBedModel, ::AdsorbedConcentration)
     number_of_components(model.system)
 end
-Jutul.values_per_entity(model::AdsorptionModel, ::AdsorbedConcentration) = number_of_components(model.system)
+Jutul.values_per_entity(model::SorbentBedModel, ::AdsorbedConcentration) = number_of_components(model.system)
 
 

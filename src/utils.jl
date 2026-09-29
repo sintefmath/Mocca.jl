@@ -1,9 +1,3 @@
-# TODO: This causes problem for adjoint simulation. Is it needed?
-function Jutul.select_linear_solver(model::AdsorptionModel; kwarg...)
-    #return Jutul.LUSolver(; kwarg...)
-    return nothing
-end
-
 function setup_process_simulator(model, state0, parameters;
         timestep_selector_cfg = nothing,
         initial_dt = 1.0,
