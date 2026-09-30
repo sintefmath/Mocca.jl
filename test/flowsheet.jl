@@ -152,6 +152,89 @@ end
     @test Mocca.plot_flowsheet_streams(states, model, timesteps) isa Mocca.Figure
 end
 
+@testset "Stage time steps" begin
+    # Without first_dt, equal steps no longer than max_dt, as before
+    @test Mocca._stage_steps(15.0, 2.0, 2.0) ≈ fill(15.0 / 8, 8)
+    s = Mocca._stage_steps(20.0, 1.0, 0.01)
+    @test sum(s) ≈ 20.0
+    @test s[1:3] ≈ [0.01, 0.02, 0.04]
+    @test maximum(s) <= 1.0 + 1e-12
+    @test Mocca._stage_steps(0.005, 1.0, 0.01) ≈ [0.005]
+end
+
+@testset "Parallel stage sequences" begin
+    cond(P) = Mocca.PortCondition(pressure = P, temperature = 298.15, composition = [0.5, 0.5])
+    ramp = Mocca.ExponentialRamp(1e5, 2e4, 0.5)
+    a = [Mocca.Stage("feed", 10.0; V_a = (law = Mocca.Closed(),)),
+         Mocca.Stage("vent", 20.0; V_a = (law = Mocca.LinearValve(1e-6), outlet = cond(ramp)))]
+    b = [Mocca.Stage("feed", 10.0; V_b = (law = Mocca.Closed(),)),
+         Mocca.Stage("vent", 5.0; V_b = (law = Mocca.Closed(),)),
+         Mocca.Stage("evacuate", 25.0; V_b = (law = Mocca.Closed(),))]
+    stages = Mocca.parallel_stages("A" => a, "B" => b)
+    @test [st.duration for st in stages] ≈ [10.0, 5.0, 15.0, 10.0]
+    @test [st.name for st in stages] == ["A feed, B feed", "A vent, B vent", "A vent, B evacuate", "A idle, B evacuate"]
+    @test Set(keys(stages[3].settings)) == Set([:V_a, :V_b])
+    @test isempty(setdiff(keys(stages[4].settings), [:V_b]))
+    # A's vent stage is split after 5 s; its ramp keeps its own start time
+    split_ramp = Mocca.shift_profile(stages[3].settings[:V_a].outlet, 15.0).pressure
+    whole_ramp = Mocca.shift_profile(a[2].settings[:V_a].outlet, 10.0).pressure
+    for t in (15.0, 22.0, 30.0)
+        @test Mocca.evaluate_profile(split_ramp, t) ≈ Mocca.evaluate_profile(whole_ramp, t)
+    end
+    @test_throws ErrorException Mocca.parallel_stages("A" => a, "A again" => a)
+    @test_throws ErrorException Mocca.parallel_stages("A" => a, "B" => b; cycle_time = 20.0)
+end
+
+@testset "Wet flue gas flowsheets" begin
+    function run_one_cycle(fs, stages, state0)
+        model = Mocca.setup_flowsheet_model(fs)
+        prm = Mocca.setup_flowsheet_parameters(fs)
+        forces, dt = Mocca.setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 1.0)
+        s0 = Mocca.setup_flowsheet_state(fs; state0...)
+        case = Mocca.MoccaCase(model, dt, forces; state0 = s0, parameters = prm)
+        states, ts = Mocca.simulate_process(case; info_level = -1, output_substates = true)
+        @test sum(ts) ≈ sum(dt)
+        return (states, ts, s0, prm)
+    end
+    # Each component is conserved: what the boundary devices move in and out
+    # equals the change of inventory in the beds
+    function check_conservation(fs, states, ts, s0, prm, beds, inflow, outflow)
+        inventory(s) = sum(Mocca.component_inventory(fs[b], s[b], prm[b]) for b in beds)
+        net_in = sum(Mocca.stream_totals(states, ts, d) for d in inflow) .- sum(Mocca.stream_totals(states, ts, d) for d in outflow)
+        Δ = inventory(states[end]) .- inventory(s0)
+        fed = Mocca.stream_totals(states, ts, :V_feed)
+        @test all(abs.(net_in .- Δ) .< 1e-6 * sum(fed))
+    end
+
+    fs, stages = Mocca.lpp_vsa_flowsheet(ncells = 10)
+    @test [st.name for st in stages] == ["LPP", "adsorption", "blowdown", "evacuation"]
+    states, ts, s0, prm = run_one_cycle(fs, stages, (; Bed = Mocca.wet_flue_gas_initial_state(fs[:Bed], 0.03e5)))
+    check_conservation(fs, states, ts, s0, prm, (:Bed,), (:V_feed, :V_lpp), (:V_product, :V_vacuum))
+
+    # Cycling until the CO2 balance closes: with a loose tolerance it stops as
+    # soon as min_cycles is reached, with a tight one it runs to max_cycles
+    model = Mocca.setup_flowsheet_model(fs)
+    forces, dt = Mocca.setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 2.0, first_dt = 0.1)
+    s0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.wet_flue_gas_initial_state(fs[:Bed], 0.03e5))
+    kw = (inflow = (:V_feed, :V_lpp), outflow = (:V_product, :V_vacuum), consecutive = 1, min_cycles = 2)
+    loose = Mocca.simulate_until_mass_balance(model, s0, prm, forces, dt; kw..., tol = 1.0, max_cycles = 3)
+    @test loose.converged && loose.cycles == 2
+    tight = Mocca.simulate_until_mass_balance(model, s0, prm, forces, dt; kw..., tol = 1e-12, max_cycles = 2)
+    @test !tight.converged && tight.cycles == 2 && length(tight.history) == 2
+    @test tight.history[2] < tight.history[1]
+
+    fs, stages = Mocca.dual_adsorbent_vsa_flowsheet(ncells = 10)
+    @test sum(st -> st.duration, stages) ≈ 20.0 + 46.20 + 56.30 + 101.20
+    states, ts, s0, prm = run_one_cycle(fs, stages, (;
+        SilicaGel = Mocca.wet_flue_gas_initial_state(fs[:SilicaGel], 0.30e5),
+        Zeolite = Mocca.wet_flue_gas_initial_state(fs[:Zeolite], 101325.0)))
+    check_conservation(fs, states, ts, s0, prm, (:SilicaGel, :Zeolite), (:V_feed, :V_lpp), (:V_waste, :V_product, :V_vacuum))
+    # The silica gel bed holds back the water
+    n_feed = Mocca.stream_totals(states, ts, :V_feed)
+    n_link = Mocca.stream_totals(states, ts, :V_link)
+    @test n_link[3] < 1e-3 * n_feed[3]
+end
+
 @testset "Two-bed VSA with pressure equalisation" begin
     constants = Mocca.HaghpanahConstants{Float64}()
     fs, stages = Mocca.two_bed_vsa_flowsheet(constants; ncells = 20)

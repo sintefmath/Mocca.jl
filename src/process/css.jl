@@ -176,3 +176,49 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
     end
     return (states = states, timesteps = ts, state0 = x, history = history, cycles = max_cycles, converged = false)
 end
+
+"""
+    simulate_until_mass_balance(model, state0, parameters, forces, timesteps;
+        inflow, outflow, component = 1, tol = 0.005, consecutive = 5,
+        min_cycles = 50, max_cycles = 300, info_level = -1, kwarg...)
+
+Repeat one cycle of a flowsheet, given by its `forces` and `timesteps`, until
+the mass balance of `component` over the flowsheet closes: the relative
+difference between the moles entering through the `inflow` devices and leaving
+through the `outflow` devices is below `tol` for `consecutive` cycles in a row,
+after at least `min_cycles`. This is the cyclic steady state criterion of
+Haghpanah et al. (2013) and Krishnamurthy et al. (2014), with CO2 as the
+component.
+
+It only checks one component. A more strongly adsorbed component, such as
+water, can still be accumulating when it is met; use
+[`simulate_to_cyclic_steady_state`](@ref) to require every variable to settle.
+
+Returns a NamedTuple with the states and time steps of the last cycle, its
+initial state `state0`, the balance error of each cycle in `history`, the number
+of `cycles` simulated, and whether the criterion was met (`converged`). Extra
+keywords go to [`simulate_process`](@ref).
+"""
+function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters, forces, timesteps;
+        inflow, outflow, component = 1, tol = 0.005, consecutive = 5,
+        min_cycles = 50, max_cycles = 300, info_level = -1, kwarg...)
+    cycle_time = sum(timesteps)
+    x = restart_state(model, state0)
+    history = Float64[]
+    states = ts = nothing
+    x_start = x
+    for cycle in 1:max_cycles
+        x_start = x
+        case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
+        states, ts = simulate_process(case; info_level = info_level, output_substates = true, kwarg...)
+        (!isempty(ts) && isapprox(sum(ts), cycle_time)) || error("Simulation of cycle $cycle failed")
+        n_in = sum(d -> stream_totals(states, ts, d)[component], inflow)
+        n_out = sum(d -> stream_totals(states, ts, d)[component], outflow)
+        push!(history, abs(n_in - n_out) / abs(n_in))
+        if cycle >= min_cycles && length(history) >= consecutive && all(<(tol), history[end-consecutive+1:end])
+            return (states = states, timesteps = ts, state0 = x_start, history = history, cycles = cycle, converged = true)
+        end
+        x = restart_state(model, states[end])
+    end
+    return (states = states, timesteps = ts, state0 = x_start, history = history, cycles = max_cycles, converged = false)
+end

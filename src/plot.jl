@@ -256,3 +256,49 @@ function _shade_stages!(ax, stages, t_end, colors)
     end
     return ax
 end
+
+"""
+    plot_profiles(states, timesteps, model, times; labels, unit = nothing, components = all)
+
+Profiles along a bed at the given `times` [s], measured from the start of
+`states`: the gas mole fraction of each of `components` (top row) and its
+loading (bottom row). For a dual-site Langmuir isotherm the loading is shown
+relative to the component's saturation capacity `qsb + qsd`, as in the bed
+profile figures of Haghpanah et al. and Krishnamurthy et al. For flowsheet
+states, `unit` names the bed and `model` is the bed's model. Each time uses the
+last state at or before it.
+"""
+function plot_profiles(states, timesteps, model, times;
+        labels = ["t = $(round(t, digits = 1)) s" for t in times],
+        unit = nothing,
+        components = eachindex(model.system.component_names))
+    t = cumsum(timesteps)
+    unit_states = isnothing(unit) ? states : [s[unit] for s in states]
+    names = model.system.component_names
+    x = model.data_domain[:cell_centroids][1, :]
+    x = x ./ sum(model.data_domain[:dx])
+    q_scale = _saturation_capacity(model.system.isotherm)
+    colors = Makie.wong_colors()
+    f = Figure(size = (300 * length(components), 600))
+    ax = nothing
+    for (col, i) in enumerate(components)
+        ax_y = Axis(f[1, col], title = "$(names[i]) in gas", ylabel = L"y\; [-]")
+        q_label = isnothing(q_scale) ? L"q\; [mol/m^{3}]" : L"q/q_s\; [-]"
+        ax = Axis(f[2, col], title = "$(names[i]) adsorbed", xlabel = "Dimensionless bed length [-]", ylabel = q_label)
+        for (j, (tj, label)) in enumerate(zip(times, labels))
+            k = findlast(<=(tj + 1e-6), t)
+            isnothing(k) && error("No state at or before t = $tj s")
+            s = unit_states[k]
+            q = s[:AdsorbedConcentration][i, :]
+            isnothing(q_scale) || (q = q ./ q_scale[i])
+            color = colors[mod1(j, length(colors))]
+            lines!(ax_y, x, s[:y][i, :], color = color, label = label)
+            lines!(ax, x, q, color = color, label = label)
+        end
+    end
+    Legend(f[1:2, length(components) + 1], ax)
+    return f
+end
+
+_saturation_capacity(iso::DualSiteLangmuir) = iso.qsb .+ iso.qsd
+_saturation_capacity(iso) = nothing

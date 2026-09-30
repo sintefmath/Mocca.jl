@@ -20,6 +20,8 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Haghpanah cyclic VSA" => "cyclic_vsa_haghpanah_2013_co2_n2"
         "Custom setup cyclic VSA" => "custom_setup_cyclic_vsa"
         "Flowsheet cyclic VSA" => "flowsheet_vsa"
+        "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
+        "Wet flue gas: dual-adsorbent VSA" => "wet_flue_gas_dual_adsorbent_vsa"
         "History matching" => "history_matching"
         "Optimization" => "optimization"
     ]
