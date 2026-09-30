@@ -205,7 +205,7 @@ A 0D well-mixed model is much less work than a 1D bubble/emulsion model. The rig
 
 ## 10. Implementation status
 
-Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. All 162 original tests still pass unchanged; the suite now has 261.
+Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. All 162 original tests still pass unchanged; the suite now has 267.
 
 | Phase | Status | What exists |
 |---|---|---|
@@ -231,7 +231,8 @@ Each is left at its old behaviour unless noted, so earlier results are reproduce
 2. **`PressurisationBC` has the sign of its flow reversed** relative to the other boundary conditions. It works because its large half-cell conductance acts as a penalty holding the inlet at the set-point. Fixing it changes one regression reference value by 0.56%. It is annotated in the code, not changed.
 3. **The inlet boundary conditions over-supply components.** They add `F·(y_feed − y)` on top of the inflow `F·y_feed`, which keeps the total flow but not the flow of each component. Flowsheets conserve each component by default; `setup_flowsheet_model(fs; legacy_inlet = true)` reproduces the old inlet.
 4. **Adjoint gradients with respect to unit parameters fail with the legacy boundary conditions** ("cannot determine ordering of Dual tags"), on `main` as well. Forces mix unit-parameter derivatives into cell equations. Flowsheets do not have this problem.
-5. **The adjoint gradient with respect to `SolidVolume` is about twice the finite-difference value**, on `main` as well. Other parameters agree to 1e-8. Cause not found.
+5. **Fixed: adjoint gradients with respect to `SolidVolume` and `FluidVolume` were wrong** (about 2× and 2% off), on `main` as well. To differentiate with respect to parameters, Jutul turns the primary variables into parameters, and it stores parameters once for both time levels, so the time difference of a primary variable vanished. The loading equation, sorption uptake and heat of sorption differenced the loading directly, and the energy equation differenced the pressure directly. They now use the secondary copies `AdsorbedLoading` and `ConservedPressure`, as temperature already did through `ColumnConservedEnergy`. Forward results are unchanged. Rule: take time differences of secondary variables only.
+7. **`DictOptimization` with the default `deps = :case` gives gradients about 1% off when the solver splits a step** (for example at the start of a steep pressurisation ramp), before and after the fix above. It is exact when no step is split, and `deps = :parameters` is exact in both cases. This is in Jutul's `AdjointsDI`; the cause is not yet found. Use `deps = :parameters` when the setup function only changes parameters.
 6. **`setup_forces` drops the remainder of a stage** when its duration is not a multiple of `max_dt` (15 s stages with `max_dt = 2` become 14 s).
 
 ### Next steps

@@ -16,6 +16,22 @@ function Jutul.degrees_of_freedom_per_entity(model::SorbentBedModel, ::AdsorbedC
 end
 Jutul.values_per_entity(model::SorbentBedModel, ::AdsorbedConcentration) = number_of_components(model.system)
 
+# The loading as a secondary variable. Every time difference of the loading uses
+# this copy rather than the primary variable: when Jutul computes sensitivities
+# with respect to parameters it turns the primary variables into parameters,
+# which it stores once for both time levels, so a difference of the primary
+# variable itself would vanish. Secondary variables are evaluated separately for
+# each time level. ColumnConservedEnergy does the same for temperature.
+struct AdsorbedLoading <: ComponentVariable end
+
+Jutul.@jutul_secondary function update_adsorbed_loading!(loading, tv::AdsorbedLoading, model::SorbentBedModel, AdsorbedConcentration, ix)
+    for cell in ix
+        for i in axes(loading, 1)
+            loading[i, cell] = AdsorbedConcentration[i, cell]
+        end
+    end
+end
+
 # Rate of change of loading from the mass transfer model [mol/(m³·s)]
 struct AdsorptionMassTransfer <: ComponentVariable end
 
@@ -81,7 +97,7 @@ function Jutul.update_equation_in_entity!(
     self_cell,
     state,
     state0,
-    eq::Jutul.ConservationLaw{:AdsorbedConcentration},
+    eq::Jutul.ConservationLaw{:AdsorbedLoading},
     model::SorbentBedModel,
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
@@ -105,7 +121,7 @@ end
 struct SorptionUptake <: AbstractSourceTerm end
 
 @inline function mass_source(::SorptionUptake, model, state, state0, cell, i, Δt)
-    ∂q∂t = Jutul.accumulation_term(state.AdsorbedConcentration, state0.AdsorbedConcentration, Δt, i, cell)
+    ∂q∂t = Jutul.accumulation_term(state.AdsorbedLoading, state0.AdsorbedLoading, Δt, i, cell)
     return -state.SolidVolume[cell] * ∂q∂t
 end
 
@@ -127,8 +143,8 @@ struct HeatOfSorption{A} <: AbstractSourceTerm end
 HeatOfSorption(; all_components::Bool = false) = HeatOfSorption{all_components}()
 
 @inline function energy_source(::HeatOfSorption{A}, model, state, state0, cell, Δt) where A
-    AC = state.AdsorbedConcentration
-    AC₀ = state0.AdsorbedConcentration
+    AC = state.AdsorbedLoading
+    AC₀ = state0.AdsorbedLoading
     ΔH = state.ΔH
     C_pa = state.C_pa[cell]
     avm = state.AverageMolarMass[cell]

@@ -22,9 +22,13 @@ function Jutul.select_secondary_variables!(
     S[:AverageMolarMass] = AverageMolarMass()
     S[:ComponentMasses] = ComponentMasses()
     S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    S[:AdsorbedLoading] = AdsorbedLoading()
 
     # For the energy equations
     S[:ColumnConservedEnergy] = ColumnEnergy()
+    if has_energy_balance(system)
+        S[:ConservedPressure] = ConservedPressure()
+    end
     if has_wall(system)
         S[:WallConservedEnergy] = WallEnergy()
     end
@@ -42,7 +46,7 @@ function Jutul.select_equations!(
     nc = number_of_components(sys)
 
     eqs[:mass_conservation] = Jutul.ConservationLaw(fdisc, :ComponentMasses, nc)
-    eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :AdsorbedConcentration, nc)
+    eqs[:mass_transfer] = Jutul.ConservationLaw(fdisc, :AdsorbedLoading, nc)
     if has_energy_balance(sys)
         eqs[:energy_column] = Jutul.ConservationLaw(fdisc, :ColumnConservedEnergy, 1)
     else

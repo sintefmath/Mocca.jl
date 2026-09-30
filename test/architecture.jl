@@ -82,8 +82,8 @@ end
     # Check the term against a hand calculation for a two-component state
     q0 = [1.0 2.0; 3.0 4.0]
     q1 = [1.5 2.0; 2.0 4.0]  # cell 1: CO2 adsorbs, N2 desorbs
-    st0 = (AdsorbedConcentration = q0,)
-    st = (AdsorbedConcentration = q1, ΔH = [-30e3 -30e3; -15e3 -15e3], C_pa = [700.0, 700.0],
+    st0 = (AdsorbedLoading = q0,)
+    st = (AdsorbedConcentration = q1, AdsorbedLoading = q1, ΔH = [-30e3 -30e3; -15e3 -15e3], C_pa = [700.0, 700.0],
         AverageMolarMass = [0.03, 0.03], Temperature = [300.0, 300.0], SolidVolume = [0.1, 0.1])
     Δt = 2.0
     dq = (q1[:, 1] .- q0[:, 1]) ./ Δt

@@ -8,6 +8,16 @@
 abstract type Energy <: Jutul.ScalarVariable end
 struct ColumnEnergy <: Energy end
 
+# Pressure as a secondary variable, for the time difference in the pressure
+# term; see AdsorbedLoading in blocks/sorbent.jl for why.
+struct ConservedPressure <: Jutul.ScalarVariable end
+
+Jutul.@jutul_secondary function update_conserved_pressure!(p, tv::ConservedPressure, model::DistributedUnitModel, Pressure, ix)
+    for cell in ix
+        p[cell] = Pressure[cell]
+    end
+end
+
 struct ThermalConductivities <: Jutul.ScalarVariable end
 Jutul.variable_scale(::ThermalConductivities) = 1e-10
 Jutul.minimum_value(::ThermalConductivities) = 0.0
@@ -100,7 +110,7 @@ function Jutul.update_equation_in_entity!(
     avm = state.AverageMolarMass[self_cell]
     coeff_pressure = C_pg * avm / GAS_CONSTANT
 
-    ∂P∂t = (state.Pressure[self_cell] - state0.Pressure[self_cell]) / Δt
+    ∂P∂t = (state.ConservedPressure[self_cell] - state0.ConservedPressure[self_cell]) / Δt
     pressure_term = coeff_pressure * state.FluidVolume[self_cell] * ∂P∂t
 
     accumulation_coeff = sum_terms(heat_capacity, heat_capacity_terms(sys), model, state, self_cell)
