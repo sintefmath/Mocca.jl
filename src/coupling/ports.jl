@@ -28,11 +28,18 @@ end
 ports(model::FlowDeviceModel) = (inlet = 1, outlet = 2)
 
 # Jutul adds a cross term's residual through its derivatives with respect to the
-# target, and finds which target entities (and, for parameter sensitivities,
-# which parameters) it depends on by tracing the term once, at the current
-# state. So cross terms here avoid branches that change what they read, using
-# ifelse on values instead, and a term that does not otherwise depend on the
-# target touches it with zero weight through _target_anchor.
+# target, and finds which entities (cells, or the unit itself) and, for
+# parameter sensitivities, which parameters it depends on by tracing the term
+# once, at the current state. Dependencies found then are kept for the whole
+# simulation; any others are dropped. So:
+#
+# - A branch must not change which entities or parameters a term reads, or the
+#   trace sees only the branch taken at that state. Use ifelse, which evaluates
+#   both sides. Branching between variables of the same entity is fine, such as
+#   choosing the upstream port of a device, whose variables all live in its one
+#   cell.
+# - A term that does not otherwise depend on the target touches it with zero
+#   weight through _target_anchor, or its residual is never added.
 @inline _target_anchor(x) = zero(x) * x
 
 """
