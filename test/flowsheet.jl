@@ -117,6 +117,22 @@ _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
     @test abs(net_in - ΔM) < 1e-8 * throughput
 end
 
+@testset "Flowsheet plotting" begin
+    constants = Mocca.HaghpanahConstants{Float64}()
+    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
+    legacy, legacy_dt = _vsa_legacy(constants, init; ncells = 10, num_cycles = 1)
+    fs, states, timesteps, = _vsa_flowsheet(constants, init; ncells = 10, num_cycles = 1)
+    model = Mocca.setup_flowsheet_model(fs)
+    _, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 10)
+    bed = fs[:Bed]
+    bed_states = [s[:Bed] for s in states]
+    runs = ["Flowsheet" => (bed_states, timesteps), "Boundary conditions" => (legacy, legacy_dt)]
+    @test Mocca.plot_cell_comparison(runs, bed, 10) isa Mocca.Figure
+    @test Mocca.plot_state_comparison(["Flowsheet" => bed_states[end], "Boundary conditions" => legacy[end]], bed) isa Mocca.Figure
+    @test Mocca.plot_flowsheet_streams(states, model, timesteps; stages = stages) isa Mocca.Figure
+    @test Mocca.plot_flowsheet_streams(states, model, timesteps) isa Mocca.Figure
+end
+
 @testset "Two-bed VSA with pressure equalisation" begin
     constants = Mocca.HaghpanahConstants{Float64}()
     fs, stages = Mocca.two_bed_vsa_flowsheet(constants; ncells = 20)

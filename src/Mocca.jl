@@ -29,7 +29,7 @@ export simulate_process
 export mocca_domain
 export column_mesh
 
-export plot_state, plot_cell
+export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
