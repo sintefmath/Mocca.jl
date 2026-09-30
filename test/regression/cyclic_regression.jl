@@ -70,14 +70,16 @@ end
     states, model, timesteps_out, num_cycles, stage_times = run_cyclic_simulation()
     m = cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
 
+    # Updated when the inlet boundary conditions were made to conserve each
+    # component (the pressurisation sign and upwinding were fixed with it)
     ref = (
-        y_CO2_final = 7.100524006314865e-8,
-        y_N2_final = 0.9999999289947609,
-        T_final = 295.76741982625623,
-        P_final = 9998.130045421889,
-        total_CO2_adsorbed_final = 52325.83782488843,
-        avg_T_last_cycle = 348.8714798098076,
-        avg_P_last_cycle = 40071.222347007766,
+        y_CO2_final = 5.050399237268643e-8,
+        y_N2_final = 0.9999999494960096,
+        T_final = 295.7676320550928,
+        P_final = 9998.23183106564,
+        total_CO2_adsorbed_final = 50768.684624407666,
+        avg_T_last_cycle = 348.29982214738715,
+        avg_P_last_cycle = 40068.99824321924,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

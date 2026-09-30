@@ -64,7 +64,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
 end
 
 """
-    StreamCT(cell, port; legacy_inlet = false)
+    StreamCT(cell, port)
 
 Cross term adding the flow through device port `port` (1 = inlet, 2 = outlet)
 to the balances of unit `cell`. Registered with the unit as target and the
@@ -74,18 +74,11 @@ has an energy balance, once for `:energy_column`.
 The stream composition, temperature and pressure are those of the upstream
 device port, so component `i` enters or leaves at `F·y_s,i` and every
 component is conserved across the connection.
-
-`legacy_inlet = true` reproduces the inlet boundary conditions of Mocca 0.1.0,
-which add `F·(y_s,i − y_i)` on top of the inflow `F·y_s,i`. That keeps the
-total molar flow but not the flow of each component: the unit receives more of
-a component than the stream carries when the inlet cell is depleted in it.
 """
 struct StreamCT <: Jutul.AdditiveCrossTerm
     cell::Int
     port::Int
-    legacy_inlet::Bool
 end
-StreamCT(cell, port; legacy_inlet = false) = StreamCT(cell, port, legacy_inlet)
 
 Jutul.cross_term_entities(ct::StreamCT, eq::Jutul.JutulEquation, model) = [ct.cell]
 Jutul.cross_term_entities_source(ct::StreamCT, eq::Jutul.JutulEquation, model) = [1]
@@ -103,15 +96,11 @@ function Jutul.update_cross_term_in_entity!(out, i,
         ct::StreamCT, eq::Jutul.ConservationLaw{:ComponentMasses}, dt, ldisc = Jutul.local_discretization(ct, i))
     c = ct.cell
     F_in, up = _stream_into_unit(ct, state_s)
-    F_inflow = ifelse(F_in > 0, F_in, zero(F_in))
     for k in eachindex(out)
         y_s = port_composition(state_s, up, k)
-        # Legacy inlet correction, only for flow into the unit
-        correction = F_inflow * (y_s - state_t.y[k, c])
-        if !ct.legacy_inlet
-            correction = _target_anchor(correction)
-        end
-        out[k] = -F_in * y_s - correction
+        # The flow does not depend on the unit's composition, so anchor to it
+        # to keep the sparsity pattern
+        out[k] = -F_in * y_s + _target_anchor(state_t.y[k, c])
     end
     return out
 end

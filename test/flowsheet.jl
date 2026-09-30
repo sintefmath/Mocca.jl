@@ -70,9 +70,9 @@ function _vsa_legacy(constants, init; ncells, num_cycles)
     return (states, timesteps)
 end
 
-function _vsa_flowsheet(constants, init; ncells, num_cycles, legacy_inlet = false)
+function _vsa_flowsheet(constants, init; ncells, num_cycles)
     fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = ncells)
-    mm = Mocca.setup_flowsheet_model(fs; legacy_inlet = legacy_inlet)
+    mm = Mocca.setup_flowsheet_model(fs)
     state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
     prm = Mocca.setup_flowsheet_parameters(fs)
     forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = num_cycles, max_dt = 1.0)
@@ -84,13 +84,32 @@ end
 # State at the end of the step finishing at time t
 _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
 
+@testset "Legacy inlet boundary conditions carry the upstream composition" begin
+    constants = Mocca.HaghpanahConstants{Float64}()
+    model = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 10)
+    pressurisation, adsorption = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption"])
+    y_cell = [0.02, 0.98]
+    cell_state(P) = (Pressure = fill(P, 10), Temperature = fill(298.15, 10), y = repeat(y_cell, 1, 10))
+    # Negative flux is flow into the column. At the start of pressurisation the
+    # boundary is at the low pressure.
+    for (bc, P, into_column, y_expected) in (
+            (adsorption, constants.p_high, true, constants.y_feed),
+            (pressurisation, 0.5 * constants.p_low, true, constants.y_feed),
+            (pressurisation, 2.0 * constants.p_low, false, y_cell),
+        )
+        flux = Mocca.mass_flux_left(cell_state(P), model, 0.0, bc)
+        @test (sum(flux) < 0) == into_column
+        @test flux ./ sum(flux) ≈ y_expected
+    end
+end
+
 @testset "Flowsheet VSA matches the legacy boundary conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
     # Start from an evacuated bed, as in a running cycle
     init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
     ncells = 30
     legacy, legacy_dt = _vsa_legacy(constants, init; ncells = ncells, num_cycles = 1)
-    fs, states, timesteps, state0, prm = _vsa_flowsheet(constants, init; ncells = ncells, num_cycles = 1, legacy_inlet = true)
+    fs, states, timesteps, state0, prm = _vsa_flowsheet(constants, init; ncells = ncells, num_cycles = 1)
     @test sum(timesteps) ≈ sum(legacy_dt) ≈ 100.0
 
     for t in (15.0, 30.0, 60.0, 100.0)  # end of each stage

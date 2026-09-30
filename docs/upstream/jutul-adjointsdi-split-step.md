@@ -1,6 +1,6 @@
 # AdjointsDI: `deps = :case` gives wrong gradients when the first report step is split
 
-**Package:** Jutul 0.4.25, `src/ad/AdjointsDI/adjoints.jl`
+**Package:** Jutul 0.4.25 and 0.4.29, `src/ad/AdjointsDI/adjoints.jl`
 **Reproduction:** [`jutul_adjointsdi_split_step.jl`](jutul_adjointsdi_split_step.jl) (Jutul only, about a minute)
 
 ## Summary
@@ -38,7 +38,7 @@ It then applies the fix above in place and reruns the scenarios.
 The objective is `dt * U[end]^2`. The objective in Jutul's own test, `U[end] - U[1]`, hides the bug: it doesn't change under a uniform shift of `U0`, and in this model `state0` only enters the gradient through `U0`.
 
 ```
-Jutul 0.4.25, before patch:
+Jutul 0.4.29, before patch:
 A: one step, not split             sub-steps per report step [1]         :case rel. error 4.2e-09   :parameters rel. error 1.3e-08
 B: first report step split         sub-steps per report step [4]         :case rel. error 1.5e+00   :parameters rel. error 1.2e-09
 C: only second report step split   sub-steps per report step [1, 4]      :case rel. error 5.8e-10   :parameters rel. error 1.8e-09

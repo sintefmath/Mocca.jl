@@ -31,21 +31,25 @@ function mass_flux_left(state, model, time, force::PressurisationBC)
     trans = calc_bc_trans(model, state, cell_left)
 
     P = state.Pressure[cell_left]
-    y = state.y[:, cell_left]
+    T = state.Temperature[cell_left]
     P_bc = pressure_left(force, time)
     y_bc = force.y_feed
     T_bc = force.T_feed
 
-    # NOTE: this sign is the opposite of the other boundary conditions (it
-    # should be -trans * mob * (P_bc - P), negative for inflow). It works because
-    # the half-cell conductance is large enough to act as a penalty holding the
-    # inlet cell at P_bc. Kept as is so results match earlier versions.
-    q = -trans * mob * (P - P_bc)
+    # Volumetric flow out of the column, negative for inflow as in the other
+    # boundary conditions
+    q = -trans * mob * (P_bc - P)
 
-    c_tot = P_bc / (T_bc * GAS_CONSTANT)
-    c = y_bc .* c_tot
-
-    mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+    # Gas enters with the feed composition and leaves with that of the inlet
+    # cell, so every component is conserved across the inlet (Danckwerts
+    # condition) and no component goes negative when the flow reverses
+    if q < 0
+        c_tot = P_bc / (T_bc * GAS_CONSTANT)
+        mass_flux = [q * y_bc[i] * c_tot for i in eachindex(y_bc)]
+    else
+        c_tot = P / (T * GAS_CONSTANT)
+        mass_flux = [q * state.y[i, cell_left] * c_tot for i in eachindex(y_bc)]
+    end
     return mass_flux
 end
 
@@ -91,25 +95,24 @@ function Jutul.apply_forces_to_equation!(
     # left side
     begin
         P = state.Pressure[cell_left]
-        y = state.y[:, cell_left]
         T = state.Temperature[cell_left]
         C_pg = state.C_pg[cell_left]
         avm = state.AverageMolarMass[cell_left]
 
         P_bc = pressure_left(force, time)
-        y_bc = force.y_feed
         T_bc = force.T_feed
 
-        q = -trans * mob * (P - P_bc)  # see the note in mass_flux_left
+        q = -trans * mob * (P_bc - P)  # see mass_flux_left
 
-        cTot = P_bc / (T_bc * GAS_CONSTANT)
-        c = y_bc .* cTot
-
-        bc_src = -((q * ρ_g * C_pg * (T_bc - T)) + (q * P_bc / GAS_CONSTANT) * C_pg * avm)
+        if q < 0
+            # Inflow at the feed temperature, as in AdsorptionBC
+            bc_src = -((q * ρ_g * C_pg * (T_bc - T)) + (q * P_bc / GAS_CONSTANT) * C_pg * avm)
+        else
+            # Outflow at the cell state, as in EvacuationBC
+            bc_src = -(q * P / GAS_CONSTANT * C_pg * avm)
+        end
         acc[cell_left] -= bc_src
-
     end
-
 end
 
 

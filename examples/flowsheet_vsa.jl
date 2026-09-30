@@ -102,34 +102,16 @@ bc_forces, bc_timesteps = Mocca.setup_forces(bc_model, [st.duration for st in st
 bc_case = Mocca.MoccaCase(bc_model, bc_timesteps, bc_forces; state0 = bc_state0, parameters = Mocca.setup_process_parameters(bc_model))
 bc_states, bc_timesteps_out = Mocca.simulate_process(bc_case; info_level = 0, output_substates = true)
 
-# The pressurisation and adsorption boundary conditions add `F·(y_feed − y)`
-# on top of the feed inflow `F·y_feed`. This keeps the total flow but not the
-# flow of each component, so it supplies extra CO₂ while the gas at the feed
-# end is leaner than the feed. The flowsheet leaves this term out by default;
-# `legacy_inlet = true` adds it back, which isolates the effect of that term.
-legacy_model = Mocca.setup_flowsheet_model(fs; legacy_inlet = true)
-legacy_forces, = Mocca.setup_schedule(fs, legacy_model, stages; num_cycles = 3, max_dt = 1.0)
-legacy_case = Mocca.MoccaCase(legacy_model, timesteps, legacy_forces; state0 = state0, parameters = parameters)
-legacy_states, legacy_timesteps_out = Mocca.simulate_process(legacy_case; info_level = -1, output_substates = true)
-
 runs = [
     "Flowsheet" => (bed_states, timesteps_out),
-    "Flowsheet, legacy inlet" => ([s[:Bed] for s in legacy_states], legacy_timesteps_out),
     "Boundary conditions" => (bc_states, bc_timesteps_out),
 ]
 
-# At the outlet the three agree closely. CO₂ has not reached the outlet within
-# three cycles.
+# At the outlet and at the feed end the two agree closely. CO₂ has not reached
+# the outlet within three cycles. The small differences that remain come from
+# the time stepping: the solver splits the first step of some stages
+# differently in the two simulations.
 f_outlet_comparison = Mocca.plot_cell_comparison(runs, bed, ncells)
-
-# At the feed end the boundary conditions give more CO₂ in the gas and on the
-# sorbent than the default flowsheet, from the extra inlet term. With
-# `legacy_inlet = true` the flowsheet follows the boundary conditions, apart
-# from a small gap in the first cycle that starts in its first second. The
-# column starts at 1 bar, above the start of the pressurisation ramp, so gas
-# first flows out through the feed end. The flowsheet then carries the bed's
-# own gas out, while the pressurisation boundary condition keeps injecting
-# feed composition.
 f_inlet_comparison = Mocca.plot_cell_comparison(runs, bed, 1)
 
 # Profiles along the bed at the end of the simulation:

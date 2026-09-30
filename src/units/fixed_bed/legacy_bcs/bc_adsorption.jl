@@ -27,7 +27,6 @@ function mass_flux_left(state, model, time, force::AdsorptionBC)
     trans = calc_bc_trans(model, state, cell_left)
 
     P = state.Pressure[cell_left]
-    y = state.y[:, cell_left]
     y_bc = force.y_feed
     T_bc = force.T_feed
 
@@ -37,7 +36,9 @@ function mass_flux_left(state, model, time, force::AdsorptionBC)
     c_tot = P_bc / (T_bc * GAS_CONSTANT)
     c = y_bc .* c_tot
 
-    mass_flux = c_tot .* q .* (y_bc .- y) .+ q .* c
+    # Each component enters with the feed, q·c_tot·y_feed, so that every
+    # component is conserved across the inlet (Danckwerts condition)
+    mass_flux = q .* c
     return mass_flux
 end
 
