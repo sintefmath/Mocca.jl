@@ -102,6 +102,25 @@ function _force_sets(forces)
     return (sets, set_of_step)
 end
 
+# Stage durations. A stage of duration τ is stretched to sτ by stretching each
+# of its steps by s. The adjoints differentiate with respect to s at s = 1,
+# with the steps kept as simulated: s multiplies the time step in the time
+# derivatives of each unit (the TimeScale parameter, set through the units'
+# `time_scale` force), and the rate of each pressure ramp, which runs on time
+# since the start of its stage. Later stages run on their own time, so they
+# are unchanged. The objective's own dependence on the time step is added
+# separately.
+
+_scale_time(x, s) = x
+_scale_time(r::ExponentialRamp, s) = ExponentialRamp(r.start, r.stop, r.λ * s; t0 = r.t0)
+_scale_time(f::PortSetpoint{K}, s) where K =
+    PortSetpoint{K}(PortCondition(_scale_time(f.condition.pressure, s), f.condition.temperature, f.condition.composition))
+function _scale_time(f::NamedTuple, s)
+    g = map(v -> _scale_time(v, s), f)
+    return haskey(g, :time_scale) ? merge(g, (time_scale = s,)) : g
+end
+_scale_time(f::AbstractDict, s) = Dict{Symbol, Any}(k => _scale_time(v, s) for (k, v) in f)
+
 function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     sets, set_of_step = _force_sets(forces)
     configs = Any[]
@@ -113,37 +132,63 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
         push!(configs, cfg)
         push!(offsets, length(X))
     end
+    # Then the relative duration of each stage, 1 as simulated
+    n_forces = length(X)
+    append!(X, ones(length(sets)))
     devectorize(X, i) = Jutul.devectorize_forces(sets[i], model, X[(offsets[i] + 1):offsets[i + 1]], configs[i])
     function F(X, step_info)
-        forces_X = [devectorize(X, i) for i in eachindex(sets)]
+        s = X[n_forces .+ (1:length(sets))]
+        forces_X = [_scale_time(devectorize(X, i), s[i]) for i in eachindex(sets)]
         return JutulCase(model, dt, forces_X[set_of_step]; state0 = state0, parameters = parameters)
     end
     # Sparsity from every step, so that every stage's forces are seen
     dX = Jutul.AdjointsDI.solve_adjoint_generic(X, F, states, dt, G;
         state0 = state0, forces = forces, info_level = -1,
         single_step_sparsity = false, sparsity_step_type = :all)
-    return ([devectorize(dX, i) for i in eachindex(sets)], set_of_step)
+    ds = dX[n_forces .+ (1:length(sets))]
+    # The objective's own dependence on the time step: each step of stage i
+    # lasts s·dt
+    N = length(dt)
+    t = cumsum(dt)
+    for k in 1:N
+        info = Jutul.optimization_step_info(k, t[k], dt[k]; Nstep = N)
+        ∂G∂dt = Jutul.ForwardDiff.derivative(h -> G(model, states[k], h, info, forces[k]), dt[k])
+        ds[set_of_step[k]] += dt[k] * ∂G∂dt
+    end
+    durations = [sum(dt[set_of_step .== i]) for i in eachindex(sets)]
+    return (forces = [devectorize(dX, i) for i in eachindex(sets)], durations = ds ./ durations)
 end
 
 """
     force_gradients(model, state0, parameters, forces, timesteps, G;
         nonlinear_tolerance = 1e-8, kwarg...) → NamedTuple
 
-Gradient of the objective `G` with respect to the device settings of each
-stage, from one simulation from `state0`. `G` is a Jutul sum objective, such
-as a [`StreamObjective`](@ref).
+Gradient of the objective `G` with respect to the device settings and the
+duration of each stage, from one simulation from `state0`. `G` is a Jutul sum
+objective, such as a [`StreamObjective`](@ref).
 
-Returns the `objective` value and `forces`, with one entry per stage (per
-distinct force set, in order of use). Each entry has the layout of the
-stage's forces, with every number replaced by the derivative of the objective
-with respect to it: `g.forces[2][:V_feed].law.rate` is the derivative with
-respect to the feed rate in the second stage. Mole fractions are treated as
-independent. Extra keywords go to [`setup_process_simulator`](@ref).
+Returns the `objective` value and, with one entry per stage (per distinct
+force set, in order of use):
+- `forces`: each entry has the layout of the stage's forces, with every
+  number replaced by the derivative of the objective with respect to it:
+  `g.forces[2][:V_feed].law.rate` is the derivative with respect to the feed
+  rate in the second stage. Mole fractions are treated as independent.
+- `durations`: the derivative of the objective with respect to the duration of
+  the stage [per s]. The stage is stretched with its steps in proportion;
+  pressure ramps run on the time since the start of their stage, so the later
+  stages are the same in their own time. This is the derivative of the
+  simulation as discretised, the change seen with `reference_durations` in
+  [`setup_schedule`](@ref); without it, a new duration keeps the stage's
+  first steps, which differs by the time-stepping error. An objective that
+  depends on the time other than through the time step is differentiated as
+  if it did not.
+
+Extra keywords go to [`setup_process_simulator`](@ref).
 """
 function force_gradients(model, state0, parameters, forces, timesteps, G; kwarg...)
     states, dt, step_forces = _simulate_steps(model, state0, parameters, forces, timesteps; kwarg...)
-    dforces, = _force_adjoint(model, state0, parameters, states, dt, step_forces, G)
-    return (objective = _evaluate_objective(G, model, states, dt, step_forces), forces = dforces)
+    g = _force_adjoint(model, state0, parameters, states, dt, step_forces, G)
+    return (objective = _evaluate_objective(G, model, states, dt, step_forces), forces = g.forces, durations = g.durations)
 end
 
 # ------------------------------------------------------------------------------
@@ -311,8 +356,9 @@ Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 - `parameters`: the gradient with respect to the parameters of each unit, laid
   out like the output of `Jutul.solve_adjoint_sensitivities`, for the
   parameters in `targets` (a `Dict` of unit => parameter names) or all of them;
-- `forces`: if `with_forces`, the gradient with respect to each stage's device
-  settings, laid out as in [`force_gradients`](@ref);
+- `forces` and `durations`: if `with_forces`, the gradient with respect to
+  each stage's device settings and duration, as in [`force_gradients`](@ref).
+  A longer stage also lengthens the cycle; divide by the cycle time for rates;
 - `state0`: the multiplier `μ`, laid out like `parameters`: the change in the
   objective at steady state per unit of each initial-state variable added at
   the start of a cycle;
@@ -339,10 +385,10 @@ function cyclic_steady_state_gradient(model, state0, parameters, forces, timeste
         Gμ = _CycleObjective(Gi, μ, vmap)
         ∇p = Jutul.solve_adjoint_sensitivities(model, states, dt, Gμ;
             storage = storage, state0 = x0, forces = step_forces, raw_output = true, info_level = -1)
-        dforces = with_forces ? first(_force_adjoint(model, x0, parameters, states, dt, step_forces, Gμ)) : nothing
+        gf = with_forces ? _force_adjoint(model, x0, parameters, states, dt, step_forces, Gμ) : (forces = nothing, durations = nothing)
         return (objective = _evaluate_objective(Gi, model, states, dt, step_forces),
             parameters = Jutul.store_sensitivities(storage.parameter.model, ∇p, storage.parameter_map),
-            forces = dforces, state0 = Jutul.store_sensitivities(state_model, μ, vmap),
+            forces = gf.forces, durations = gf.durations, state0 = Jutul.store_sensitivities(state_model, μ, vmap),
             iterations = stats.niter, converged = stats.solved)
     end
     return G isa NamedTuple ? map(gradient, G) : gradient(G)

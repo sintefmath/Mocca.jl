@@ -73,6 +73,27 @@ end
     @test isapprox(g.forces[4][:V_vacuum].outlet.condition.pressure.stop, (objective(with_stop(p + h)) - objective(with_stop(p - h))) / (2h), rtol = 1e-6)
     # A closed device does not depend on its law
     @test g.forces[4][:V_feed].law == Mocca.Closed()
+
+    # Stage durations, with each stage's steps stretched in proportion
+    reference = [5.0, 5.0, 5.0, 5.0]
+    f_ref, dt_ref = Mocca.setup_schedule(c.fs, c.mm, c.stages; num_cycles = 1, max_dt = 1.0, reference_durations = reference)
+    @test dt_ref == dt
+    function stretched(i, factor)
+        d = copy(reference)
+        d[i] *= factor
+        s = gradient_test_case(stage_durations = d)
+        return Mocca.setup_schedule(s.fs, s.mm, s.stages; num_cycles = 1, max_dt = 1.0, reference_durations = reference)
+    end
+    function objective_with(f, steps)
+        states, ts, sf = Mocca._simulate_steps(c.mm, c.state0, c.prm, f, steps)
+        return Mocca._evaluate_objective(G, c.mm, states, ts, sf)
+    end
+    @test length(g.durations) == 4
+    for i in 1:4
+        h = 1e-4
+        fd = (objective_with(stretched(i, 1 + h)...) - objective_with(stretched(i, 1 - h)...)) / (2h * reference[i])
+        @test isapprox(g.durations[i], fd, rtol = 1e-6)
+    end
 end
 
 @testset "Cyclic steady state gradient" begin
@@ -93,9 +114,11 @@ end
     @test all(r -> r.converged, g)
 
     # Finite differences, each from a steady state converged by Newton
-    function objectives(v_feed, prm)
-        s = gradient_test_case(ncells = 6, v_feed = v_feed)
-        f, ts = Mocca.setup_schedule(s.fs, s.mm, s.stages; num_cycles = 1, max_dt = 2.5, first_dt = 0.05)
+    reference = [st.duration for st in c.stages]
+    function objectives(v_feed, prm; durations = reference)
+        s = gradient_test_case(ncells = 6, v_feed = v_feed, stage_durations = durations)
+        f, ts = Mocca.setup_schedule(s.fs, s.mm, s.stages; num_cycles = 1, max_dt = 2.5, first_dt = 0.05,
+            reference_durations = reference)
         r = Mocca.newton_cyclic_steady_state(s.mm, css.state0, prm, f, ts; tol = 1e-11)
         @test r.converged
         states, steps, sf = Mocca._simulate_steps(s.mm, r.state0, prm, f, ts)
@@ -116,5 +139,13 @@ end
     jp, jm = objectives(v, pp), objectives(v, pm)
     for k in keys(G)
         @test isapprox(sum(g[k].parameters[:Bed][:SolidVolume] .* hp), (jp[k] - jm[k]) / 2, rtol = 1e-6)
+    end
+
+    # Adsorption time
+    h = 1e-4 * reference[2]
+    jp = objectives(v, c.prm; durations = reference .+ [0, h, 0, 0])
+    jm = objectives(v, c.prm; durations = reference .- [0, h, 0, 0])
+    for k in keys(G)
+        @test isapprox(g[k].durations[2], (jp[k] - jm[k]) / (2h), rtol = 1e-6)
     end
 end

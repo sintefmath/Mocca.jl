@@ -1,5 +1,7 @@
-function Jutul.setup_forces(model::AdsorptionModel; bc = nothing)
-    return (bc = bc,)
+# `time_scale` sets the TimeScale parameter for the step; it is only used by
+# the adjoints for stage durations
+function Jutul.setup_forces(model::AdsorptionModel; bc = nothing, time_scale = nothing)
+    return (bc = bc, time_scale = time_scale)
 end
 
 """
