@@ -57,6 +57,36 @@ function (G::VacuumPumpObjective)(model, state, dt, step_info, forces)
     return G.scale * dt * ifelse((F > 0) & (P < G.discharge_pressure), W, zero(W))
 end
 
+"""
+    CompressorObjective(device; suction_pressure = 1e5, efficiency = 0.72, γ = 1.4, scale = 1.0)
+
+Objective for adjoint gradients: `scale` times the work [J] to compress the
+gas entering through `device` from `suction_pressure` up to the pressure at
+its outlet, such as a feed compressor taking flue gas at 1 bar up to the bed
+inlet pressure. Only steps with forward flow and an outlet above the suction
+pressure count. The gas is compressed adiabatically with isentropic
+`efficiency`, from the device's inlet temperature.
+"""
+struct CompressorObjective
+    device::Symbol
+    suction_pressure::Float64
+    efficiency::Float64
+    γ::Float64
+    scale::Float64
+end
+CompressorObjective(device::Symbol; suction_pressure = 1e5, efficiency = 0.72, γ = 1.4, scale = 1.0) =
+    CompressorObjective(device, suction_pressure, efficiency, γ, scale)
+
+function (G::CompressorObjective)(model, state, dt, step_info, forces)
+    s = state[G.device]
+    F = s[:MolarFlow][1]
+    P = s[:OutletPressure][1]
+    T = s[:InletTemperature][1]
+    k = (G.γ - 1) / G.γ
+    W = F * GAS_CONSTANT * T / k * ((P / G.suction_pressure)^k - 1) / G.efficiency
+    return G.scale * dt * ifelse((F > 0) & (P > G.suction_pressure), W, zero(W))
+end
+
 # ------------------------------------------------------------------------------
 # Forward simulation for the adjoints
 # ------------------------------------------------------------------------------
@@ -141,22 +171,31 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
         forces_X = [_scale_time(devectorize(X, i), s[i]) for i in eachindex(sets)]
         return JutulCase(model, dt, forces_X[set_of_step]; state0 = state0, parameters = parameters)
     end
-    # Sparsity from every step, so that every stage's forces are seen
-    dX = Jutul.AdjointsDI.solve_adjoint_generic(X, F, states, dt, G;
-        state0 = state0, forces = forces, info_level = -1,
-        single_step_sparsity = false, sparsity_step_type = :all)
-    ds = dX[n_forces .+ (1:length(sets))]
-    # The objective's own dependence on the time step: each step of stage i
-    # lasts s·dt
+    # One setup serves every objective: the residual's dependence on X, and
+    # so its sparsity, does not depend on the objective. Sparsity from every
+    # step, so that every stage's forces are seen.
+    objectives = G isa NamedTuple ? G : (G = G,)
+    packed = Jutul.AdjointPackedResult(states, dt, forces)
+    storage = Jutul.AdjointsDI.setup_adjoint_storage_generic(X, F, packed, first(objectives);
+        state0 = state0, info_level = -1, single_step_sparsity = false, sparsity_step_type = :all)
     N = length(dt)
     t = cumsum(dt)
-    for k in 1:N
-        info = Jutul.optimization_step_info(k, t[k], dt[k]; Nstep = N)
-        ∂G∂dt = Jutul.ForwardDiff.derivative(h -> G(model, states[k], h, info, forces[k]), dt[k])
-        ds[set_of_step[k]] += dt[k] * ∂G∂dt
-    end
     durations = [sum(dt[set_of_step .== i]) for i in eachindex(sets)]
-    return (forces = [devectorize(dX, i) for i in eachindex(sets)], durations = ds ./ durations)
+    out = map(objectives) do Gi
+        storage[:adjoint_objective_helper].G = Jutul.adjoint_wrap_objective(Gi, model)
+        dX = zeros(length(X))
+        Jutul.AdjointsDI.solve_adjoint_generic!(dX, X, F, storage, packed, Gi; state0 = state0, info_level = -1)
+        ds = dX[n_forces .+ (1:length(sets))]
+        # The objective's own dependence on the time step: each step of stage
+        # i lasts s·dt
+        for k in 1:N
+            info = Jutul.optimization_step_info(k, t[k], dt[k]; Nstep = N)
+            ∂G∂dt = Jutul.ForwardDiff.derivative(h -> Gi(model, states[k], h, info, forces[k]), dt[k])
+            ds[set_of_step[k]] += dt[k] * ∂G∂dt
+        end
+        (forces = [devectorize(dX, i) for i in eachindex(sets)], durations = ds ./ durations)
+    end
+    return G isa NamedTuple ? out : only(out)
 end
 
 """
@@ -282,42 +321,80 @@ many cycles when the slowest mode of the cycle decays slowly. Start it from the
 [`setup_schedule`](@ref)) so that the cycle map is smooth; see
 [`cyclic_steady_state_gradient`](@ref).
 
+With `jacobian`, the `jacobian` returned by an earlier call (for example for
+slightly different settings, as in an optimisation), the iterations start
+from it instead of building one, and improve it with a Broyden update from
+each iteration's step and change in residual (a quasi-Newton method), each
+costing one cycle instead of one adjoint per variable. The Jacobian is
+rebuilt whenever an iteration reduces the cycle change by less than a factor
+`1/refresh_ratio`.
+
 Stops when the [`cycle_change`](@ref) is below `tol`. Returns the same fields
-as `simulate_to_cyclic_steady_state`, with `cycles` counting Newton iterations.
-Extra keywords go to [`setup_process_simulator`](@ref).
+as `simulate_to_cyclic_steady_state`, with `cycles` counting the iterations,
+plus `jacobian`, the last Jacobian used (as the inverse of `I − ∂Φ/∂x`), and
+`jacobian_builds`, how many were built. Extra keywords go to
+[`setup_process_simulator`](@ref).
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-10, max_iterations = 10, info_level = -1, kwarg...)
+        tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, info_level = -1, kwarg...)
     x = restart_state(model, state0)
     history = Float64[]
     states = dt = nothing
+    J = isnothing(jacobian) ? nothing : (M = copy(jacobian.M), dofs = jacobian.dofs, map = jacobian.map)
+    builds = 0
+    previous = nothing
     for it in 0:max_iterations
         states, dt, step_forces = _simulate_steps(model, x, parameters, forces, timesteps; kwarg...)
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
         info_level >= 0 && println("Newton iteration $it: cycle change $(history[end])")
         if history[end] < tol
-            return (states = states, timesteps = dt, state0 = x, history = history, cycles = it, converged = true)
+            return (states = states, timesteps = dt, state0 = x, history = history, cycles = it, converged = true,
+                jacobian = J, jacobian_builds = builds)
         end
         it == max_iterations && break
-        sensitivity, map, = _state_adjoint(model, x, parameters, states, dt, step_forces)
-        dofs = _holdup_dofs(model, map)
-        z0 = Jutul.vectorize_variables(model, x, map)
-        z1 = Jutul.vectorize_variables(model, x_end, map)
-        n = length(dofs)
-        A = zeros(n, n)
-        w = zeros(length(z0))
-        for (r, i) in enumerate(dofs)
-            w .= 0
-            w[i] = 1
-            A[r, :] .= sensitivity(_CycleObjective(nothing, copy(w), map))[dofs]
+        stalled = it > 0 && history[end] > refresh_ratio * history[end - 1]
+        if isnothing(J) || stalled
+            J = _cycle_jacobian(model, x, parameters, states, dt, step_forces)
+            builds += 1
+            previous = nothing
         end
+        z0 = Jutul.vectorize_variables(model, x, J.map)
+        z1 = Jutul.vectorize_variables(model, x_end, J.map)
+        r = z1[J.dofs] .- z0[J.dofs]
+        if !isnothing(previous)
+            # Good Broyden update of M ≈ (I − ∂Φ/∂x)⁻¹ from the last step s and
+            # the change y in the residual Φ(x) − x, for which M y ≈ −s
+            s_k = z0[J.dofs] .- previous.z
+            y_k = r .- previous.r
+            sM = J.M' * s_k
+            denom = dot(sM, y_k)
+            abs(denom) > eps() * norm(sM) * norm(y_k) && (J.M .-= (s_k .+ J.M * y_k) * sM' ./ denom)
+        end
+        previous = (z = z0[J.dofs], r = r)
         # The devices start from the end of the cycle
         z = copy(z1)
-        z[dofs] .= z0[dofs] .+ (Matrix{Float64}(I, n, n) .- A) \ (z1[dofs] .- z0[dofs])
-        x = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, map)))
+        z[J.dofs] .= z0[J.dofs] .+ J.M * r
+        x = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
     end
-    return (states = states, timesteps = dt, state0 = x, history = history, cycles = max_iterations, converged = false)
+    return (states = states, timesteps = dt, state0 = x, history = history, cycles = max_iterations, converged = false,
+        jacobian = J, jacobian_builds = builds)
+end
+
+# Jacobian ∂Φ/∂x of the cycle with respect to the initial state of the units
+# with holdup, row by row from adjoints, returned as M = (I − ∂Φ/∂x)⁻¹
+function _cycle_jacobian(model, x, parameters, states, dt, forces)
+    sensitivity, map, = _state_adjoint(model, x, parameters, states, dt, forces)
+    dofs = _holdup_dofs(model, map)
+    n = length(dofs)
+    A = zeros(n, n)
+    w = zeros(length(Jutul.vectorize_variables(model, x, map)))
+    for (r, i) in enumerate(dofs)
+        w .= 0
+        w[i] = 1
+        A[r, :] .= sensitivity(_CycleObjective(nothing, copy(w), map))[dofs]
+    end
+    return (M = inv(Matrix{Float64}(I, n, n) .- A), dofs = dofs, map = map)
 end
 
 """
@@ -340,7 +417,9 @@ setting `p`. By the implicit function theorem, the gradient of
     dJ/dp = ∂J/∂p + μᵀ ∂Φ/∂p,   where   (I − ∂Φ/∂x)ᵀ μ = ∂J/∂x.
 
 Each product with `(∂Φ/∂x)ᵀ` is an adjoint solve over the cycle, and GMRES
-finds `μ` from them; `rtol` and `maxiter` control it. The gradient is only as
+finds `μ` from them; `rtol` and `maxiter` control it. Pass the `jacobian` from
+[`newton_cyclic_steady_state`](@ref) to precondition it, which cuts the
+iterations from tens to a few. The gradient is only as
 accurate as the steady state: an error `e` in the cycle change gives a
 gradient error of about `e/(1 − ρ)`, where `ρ` is the decay factor per cycle
 of the slowest mode. [`newton_cyclic_steady_state`](@ref) converges it far
@@ -367,7 +446,7 @@ Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 Extra keywords go to [`setup_process_simulator`](@ref).
 """
 function cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
-        targets = nothing, with_forces = false, rtol = 1e-8, maxiter = 100, info_level = -1, kwarg...)
+        targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, info_level = -1, kwarg...)
     x0 = restart_state(model, state0)
     states, dt, step_forces = _simulate_steps(model, x0, parameters, forces, timesteps; kwarg...)
     sensitivity, vmap, state_model = _state_adjoint(model, x0, parameters, states, dt, step_forces)
@@ -376,20 +455,38 @@ function cyclic_steady_state_gradient(model, state0, parameters, forces, timeste
     n = length(Jutul.vectorize_variables(model, x0, vmap))
     apply!(y, w) = (y .= w .- sensitivity(_CycleObjective(nothing, copy(w), vmap)))
     op = Jutul.LinearOperators.LinearOperator(Float64, n, n, false, false, apply!)
-    function gradient(Gi)
-        # (I − ∂Φ/∂x)ᵀ μ = ∂J/∂x
-        b = sensitivity(_CycleObjective(Gi, nothing, vmap))
-        μ, stats = Jutul.Krylov.gmres(op, b; rtol = rtol, atol = 0.0, itmax = maxiter, memory = maxiter, verbose = info_level > 0 ? 1 : 0)
-        stats.solved || @warn "GMRES for the cyclic steady state gradient did not converge in $maxiter iterations: $(stats.status)"
-        # One adjoint for ∂J/∂p + μᵀ ∂Φ/∂p
-        Gμ = _CycleObjective(Gi, μ, vmap)
-        ∇p = Jutul.solve_adjoint_sensitivities(model, states, dt, Gμ;
-            storage = storage, state0 = x0, forces = step_forces, raw_output = true, info_level = -1)
-        gf = with_forces ? _force_adjoint(model, x0, parameters, states, dt, step_forces, Gμ) : (forces = nothing, durations = nothing)
-        return (objective = _evaluate_objective(Gi, model, states, dt, step_forces),
-            parameters = Jutul.store_sensitivities(storage.parameter.model, ∇p, storage.parameter_map),
-            forces = gf.forces, durations = gf.durations, state0 = Jutul.store_sensitivities(state_model, μ, vmap),
-            iterations = stats.niter, converged = stats.solved)
+    # A Jacobian of a nearby cycle, such as the last one from
+    # newton_cyclic_steady_state, makes a good preconditioner
+    if isnothing(jacobian)
+        precond = (ldiv = false,)
+    else
+        function apply_precond!(y, v)
+            y .= v
+            y[jacobian.dofs] .= transpose(jacobian.M) * v[jacobian.dofs]
+            return y
+        end
+        precond = (N = Jutul.LinearOperators.LinearOperator(Float64, n, n, false, false, apply_precond!), ldiv = false)
     end
-    return G isa NamedTuple ? map(gradient, G) : gradient(G)
+    objectives = G isa NamedTuple ? G : (G = G,)
+    # (I − ∂Φ/∂x)ᵀ μ = ∂J/∂x for each objective
+    solves = map(objectives) do Gi
+        b = sensitivity(_CycleObjective(Gi, nothing, vmap))
+        μ, stats = Jutul.Krylov.gmres(op, b; rtol = rtol, atol = 0.0, itmax = maxiter, memory = maxiter,
+            verbose = info_level > 0 ? 1 : 0, precond...)
+        stats.solved || @warn "GMRES for the cyclic steady state gradient did not converge in $maxiter iterations: $(stats.status)"
+        (μ = μ, stats = stats, Gμ = _CycleObjective(Gi, μ, vmap))
+    end
+    # Then ∂J/∂p + μᵀ ∂Φ/∂p: one adjoint for the parameters, and one setup of
+    # the force adjoints shared by all objectives
+    gf = with_forces ? _force_adjoint(model, x0, parameters, states, dt, step_forces, map(s -> s.Gμ, solves)) :
+        map(_ -> (forces = nothing, durations = nothing), objectives)
+    out = map(objectives, solves, gf) do Gi, s, f
+        ∇p = Jutul.solve_adjoint_sensitivities(model, states, dt, s.Gμ;
+            storage = storage, state0 = x0, forces = step_forces, raw_output = true, info_level = -1)
+        (objective = _evaluate_objective(Gi, model, states, dt, step_forces),
+            parameters = Jutul.store_sensitivities(storage.parameter.model, ∇p, storage.parameter_map),
+            forces = f.forces, durations = f.durations, state0 = Jutul.store_sensitivities(state_model, s.μ, vmap),
+            iterations = s.stats.niter, converged = s.stats.solved)
+    end
+    return G isa NamedTuple ? out : only(out)
 end
