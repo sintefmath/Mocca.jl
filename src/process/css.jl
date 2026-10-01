@@ -77,13 +77,21 @@ function _unstack(model, state, v)
         n = length(x)
         x .= reshape(v[offset .+ (1:n)], size(x))
         offset += n
+    end
+    return _clamp_to_bounds!(model, out)
+end
+
+# Keep the primary variables of the units with holdup within their bounds
+function _clamp_to_bounds!(model, state)
+    for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
+        x = _unit_state(state, k)[p]
         var = m.primary_variables[p]
         x .= clamp.(x, _bound(Jutul.minimum_value(var), -Inf), _bound(Jutul.maximum_value(var), Inf))
         if var isa Jutul.FractionVariables
             x ./= sum(x, dims = 1)
         end
     end
-    return out
+    return state
 end
 
 # ------------------------------------------------------------------------------

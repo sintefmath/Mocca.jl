@@ -2,7 +2,7 @@
 
 *Architecture proposal — draft for discussion. 25 September 2026. Based on Mocca.jl `main` at v0.1.0 (commit `70f6cd6`) and Jutul 0.4.31.*
 
-*Status, 29 September 2026: phases 0–2 are implemented, 3 and 4 in part. Section 10 lists what was built, where it departs from this proposal, and issues found in the existing code.*
+*Status, 1 October 2026: phases 0–2 and 4 are implemented, 3 in part. Section 10 lists what was built, where it departs from this proposal, and issues found in the existing code.*
 
 Mocca simulates one fixed-bed adsorption column today. This proposal restructures it into a set of unit models — fixed, moving, rotating and fluidised beds, membranes, solvent absorbers, and equipment such as valves, pumps and compressors — that connect into a flowsheet through Jutul `MultiModel`. The whole flowsheet stays differentiable.
 
@@ -213,7 +213,7 @@ Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. T
 | 1 | Done, except Ergun | One residual per conservation law with source-term tuples (`src/core/conservation.jl`); blocks in `src/blocks/`; thermal options `WithWall`, `Adiabatic`, `Isothermal(T)`. |
 | 2 | Done | `FlowDevice` with `Closed`, `LinearValve`, `VolumetricFlow`; `PortStateCT` and `StreamCT`; `Flowsheet`, `connect!`, `set_boundary!`, `setup_flowsheet_model`; `Stage` and `setup_schedule`; `four_stage_vsa_flowsheet`; `examples/flowsheet_vsa.jl`. |
 | 3 | Partly | `two_bed_vsa_flowsheet` with pressure equalisation. The wet flue gas processes of Krishnamurthy et al. (2014) (`src/process/wet_flue_gas.jl`): `lpp_vsa_flowsheet`, a single 13X bed with light product pressurisation, and `dual_adsorbent_vsa_flowsheet`, a silica gel bed feeding a 13X bed, with three components (CO2, N2, H2O), the paper's isotherms and Table S2 data, and examples. `parallel_stages` combines per-bed step sequences of different lengths; `setup_schedule(...; first_dt)` starts each stage with short steps. Not done: the membrane rebase and `counter_current_pair`. |
-| 4 | Partly | Metrics from device streams (`stream_totals`, `purity`, `recovery`, `productivity`, `vacuum_pump_energy`, `specific_energy_kwh_per_tonne`); `simulate_to_cyclic_steady_state` with Anderson acceleration; `simulate_until_mass_balance`, the CO2-balance criterion of Haghpanah et al.; adjoint gradients through flowsheets, tested against finite differences. Not done: the gradient of the cyclic steady state itself. |
+| 4 | Done, except updating `examples/optimization.jl` | Metrics from device streams (`stream_totals`, `purity`, `recovery`, `productivity`, `vacuum_pump_energy`, `specific_energy_kwh_per_tonne`); `simulate_to_cyclic_steady_state` with Anderson acceleration; `simulate_until_mass_balance`, the CO2-balance criterion of Haghpanah et al.; adjoint gradients through flowsheets, tested against finite differences. In `src/process/gradients.jl`: force vectorisation for device laws and port conditions, and `force_gradients` for the gradient with respect to each stage's device settings; `newton_cyclic_steady_state`, Newton's method on the cycle map with its Jacobian from adjoints; `cyclic_steady_state_gradient`, the gradient at cyclic steady state by the implicit function theorem (GMRES on `(I − ∂Φ/∂x)ᵀ μ = ∂J/∂x`), with respect to parameters and stage settings; adjoint objectives `StreamObjective` and `VacuumPumpObjective`; `examples/flowsheet_vsa_gradients.jl`. All are tested against finite differences (`test/gradients.jl`). |
 | 5 | Not started | |
 
 ### Departures from the proposal
@@ -222,6 +222,9 @@ Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. T
 - **A device is a one-cell model.** It holds its flow and a copy of the state at each port. Jutul forces only carry derivatives with respect to the entity they act on, so keeping every device variable in one cell is what lets the device law change per stage through forces and keep exact derivatives.
 - **Cross-term rules.** Jutul adds a cross term's residual through its derivatives with respect to the target, and finds what a cross term depends on by tracing it once, at the current state. So cross terms must not hide a dependency behind a value-dependent branch (use `ifelse`), and a term that does not otherwise depend on the target touches it with zero weight (`_target_anchor`).
 - **Adjoints need stored sub-steps.** Run the forward simulation with `output_substates = true` before calling `Jutul.solve_adjoint_sensitivities`; otherwise a step the solver split is linearised as one step.
+- **Mocca drives the force adjoints itself.** `Jutul.solve_adjoint_forces` gave wrong gradients for flowsheets (issue 9). `force_gradients` vectorises the forces of each stage, builds the case for `Jutul.AdjointsDI.solve_adjoint_generic` itself, and passes it every sub-step the solver took as a step of its own, which also avoids issue 7.
+- **Cyclic steady state gradients need a smooth cycle map.** With the abrupt start of a stage taken in one 1 s step, the first Newton solve of the stage needs about 15 iterations, and a start state changed by 1e-6 can converge to a solution 1e-3 away, so the cycle map jumps. Newton's method on the cycle map then stalls and finite differences are meaningless. Starting each stage with short steps (`first_dt = 0.05`) removes the jumps; it also halves the number of Anderson cycles for the four-stage VSA.
+- **Newton's method for cyclic steady state.** It was not in the proposal. The slowest mode of the four-stage VSA cycle decays by only about 1% per cycle (spectral radius of `∂Φ/∂x` 0.99), so successive substitution needs thousands of cycles and Anderson acceleration stagnates near 1e-5. Newton converges from 1e-4 to 1e-12 in two or three iterations. Its Jacobian costs one adjoint per bed variable, which is affordable for a few hundred variables. The gradient needs a converged steady state: an error `e` in the steady state gives a gradient error of about `e/(1 − ρ)`, 100e here.
 
 ### Issues found in the existing code
 
@@ -235,12 +238,19 @@ Each is left at its old behaviour unless noted, so earlier results are reproduce
 6. **`setup_forces` drops the remainder of a stage** when its duration is not a multiple of `max_dt` (15 s stages with `max_dt = 2` become 14 s).
 7. **`DictOptimization` with the default `deps = :case` gives gradients about 1% off when the solver splits the first report step.** This is a bug in Jutul's `AdjointsDI`: `evaluate_residual_and_jacobian_for_state_pair` resets `state0` to the initial state for every sub-step of report step 1, not only the first. Checking `step_info[:substep_global] == 1` instead of `step_info[:step] == 1` fixes it (column-length gradient 1.2% off → 5e-11). A Jutul-only reproduction and issue text are in `docs/upstream/`. Until it is fixed upstream, use `deps = :parameters` when the setup function only changes parameters.
 8. **Fixed: the heat of sorption of every component after the first was divided by the first component's saturation capacity** in `DualSiteLangmuir`, instead of its own. It only matters with `sorption_heat_all_components = true`; for water on silica gel it gave about −800 kJ/mol instead of about −40. The first component's value is unchanged.
+9. **Worked around: `Jutul.solve_adjoint_forces` gives wrong gradients for flowsheets.** These are Jutul bugs, in 0.4.29:
+   - The generic `vectorize_forces!` and `devectorize_forces` store a length for every force of a model but look them up by a counter that skips absent forces, and a `MultiModel` passes each submodel the whole vector. Devices, whose port conditions are often absent, have their own methods (`src/units/equipment/device.jl`).
+   - With sub-steps, the forces of a sub-step are looked up by its report step in a map indexed by sub-step, so after the first split step every stage gets the forces of an earlier one.
+   - Even without sub-steps, the gradients are wrong: for the adsorption feed rate in the 5 s-stage test case it gives −3.6 against 384 from finite differences. `solve_adjoint_generic!` replaces the forces of every step with those of the case its setup function returns for the first step, which the force path builds for a single step.
+
+   `force_gradients` avoids all three. These still need reporting upstream.
 
 ### Next steps
 
 - Rebase the membrane branch onto `FlowChannel`, with `counter_current_pair` for the tube and shell sides.
-- `vectorize_force!` for device laws and port conditions, so schedules and set-points can be optimised with Jutul's force gradients.
-- The gradient of the cyclic steady state, via the implicit function theorem; the DI adjoints accept `deps = :parameters_and_state0`.
+- Step durations as design variables: durations are time steps, not forces, so they need a time scaling per stage.
+- Gradients of global objectives (ratios such as purity and recovery) directly, rather than by the quotient rule from sum objectives.
+- Report the force adjoint bugs (issue 9) to Jutul, with a Jutul-only reproduction.
 - Ergun momentum, a Peng–Robinson EOS, and the Phase 5 units.
 - Move plotting into a Makie package extension (a breaking change for `plot_*` users).
 

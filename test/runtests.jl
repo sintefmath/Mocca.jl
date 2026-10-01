@@ -24,6 +24,10 @@ using StaticArrays
         include("process.jl")
     end
 
+    @testset "Force and cyclic steady state gradients" begin
+        include("gradients.jl")
+    end
+
     @testset "Mass Transfer" begin
         include("mass_transfer.jl")
     end

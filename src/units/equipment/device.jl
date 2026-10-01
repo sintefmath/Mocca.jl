@@ -248,8 +248,92 @@ Forces for one stage of a device: the flow `law`, and a [`PortCondition`](@ref)
 for each port that is a boundary.
 """
 function Jutul.setup_forces(model::FlowDeviceModel; law::AbstractDeviceLaw = Closed(), inlet = nothing, outlet = nothing)
-    wrap(c, k) = isnothing(c) ? nothing : PortSetpoint{k}(c)
+    wrap(c, k) = (isnothing(c) || c isa PortSetpoint) ? c : PortSetpoint{k}(c)
     return (law = law, inlet = wrap(inlet, 1), outlet = wrap(outlet, 2))
+end
+
+# ------------------------------------------------------------------------------
+# Force vectorisation, for gradients with respect to device settings
+# ------------------------------------------------------------------------------
+#
+# Jutul.solve_adjoint_forces differentiates with respect to the numbers that
+# make up the forces of each stage:
+#
+#   law      LinearValve: conductance, opening; VolumetricFlow: rate; Closed: none
+#   inlet,   pressure (a number, or start, stop and λ of an ExponentialRamp),
+#   outlet   temperature, and each mole fraction
+#
+# Mole fractions are treated as independent, so their gradients do not account
+# for the fractions summing to one.
+
+_profile_values(x::Real) = [x]
+_profile_values(r::ExponentialRamp) = [r.start, r.stop, r.λ]
+_profile_names(::Real) = [:pressure]
+_profile_names(::ExponentialRamp) = [:pressure_start, :pressure_stop, :pressure_λ]
+_profile_from(::Real, X) = X[1]
+_profile_from(r::ExponentialRamp, X) = ExponentialRamp(X[1], X[2], X[3]; t0 = r.t0)
+
+_force_values(::Closed) = Float64[]
+_force_values(law::LinearValve) = [law.conductance, law.opening]
+_force_values(law::VolumetricFlow) = [law.rate]
+_force_values(f::PortSetpoint) = vcat(_profile_values(f.condition.pressure), f.condition.temperature, f.condition.composition)
+
+_force_names(::Closed) = Symbol[]
+_force_names(::LinearValve) = [:conductance, :opening]
+_force_names(::VolumetricFlow) = [:rate]
+_force_names(f::PortSetpoint) = vcat(_profile_names(f.condition.pressure), :temperature,
+    [Symbol("y_$i") for i in eachindex(f.condition.composition)])
+
+_force_from(::Closed, X) = Closed()
+_force_from(::LinearValve, X) = LinearValve(X[1], X[2])
+_force_from(::VolumetricFlow, X) = VolumetricFlow(X[1])
+function _force_from(f::PortSetpoint{K}, X) where K
+    c = f.condition
+    n = length(_profile_values(c.pressure))
+    return PortSetpoint{K}(PortCondition(_profile_from(c.pressure, X[1:n]), X[n + 1], collect(X[(n + 2):end])))
+end
+
+const _DeviceForce = Union{AbstractDeviceLaw, PortSetpoint}
+
+Jutul.vectorization_length(f::_DeviceForce, model::FlowDeviceModel, name, variant) = length(_force_values(f))
+
+function Jutul.vectorize_force!(v, model::FlowDeviceModel, f::_DeviceForce, name, variant)
+    v .= _force_values(f)
+    return (names = _force_names(f),)
+end
+
+Jutul.devectorize_force(f::_DeviceForce, model::FlowDeviceModel, X, meta, name, variant) = _force_from(f, X)
+
+# Jutul's generic loops over a model's forces store a length for every force
+# but look the lengths up by a counter that skips absent forces, and a
+# MultiModel passes each submodel the whole vector. A device's law is always
+# present while its port conditions often are not, so devices do the loops
+# themselves, starting at the device's offset within the vector.
+function Jutul.vectorize_forces!(v, model::FlowDeviceModel, config, forces; update_config = false)
+    offset = first(config.offsets) - 1
+    for (i, (k, f)) in enumerate(pairs(forces))
+        n = config.lengths[i]
+        (isnothing(f) || isnothing(config.targets[k])) && continue
+        m = Jutul.vectorize_force!(view(v, offset .+ (1:n)), model, f, k, config.targets[k])
+        update_config && (config.meta[k] = m)
+        offset += n
+    end
+    return v
+end
+
+function Jutul.devectorize_forces(forces, model::FlowDeviceModel, X, config; offset = 0)
+    offset = 0
+    out = Dict{Symbol, Any}()
+    for (i, (k, f)) in enumerate(pairs(forces))
+        n = config.lengths[i]
+        if isnothing(f) || isnothing(config.targets[k])
+            out[k] = f
+        else
+            out[k] = Jutul.devectorize_force(f, model, view(X, offset .+ (1:n)), config.meta[k], k, config.targets[k])
+            offset += n
+        end
+    end
+    return Jutul.setup_forces(model; out...)
 end
 
 """
