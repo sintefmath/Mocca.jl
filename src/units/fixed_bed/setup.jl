@@ -169,6 +169,14 @@ function setup_process_parameters(model; kwargs...)
     return parameters
 end
 
+"""
+    setup_forces(model, stage_times, bcs; num_cycles = 1, max_dt = 1.0) → (forces, timesteps)
+
+Forces and time steps for `num_cycles` repetitions of the stages, with the
+boundary condition `bcs[i]` held for `stage_times[i]` seconds. Each stage is
+split into equal steps no longer than `max_dt`, so the steps of each stage add
+up to its duration.
+"""
 function setup_forces(model, stage_times, bcs;
     num_cycles=1, max_dt = 1.0)
 
@@ -185,9 +193,11 @@ function setup_forces(model, stage_times, bcs;
                 prev_end = i == 1 ? 0.0 : step_end[i-1]
                 bc_i = reconstruct(bc_i, stage_start = (j - 1) * cycle_time + prev_end)
             end
-            numsteps = stage_times[i] / max_dt
-            append!(timesteps, repeat([max_dt], Int(floor(numsteps))))
-            append!(sim_forces, repeat([Jutul.setup_forces(model, bc=bc_i)], Int(floor(numsteps))))
+            # Mocca 0.1.0 took floor(duration/max_dt) steps of max_dt, which
+            # silently dropped the rest of a stage that was not a multiple
+            dt = _stage_steps(stage_times[i], max_dt, max_dt)
+            append!(timesteps, dt)
+            append!(sim_forces, fill(Jutul.setup_forces(model, bc=bc_i), length(dt)))
         end
     end
 
