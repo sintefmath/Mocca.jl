@@ -1,112 +1,67 @@
 # # Direct Column Breakthrough simulation
 
-# This example shows how to set up and run a direct column breakthrough (DCB) simulation
-# as described in [Haghpanah et al. 2013](http://dx.doi.org/10.1021/ie302658y).
-# This simulation inolves injection of a two component flue gas (CO2 and N2)
-# into a column of Zeolite 13X initially filled with N2.
-
-# Adsorption onto Zeolite 13X is modelled with a dual-site Langumuir adsorption isotherm.
-# Injection flow rate is fixed at the right hand side of the column and the left hand side of the column
-# is open.
-# There is no heat transfer between the column and the column wall.
+# This example shows how to set up and run a direct column breakthrough (DCB)
+# simulation as described in [Haghpanah et al. 2013](http://dx.doi.org/10.1021/ie302658y).
+# A two-component flue gas (CO₂ and N₂) is fed into a column of zeolite 13X
+# initially filled with N₂, until CO₂ breaks through at the outlet.
 #
+# Adsorption on zeolite 13X follows a dual-site Langmuir isotherm. The feed
+# enters the bottom of the column at a fixed velocity, and the top is open at
+# the feed pressure. There is no heat transfer between the column and its
+# wall.
 
-# First we load the necessary modules
-import Jutul
-import Jutul: si_unit
 import Mocca
+using Mocca.Units
 
-#=
-Then we define parameters which we want. We have defined a structure containing
-parameters from Haghpanah et al. 2013 which we load now.
-As we are doing a DCB simulation we will set the heat transfer coefficient between
-the column and the wall and the wall and the outside to zero.
-=#
-constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0);
+# # Gas, adsorbent and column
+# The gas and adsorbent are those of the paper; see the
+# [cyclic VSA](cyclic_vsa_haghpanah_2013_co2_n2.md) example. For the DCB the
+# heat transfer coefficients to the wall are zero.
+gas = Mocca.haghpanah_2013_gas()
+feed = Mocca.Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), temperature = 298.15, pressure = 1bar)
+adsorbent = Mocca.load_adsorbent("zeolite_13x_haghpanah_2013")
+column = Mocca.Column(length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
+    axial_conductivity = 0.0903, inner_heat_transfer = 0.0, outer_heat_transfer = 0.0)
 
-# We set up a two component adsorption system. This system type is associated
-# with the appropriate equations and primary and secondary variables.
-system = Mocca.AdsorptionSystem(constants);
-
-# # Define the model
-# Next we need to make the model. This model contains information about
-# the domain (grid) over which we will solve the equations and information
-# about the system of equations which we are solving.
 #-
-# We formulate our velocity equation in the following form:
+# The gas velocity follows Darcy's law,
 #
 # ```math
 # v = -\frac{k}{\mu}(\nabla P)
 # ```
 #
-# where `k` is known as the permeability.
-# In this instance we use the pressure drop equation for plug flow in a packed
-# bed:
+# with the permeability `k` of a packed bed of particles of diameter ``d_p``
+# and bed porosity ``\varepsilon`` from the Kozeny–Carman relation,
 #
 # ```math
-# v=-\frac{4}{150}\frac{\epsilon^3}{(1-\epsilon)^2} r_{i n}^2 \frac{1}{\mu}(\nabla P)
+# k = \frac{4}{150}\frac{\varepsilon^3}{(1-\varepsilon)^2} \left(\frac{d_p}{2}\right)^2.
 # ```
 #
-# The permeability of the system is then given by:
-#
-# ```math
-# k = \frac{4}{150}\frac{\epsilon^3}{(1-\epsilon)^2} r_{i n}^2
-# ```
+# `add_bed!` computes it, and the axial dispersion, from the adsorbent and
+# column.
 ncells = 200
-model = Mocca.setup_process_model(system, constants; ncells = ncells);
+fs = Mocca.Flowsheet(gas, feed)
+Mocca.add_bed!(fs, :Bed, adsorbent, column; ncells = ncells)
+Mocca.add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+Mocca.add_device!(fs, :V_product, :product; at = (:Bed, :top))
 
-# # Setup the initial state and parameters of the simulation
-# Initial values for pressure and temperature of the system
-bar = si_unit(:bar);
-P_init = 1*bar;
-T_init = 298.15;
-Tw_init = constants.T_a;
-
-# To avoid numerical errors we set the initial CO2 concentration to be very
-# small and not exactly zero
-yCO2_2 = 1e-10
-y_init = [yCO2_2, 1.0 - yCO2_2] # [CO2, N2]
-
-state0 = Mocca.setup_process_state(model;
-    Pressure = P_init,
-    Temperature = T_init,
-    WallTemperature = Tw_init,
-    y = y_init
-)
-parameters = Mocca.setup_process_parameters(model);
-
-# # Setup the timestepping and boundary conditions
-
-# For the DCB we are only running the adsorption stage of a VSA process.
-# We will use a total time of 5000 seconds with a single report step
-t_ads = 5000.0;
-maxdt = 5000.0;
-
-
-# For the DCB we set up boundary conditions for just an adsorption stage. This sets a fixed
-# velocity, concentration and temperature at the inlet, and fixed pressure at
-# the outlet. By convention we assume the inlet bc is applied on the left hand
-# side and the outlet bc is applied on the right hand side.
-bcs = Mocca.setup_boundary_conditions(constants, ["adsorption"])
-
-sim_forces, timesteps = Mocca.setup_forces(model, [t_ads], bcs;
-    num_cycles=1, max_dt = maxdt);
-
-# Specify target change of the different state variables for dynamic timestepping
-timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0);
+# # The breakthrough as a one-step cycle
+# A single adsorption step of 5000 s at an interstitial velocity of 1 m/s.
+# The column starts at the feed pressure, the lowest pressure of this cycle,
+# full of nitrogen.
+cycle = Mocca.Cycle([Mocca.Adsorb(5000.0; velocity = 1.0)])
+process = Mocca.Process(fs, cycle; timestepping = Mocca.TimeStepping(max_dt = 5000.0, first_dt = 5000.0))
 
 # # Run the simulation
-# Collect everything into a fully specified simulation case and start the simulation
-case = Mocca.MoccaCase(model, timesteps, sim_forces; state0 = state0, parameters = parameters)
-states, timesteps_out = Mocca.simulate_process(case;
-    timestep_selector_cfg = timestep_selector_cfg,
-    output_substates = true,
-);
+# One report step of 5000 s, which the solver divides according to target
+# changes of the state variables of the bed per step.
+result = Mocca.simulate(process; timestep_selector_cfg = (Bed = (y = 0.01, Temperature = 10.0, Pressure = 10.0),))
 
 # # Visualisation
-# We plot primary variables at the outlet through time
-outlet_cell = ncells
-f_outlet = Mocca.plot_cell(states, model, timesteps_out, outlet_cell)
+# The primary variables at the outlet through time:
+bed = fs[:Bed]
+bed_states = [s[:Bed] for s in result.states]
+f_outlet = Mocca.plot_cell(bed_states, bed, result.timesteps, ncells)
 
-# We also plot primary variables along the column at the end of the simulation
-f_column = Mocca.plot_state(states[end], model)
+# and along the column at the end of the simulation:
+f_column = Mocca.plot_state(bed_states[end], bed)

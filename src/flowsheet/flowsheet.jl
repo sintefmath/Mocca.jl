@@ -1,9 +1,19 @@
 """
     Flowsheet()
+    Flowsheet(gas::Gas, feed::Feed)
 
 A set of named units (beds, devices, ...) and the connections between their
-ports. Build it with [`add_unit!`](@ref) and [`connect!`](@ref), then turn it
-into a `Jutul.MultiModel` with [`setup_flowsheet_model`](@ref).
+ports.
+
+With a [`Gas`](@ref) and a [`Feed`](@ref), build it with [`add_bed!`](@ref)
+and [`add_device!`](@ref): devices then have roles (feed, product, extract,
+...) that give their default boundary conditions and valve sizes, tell the
+step templates which device to open, and tell [`performance`](@ref) which
+streams are feed and product.
+
+At the lower level, build it with [`add_unit!`](@ref), [`connect!`](@ref) and
+[`set_boundary!`](@ref). Either way, [`setup_flowsheet_model`](@ref) turns it
+into a `Jutul.MultiModel`.
 
 Every connection joins a port of a unit with holdup to a port of a
 [`FlowDevice`](@ref). Device ports that are not connected are boundaries and
@@ -14,8 +24,14 @@ struct Flowsheet
     order::Vector{Symbol}
     connections::Vector{Tuple{Symbol, Symbol, Symbol, Symbol}}  # (unit, unit port, device, device port)
     boundaries::Dict{Tuple{Symbol, Symbol}, PortCondition}
+    gas::Any                         # Gas, or nothing for a flowsheet built at the lower level
+    feed::Any                        # Feed, or nothing
+    roles::Dict{Symbol, Symbol}      # device => role
+    specs::Dict{Symbol, Any}         # unit => how it was built, for writing it to a file
+    default_boundaries::Set{Tuple{Symbol, Symbol}}  # boundaries set from a role's defaults
 end
-Flowsheet() = Flowsheet(Dict{Symbol, Any}(), Symbol[], Tuple{Symbol, Symbol, Symbol, Symbol}[], Dict{Tuple{Symbol, Symbol}, PortCondition}())
+Flowsheet() = Flowsheet(Dict{Symbol, Any}(), Symbol[], Tuple{Symbol, Symbol, Symbol, Symbol}[], Dict{Tuple{Symbol, Symbol}, PortCondition}(),
+    nothing, nothing, Dict{Symbol, Symbol}(), Dict{Symbol, Any}(), Set{Tuple{Symbol, Symbol}}())
 
 Base.getindex(fs::Flowsheet, name::Symbol) = fs.units[name]
 
@@ -67,6 +83,7 @@ override it.
 function set_boundary!(fs::Flowsheet, device::Symbol, port::Symbol, condition::PortCondition)
     _is_device(fs.units[device]) || error("$device is not a device")
     fs.boundaries[(device, port)] = condition
+    delete!(fs.default_boundaries, (device, port))
     return fs
 end
 

@@ -35,6 +35,7 @@ function four_stage_vsa_flowsheet(constants;
         raffinate_composition = light_product_composition(constants.y_feed),
         extract_composition = constants.y_feed,
     )
+    Base.depwarn("`four_stage_vsa_flowsheet(constants)` is deprecated; use `four_stage_vsa_process`.", :four_stage_vsa_flowsheet)
     bed = setup_process_model(system, constants; ncells = ncells)
     names = component_names(system)
     fs = Flowsheet()
@@ -129,6 +130,7 @@ function two_bed_vsa_flowsheet(constants;
         raffinate_composition = light_product_composition(constants.y_feed),
         extract_composition = constants.y_feed,
     )
+    Base.depwarn("`two_bed_vsa_flowsheet(constants)` is deprecated; use `two_bed_vsa_process`.", :two_bed_vsa_flowsheet)
     names = component_names(system)
     fs = Flowsheet()
     for b in (:A, :B)

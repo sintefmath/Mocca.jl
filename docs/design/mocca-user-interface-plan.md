@@ -1,6 +1,8 @@
 # A simpler user interface for Mocca
 
-*Design note — draft for discussion. 2 October 2026. Based on branch `worktree-mocca-architecture-doc` (commit `f83b0ec`); follows [the architecture proposal](mocca-architecture-proposal.md). Nothing here is implemented.*
+*Design note — draft for discussion. 2 October 2026. Based on branch `worktree-mocca-architecture-doc` (commit `f83b0ec`); follows [the architecture proposal](mocca-architecture-proposal.md).*
+
+*Status, 2 October 2026: implemented in `src/interface/`, with the decisions of section 5 taken as JSON, plain SI with helpers, deprecation of the old interfaces, and an open set of steps. Section 6 lists what was built and where it departs from this note.*
 
 The architecture proposal made Mocca a flowsheet simulator: units, devices, ports and schedules. The layers underneath work, but setting up or changing a case still takes a lot of low-level code. This note plans a layer on top that lets users add and edit components, isotherms, adsorbents, columns, flowsheets and cycles in process terms. The solver, gradients and tests stay as they are.
 
@@ -128,3 +130,36 @@ Each step keeps the current lower-level functions working, so examples can move 
 - **Units.** Plain SI with helpers (bar, kJ/mol), or a units package such as Unitful. Unitful catches more mistakes, but adds a dependency and may get in the way of automatic differentiation.
 - **How far to deprecate.** Whether `HaghpanahConstants`, `adsorptionConstants` and the old boundary conditions (`setup_forces` and the `*BC` structs) stay as compatibility shims or are removed at the next breaking release.
 - **Scope of step templates.** A fixed set of VSA/PSA steps, or an open set that users extend. The latter would also cover TSA and moving beds later.
+
+Decided: JSON; plain SI with helpers (`Mocca.Units`); the old interfaces are deprecated shims, kept until the next breaking release; the set of steps is open.
+
+## 6. Implementation
+
+In `src/interface/`, one file per layer, built on the existing `Flowsheet`, `Stage`, `FixedBed` and gradient code, which are unchanged apart from new fields on `Flowsheet`.
+
+| Step | Files | What exists |
+|---|---|---|
+| 1 | `units.jl`, `gas.jl`, `materials.jl` | `Mocca.Units` (`bar`, `kJ_per_mol`, `celsius`, ..., and unit strings in files); a component registry with CAS numbers (`Component`, `component`, `register_component!`); `Gas`, `composition`, `Feed`; isotherm data by component (`dual_site_langmuir`, `langmuir`, per m³ or per kg), `Adsorbent`, `Column`, `Wall`; `equilibrium_loading`, `isotherm_table`; `convert_constants` from the old structs. |
+| 2 | `builder.jl` | `Flowsheet(gas, feed)`, `add_bed!` (permeability, dispersion and gas properties computed), `add_device!` with roles (feed, light inlet, product, extract, waste, link), role default boundaries and valve sizes, `print_flowsheet_diagram`. |
+| 3 | `steps.jl` | `AbstractStep` and the steps `Pressurise`, `Adsorb`, `Blowdown`, `Evacuate`, `Purge`, `Equalise`, `Idle`; `Concurrent`; `Cycle` with parallel sequences; `compile_cycle`; `TimeStepping`; `register_step!` and helpers for step authors. |
+| 4 | `process.jl` | `Process`, `simulate`, `cyclic_steady_state` (Newton with warm start, Anderson, or the mass balance criterion), `performance`, `initial_state`. |
+| 5 | `variables.jl` | `add_variable!` with step, feed and parameter places, `p[:name]`, `performance_gradient`, `optimise!`. |
+| 6 | `files.jl`, `models/library/` | `read_process`, `write_process`, `load_adsorbent`, `save_adsorbent`; library adsorbents (Haghpanah et al. 2013; Krishnamurthy et al. 2014, 13X and silica gel) and processes. |
+| 7 | `presets.jl`, `examples/` | `four_stage_vsa_process`, `two_bed_vsa_process`, `lpp_vsa_process`, `dual_adsorbent_vsa_process`; the examples rewritten on the new layer, except `history_matching.jl`. |
+
+`validate` (in `validation.jl`) and `MoccaInputError` (in `errors.jl`) give the checks of section 3.10.
+
+Checks (`test/interface.jl`): the four ready-made processes give the same parameters, forces, initial states and simulated states, to the last bit, as the deprecated builders; every process round-trips through a file exactly; the gradients of purity, recovery, specific energy and productivity with respect to step pressures, the feed velocity and pressure, stage durations and a bed parameter match finite differences to 1e-6 or better.
+
+### Departures from the note
+
+- **`Column` changed meaning.** It was an alias of the `Unit` entity; it is now the column geometry. `Column()` with no arguments still returns `Unit()`, with a deprecation warning.
+- **Default valve size.** A valve defaults to the conductance of the half cell at the bed end it is attached to (in series for a link), which reproduces the old boundary conditions, rather than a size that reaches the set pressure in the ramp time.
+- **Pressure carries over between steps.** A step's ramp starts where the step before left its bed, around the cycle, unless `from` is given; `Equalise` leaves both beds at the mean of their start pressures. Extract and waste lines default to the lowest pressure of their bed.
+- **Dispersion follows the adsorption velocity once.** With `dispersion_velocity = :adsorption` (the default) a bed's axial dispersion is set from its adsorption step's velocity when the `Process` is built, and stays fixed when design variables change, as the gas viscosity and density do. `validate` reports a fixed dispersion velocity far from the adsorption velocity.
+- **Gradients with respect to design variables.** A variable's effect on each stage's settings and duration comes from central differences on the compiled cycle, which is cheap and, for the built-in steps, linear; the adjoints do the rest. Any numeric field of any step can then be a variable, including those of steps users define.
+- **Energy counts compressors.** `performance` counts vacuum pumps on outlet devices below ambient pressure and compressors on inlet devices above it, as Haghpanah et al. do; the wet flue gas examples report the pumps alone too, as their paper does.
+- **Roles are a fixed set**, unlike steps. The flowsheet diagram is printed text.
+- **`simulate` extends `Jutul.simulate`**, so it does not clash with Jutul's.
+
+Not done: plotting is still in `src/` (see the architecture proposal's next steps); files only hold isotherms given by component and the linear driving force; `history_matching.jl` still uses the old interface.

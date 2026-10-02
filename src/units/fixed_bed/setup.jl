@@ -87,6 +87,7 @@ Computes permeability, dispersion, mesh and domain internally.
 Keyword arguments are forwarded to `mocca_domain`.
 """
 function setup_process_model(system, constants::ConstantsStruct; ncells = 200, kwarg...)
+    Base.depwarn("`setup_process_model(system, constants)` is deprecated. Convert the constants with `convert_constants` and build a bed with `add_bed!` from a `Gas`, an `Adsorbent` and a `Column`.", :setup_process_model)
     porosity = constants.Φ
     perm = compute_permeability(porosity, constants.d_p)
     disp = compute_dispersion(constants.D_m, constants.V0_inter, constants.d_p)
@@ -179,6 +180,7 @@ up to its duration.
 """
 function setup_forces(model, stage_times, bcs;
     num_cycles=1, max_dt = 1.0)
+    Base.depwarn("`setup_forces(model, stage_times, bcs)` and the boundary conditions of a single bed are deprecated; describe the process as a flowsheet with devices and a `Cycle` of steps, and run it as a `Process`.", :setup_forces)
 
     cycle_time = sum(stage_times)
     step_end = cumsum(stage_times)
@@ -213,6 +215,7 @@ Build boundary condition structs for each process stage from a constants struct.
 `"pressurisation"`, `"adsorption"`, `"blowdown"`, `"evacuation"`.
 """
 function setup_boundary_conditions(constants, stage_names)
+    Base.depwarn("`setup_boundary_conditions` is deprecated; describe the process as a flowsheet with devices and a `Cycle` of steps, and run it as a `Process`.", :setup_boundary_conditions)
     map(stage_names) do name
         if name == "pressurisation"
             PressurisationBC(

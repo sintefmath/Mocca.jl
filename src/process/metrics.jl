@@ -89,6 +89,33 @@ function vacuum_pump_energy(states, timesteps, device::Symbol;
 end
 
 """
+    compressor_energy(states, timesteps, device; suction_pressure = 101325.0,
+        efficiency = 0.72, γ = 1.4, window = eachindex(states))
+
+Work [J] to compress the gas entering through `device` from
+`suction_pressure` up to the device's outlet pressure, such as a feed
+compressor taking flue gas at atmospheric pressure up to the bed inlet. The gas
+is compressed adiabatically with isentropic `efficiency`, from the device's
+inlet temperature. Only steps with forward flow and an outlet above the
+suction pressure count, as in [`CompressorObjective`](@ref).
+"""
+function compressor_energy(states, timesteps, device::Symbol;
+        suction_pressure = 101325.0, efficiency = 0.72, γ = 1.4, window = eachindex(states))
+    W = 0.0
+    k_exp = (γ - 1) / γ
+    for k in window
+        s = states[k][device]
+        F = s[:MolarFlow][1]
+        P = s[:OutletPressure][1]
+        if F > 0 && P > suction_pressure
+            T = s[:InletTemperature][1]
+            W += F * GAS_CONSTANT * T / k_exp * ((P / suction_pressure)^k_exp - 1) / efficiency * timesteps[k]
+        end
+    end
+    return W
+end
+
+"""
     specific_energy_kwh_per_tonne(energy, n_product, molar_mass; component = 1)
 
 Energy per tonne of `component` produced, in kWh/t, given the energy [J], the

@@ -25,6 +25,7 @@ process. Case 2, with CO2 parameters fitted to CO2/H2O mixture data, is a
 different isotherm form and is not included.
 """
 function wet_flue_gas_isotherm(adsorbent::Symbol; T0 = 298.15)
+    Base.depwarn("`wet_flue_gas_isotherm` is deprecated; load the adsorbent with `load_adsorbent(\"zeolite_13x_krishnamurthy_2014\")` or `load_adsorbent(\"silica_gel_krishnamurthy_2014\")`.", :wet_flue_gas_isotherm)
     kJ = 1e3
     if adsorbent == :zeolite_13x
         return DualSiteLangmuir(
@@ -57,6 +58,7 @@ in particle density) of length `L`. `v0` is the interstitial feed velocity,
 which sets the axial dispersion. Other keywords override fields.
 """
 function wet_flue_gas_constants(adsorbent::Symbol; L = 1.0, v0 = 0.45, kwarg...)
+    Base.depwarn("`wet_flue_gas_constants` is deprecated; use `krishnamurthy_2014_gas`, `krishnamurthy_2014_column` and the library adsorbents.", :wet_flue_gas_constants)
     ρ_s = adsorbent == :zeolite_13x ? 1130.0 : adsorbent == :silica_gel ? 1220.0 :
         error("Unknown adsorbent $adsorbent; use :zeolite_13x or :silica_gel")
     return HaghpanahConstants{Float64}(;
@@ -85,6 +87,7 @@ releases most of it.
 """
 function wet_flue_gas_system(adsorbent::Symbol; constants = wet_flue_gas_constants(adsorbent),
         D_m = WET_FLUE_GAS_DIFFUSIVITY, kwarg...)
+    Base.depwarn("`wet_flue_gas_system` is deprecated; build a bed with `add_bed!` from `krishnamurthy_2014_gas()`, a library adsorbent and `krishnamurthy_2014_column()`.", :wet_flue_gas_system)
     # Table S2 gives one heat capacity for the gas mixture; the adsorbed phase
     # uses the same value
     C_p = fill(constants.C_pg[1], 3)
@@ -114,6 +117,7 @@ wet_flue_gas_light_product(; trace = 1e-10) = [trace, 1 - 2trace, trace]
 Bed state saturated with the light product at `pressure`.
 """
 function wet_flue_gas_initial_state(bed, pressure; temperature = 298.15)
+    Base.depwarn("`wet_flue_gas_initial_state` is deprecated; a `Process` starts its beds full of light product at their lowest pressure.", :wet_flue_gas_initial_state)
     return setup_process_state(bed;
         Pressure = pressure,
         Temperature = temperature,
@@ -171,6 +175,7 @@ function lpp_vsa_flowsheet(;
         PH = 101325.0, PI = 0.08e5, PL = 0.03e5,
         λ = constants.λ,
     )
+    Base.depwarn("`lpp_vsa_flowsheet` is deprecated; use `lpp_vsa_process`.", :lpp_vsa_flowsheet)
     bed = setup_process_model(system, constants; ncells = ncells)
     names = component_names(system)
     light = wet_flue_gas_light_product()
@@ -263,6 +268,7 @@ function dual_adsorbent_vsa_flowsheet(;
         PH = 101325.0,
         λ = zeolite_constants.λ,
     )
+    Base.depwarn("`dual_adsorbent_vsa_flowsheet` is deprecated; use `dual_adsorbent_vsa_process`.", :dual_adsorbent_vsa_flowsheet)
     sg = setup_process_model(silica_gel_system, silica_gel_constants; ncells = ncells)
     x = setup_process_model(zeolite_system, zeolite_constants; ncells = ncells)
     names = component_names(zeolite_system)

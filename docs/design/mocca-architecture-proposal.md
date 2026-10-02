@@ -2,7 +2,7 @@
 
 *Architecture proposal — draft for discussion. 25 September 2026. Based on Mocca.jl `main` at v0.1.0 (commit `70f6cd6`) and Jutul 0.4.31.*
 
-*Status, 1 October 2026: phases 0–2 and 4 are implemented, 3 in part. Section 10 lists what was built, where it departs from this proposal, and issues found in the existing code.*
+*Status, 1 October 2026: phases 0–2 and 4 are implemented, 3 in part. Section 10 lists what was built, where it departs from this proposal, and issues found in the existing code. 2 October 2026: a user interface layer on top of the flowsheets is implemented; see [the user interface note](mocca-user-interface-plan.md).*
 
 Mocca simulates one fixed-bed adsorption column today. This proposal restructures it into a set of unit models — fixed, moving, rotating and fluidised beds, membranes, solvent absorbers, and equipment such as valves, pumps and compressors — that connect into a flowsheet through Jutul `MultiModel`. The whole flowsheet stays differentiable.
 

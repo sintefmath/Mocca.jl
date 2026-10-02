@@ -28,6 +28,10 @@ using StaticArrays
         include("gradients.jl")
     end
 
+    @testset "User interface" begin
+        include("interface.jl")
+    end
+
     @testset "Mass Transfer" begin
         include("mass_transfer.jl")
     end
