@@ -17,6 +17,8 @@ export simulate_process
 export mocca_domain
 export column_mesh
 
+export mass_balance, energy_balance
+
 export plot_state, plot_cell
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
@@ -52,6 +54,7 @@ include("forces/forces.jl")
 include("select_variable.jl")
 include("convergence.jl")
 include("utils.jl")
+include("balance.jl")
 include("plot.jl")
 include("input_output/input_output.jl")
 include("../models/models.jl")

@@ -32,6 +32,10 @@ using StaticArrays
         include("jutul_integration.jl")
     end
 
+    @testset "Balance Functions" begin
+        include("balance.jl")
+    end
+
     @testset "Regression Tests" begin
         include("regression/dcb_regression.jl")
         include("regression/cyclic_regression.jl")
