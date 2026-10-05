@@ -73,6 +73,21 @@ function Jutul.discretize_domain(d::Jutul.DataDomain, system::DistributedUnit, :
     return domain
 end
 
+"""
+    SimulationFailure(message)
+
+The solver could not complete a simulation: Jutul gave up on a time step
+after cutting it, so the states stop short of the end of the schedule.
+"""
+struct SimulationFailure <: Exception
+    message::String
+end
+Base.showerror(io::IO, e::SimulationFailure) = print(io, "SimulationFailure: ", e.message)
+
+# Numerical failures that mean a solve from a given start did not work, as
+# opposed to errors in the code or the input
+_is_solver_failure(e) = e isa SimulationFailure || e isa LinearAlgebra.SingularException || e isa DomainError
+
 # Mocca problems are small, so a direct sparse solve is used throughout.
 # TODO: This causes problem for adjoint simulation. Is it needed?
 function Jutul.select_linear_solver(model::MoccaModel; kwarg...)

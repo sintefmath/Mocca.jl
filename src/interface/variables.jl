@@ -241,8 +241,9 @@ productivity follow from cycle sums by the quotient rule.
 
 Returns `metrics`, the performance; `gradients`, a NamedTuple per measure of
 NamedTuples per variable, such as `g.gradients.recovery.P_L`; and the
-`steady_state` used. The axial dispersion and the gas properties of a bed stay
-as they were when the process was built.
+`steady_state` used. The gas properties of a bed stay as they were when the
+process was built, and so does its axial dispersion unless a variable sets its
+`AxialDispersion` parameter.
 """
 function performance_gradient(p::Process; variables = variable_names(p), steady_state = nothing, rtol = 1e-7, info_level = -1)
     names = collect(Symbol, variables)

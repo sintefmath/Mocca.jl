@@ -85,7 +85,9 @@ The axial dispersion depends on the gas velocity. By default
 of the bed's adsorption step when a [`Process`](@ref) is built, or the largest
 adsorption velocity in the cycle for a bed fed from another; it then stays
 fixed as settings change. Give a velocity [m/s], or the `dispersion` [m²/s]
-itself, to fix it. See [`fixed_bed_model`](@ref) for the other keywords.
+itself, to fix it. It is the bed's `AxialDispersion` parameter, so it can also
+be set through `parameters` of a `Process` or a design variable. See
+[`fixed_bed_model`](@ref) for the other keywords.
 """
 function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
         dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing)
@@ -102,19 +104,22 @@ function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Col
     return fs
 end
 
-# Rebuild a bed whose dispersion follows the adsorption velocity
-function _set_dispersion_velocity!(fs::Flowsheet, name::Symbol, v)
+"""
+    bed_dispersion(fs, name) → Float64
+
+Axial dispersion [m²/s] of bed `name`, added with [`add_bed!`](@ref): the
+`dispersion` given, or `0.7 D_m + 0.5 v d_p` at the velocity it was set for.
+"""
+function bed_dispersion(fs::Flowsheet, name::Symbol)
     spec = fs.specs[name]
-    (spec.dispersion_velocity == :adsorption && isnothing(spec.dispersion) && spec.velocity_used != v) || return false
-    fs.units[name] = fixed_bed_model(fs.gas, fs.feed, spec.adsorbent, spec.column; ncells = spec.ncells, thermal = spec.thermal,
-        dispersion_velocity = v, dispersion = spec.dispersion, permeability = spec.permeability)
-    spec.velocity_used = v
-    return true
+    isnothing(spec.dispersion) || return spec.dispersion
+    return compute_dispersion(axial_diffusivity(fs.gas), spec.velocity_used, spec.adsorbent.particle_diameter)
 end
 
 _require_materials(fs, f) = isnothing(fs.gas) && error("$f needs a flowsheet made with Flowsheet(gas, feed)")
 
-beds(fs::Flowsheet) = [n for n in fs.order if !_is_device(fs.units[n])]
+"Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."
+beds(fs::Flowsheet) = [n for n in fs.order if holds_sorbent(fs.units[n])]
 
 # ------------------------------------------------------------------------------
 # Devices with roles

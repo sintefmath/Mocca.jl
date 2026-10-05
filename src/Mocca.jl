@@ -73,6 +73,7 @@ include("core/types.jl")
 include("core/variables.jl")
 include("core/conservation.jl")
 include("core/thermal.jl")
+include("core/unit_interface.jl")
 
 # Input structs
 include("io/constants.jl")

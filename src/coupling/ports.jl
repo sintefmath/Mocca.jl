@@ -135,11 +135,11 @@ end
     port_conductance(model, cell)
 
 Volumetric conductance [m³/(s·Pa)] of the half-cell connection between `cell`
-and the end of a bed, `k·A/(Δx/2)/μ`. A [`LinearValve`](@ref) with this
+and the end of a distributed unit, `k·A/(Δx/2)/μ`. A [`LinearValve`](@ref) with this
 conductance reproduces the pressure boundary conditions of earlier Mocca
 versions.
 """
-function port_conductance(model::FixedBedModel, cell; parameters = Jutul.setup_parameters(model))
+function port_conductance(model::DistributedUnitModel, cell; parameters = Jutul.setup_parameters(model))
     state = NamedTuple(parameters)
     return calc_bc_trans(model, state, cell) / state.FluidViscosity[1]
 end

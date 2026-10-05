@@ -170,6 +170,13 @@ function setup_process_parameters(model; kwargs...)
     return parameters
 end
 
+# A bed starts with its sorbent at equilibrium with the gas
+function setup_unit_state(model::SorbentBedModel; pressure, temperature, composition, wall_temperature = temperature)
+    return setup_process_state(model; _gas_state(model, pressure, temperature, composition, wall_temperature)...)
+end
+
+setup_unit_parameters(model::SorbentBedModel; kwarg...) = setup_process_parameters(model; kwarg...)
+
 """
     setup_forces(model, stage_times, bcs; num_cycles = 1, max_dt = 1.0) → (forces, timesteps)
 

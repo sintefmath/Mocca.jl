@@ -87,6 +87,9 @@ function set_boundary!(fs::Flowsheet, device::Symbol, port::Symbol, condition::P
     return fs
 end
 
+"Units with holdup (every unit but the devices), in flowsheet order."
+holdup_units(fs::Flowsheet) = [n for n in fs.order if !_is_device(fs.units[n])]
+
 "Whether `port` of `device` is connected to a unit."
 is_connected(fs::Flowsheet, device::Symbol, port::Symbol) = any(c -> (c[3], c[4]) == (device, port), fs.connections)
 
@@ -105,12 +108,19 @@ end
 """
     setup_flowsheet_model(fs) → Jutul.MultiModel
 
-Assemble the flowsheet into a `MultiModel` with a [`PortStateCT`](@ref) and a
-[`StreamCT`](@ref) for every connection.
+Assemble the flowsheet into a `MultiModel` with a [`PortStateCT`](@ref) for
+every connection, and a [`StreamCT`](@ref) for each of the unit's
+[`stream_equations`](@ref).
 """
 function setup_flowsheet_model(fs::Flowsheet)
     for (d, p) in boundary_ports(fs)
         haskey(fs.boundaries, (d, p)) || error("Port $p of device $d is not connected and has no boundary condition; use set_boundary!")
+    end
+    for name in holdup_units(fs)
+        # Stage duration gradients stretch the time steps of every unit
+        # through its TimeScale; a unit without it would silently keep them
+        haskey(fs.units[name].parameters, :TimeScale) ||
+            error("Unit $name has no TimeScale parameter; select it in Jutul.select_parameters! for its system (see blocks/unit_parameters.jl)")
     end
     models = NamedTuple{Tuple(fs.order)}(Tuple(fs.units[k] for k in fs.order))
     mm = Jutul.MultiModel(models)
@@ -119,9 +129,8 @@ function setup_flowsheet_model(fs::Flowsheet)
         cell = ports(unit)[up]
         k = port_index(fs.units[d], dp)
         Jutul.add_cross_term!(mm, PortStateCT(cell); target = d, source = u, equation = port_equation(dp))
-        Jutul.add_cross_term!(mm, StreamCT(cell, k); target = u, source = d, equation = :mass_conservation)
-        if haskey(unit.equations, :energy_column) && unit.equations[:energy_column] isa Jutul.ConservationLaw
-            Jutul.add_cross_term!(mm, StreamCT(cell, k); target = u, source = d, equation = :energy_column)
+        for eq in stream_equations(unit)
+            Jutul.add_cross_term!(mm, StreamCT(cell, k); target = u, source = d, equation = eq)
         end
     end
     return mm
@@ -136,7 +145,7 @@ end
     setup_flowsheet_state(fs; kwarg...) → Dict
 
 Initial state for every unit. Pass the initial state of each unit with holdup as
-a keyword named after the unit, e.g. `Bed = setup_process_state(fs[:Bed]; ...)`.
+a keyword named after the unit, e.g. `Bed = setup_unit_state(fs[:Bed]; ...)`.
 Device states are initialised from what their ports are attached to.
 """
 function setup_flowsheet_state(fs::Flowsheet; kwarg...)
@@ -166,19 +175,14 @@ end
 """
     setup_flowsheet_parameters(fs; kwarg...) → Dict
 
-Parameters for every unit. Beds use [`setup_process_parameters`](@ref); pass a
-`Dict` or `NamedTuple` of overrides per unit as a keyword named after it.
+Parameters for every unit, from [`setup_unit_parameters`](@ref); pass a `Dict`
+or `NamedTuple` of overrides per unit as a keyword named after it.
 """
 function setup_flowsheet_parameters(fs::Flowsheet; kwarg...)
     prm = Dict{Symbol, Any}()
     for name in fs.order
-        model = fs.units[name]
         extra = get(kwarg, name, NamedTuple())
-        if model isa FixedBedModel
-            prm[name] = setup_process_parameters(model; pairs(extra)...)
-        else
-            prm[name] = Jutul.setup_parameters(model; pairs(extra)...)
-        end
+        prm[name] = setup_unit_parameters(fs.units[name]; pairs(extra)...)
     end
     return prm
 end

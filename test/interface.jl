@@ -242,6 +242,67 @@ end
     @test any(e -> occursin("extract", e.message), v)
 end
 
+@testset "A process owns its flowsheet and cycle" begin
+    gas = M.haghpanah_2013_gas()
+    feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
+    fs = Flowsheet(gas, feed)
+    add_bed!(fs, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), M.haghpanah_2013_column(); ncells = 5)
+    add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+    add_device!(fs, :V_product, :product; at = (:Bed, :top))
+    add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
+    cycle = Cycle([Pressurise(5.0), Adsorb(5.0; velocity = 0.5), Blowdown(5.0; to = 0.3bar), Evacuate(5.0; to = 0.1bar)])
+    bed, boundary, spec = fs[:Bed], fs.boundaries[(:V_vacuum, :outlet)], deepcopy(fs.specs[:Bed])
+    p = Process(fs, cycle)
+    q = Process(fs, cycle)
+    # Building them leaves the flowsheet and cycle as they were
+    @test fs[:Bed] === bed && fs.boundaries[(:V_vacuum, :outlet)] == boundary
+    @test fs.specs[:Bed].velocity_used == spec.velocity_used
+    # The model of each process is built from its own units
+    for r in (p, q)
+        @test all(r.model.models[u] === r.flowsheet.units[u] for u in r.flowsheet.order)
+    end
+    # Changing one process changes neither the other nor what they came from
+    add_variable!(p, :P_L, ("evacuation", :to))
+    add_variable!(p, :P_H, (:feed, :pressure))
+    p[:P_L] = 0.12bar
+    p[:P_H] = 1.2bar
+    @test M.cycle_steps(cycle)[4][2].to == 0.1bar && feed.pressure == 1bar
+    @test M.cycle_steps(q.cycle)[4][2].to == 0.1bar && q.flowsheet.feed.pressure == 1bar
+    @test M.stages(q)[4].settings[:V_vacuum].outlet.pressure.stop == 0.1bar
+    @test M.stages(p)[4].settings[:V_vacuum].outlet.pressure.stop == 0.12bar
+end
+
+@testset "Axial dispersion is a parameter" begin
+    gas = M.haghpanah_2013_gas()
+    a = load_adsorbent("zeolite_13x_haghpanah_2013")
+    function process(; v = 0.5, kwarg...)
+        fs = Flowsheet(gas, Feed(gas; composition = [0.15, 0.85], pressure = 1bar))
+        add_bed!(fs, :Bed, a, M.haghpanah_2013_column(); ncells = 5, kwarg...)
+        add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+        add_device!(fs, :V_product, :product; at = (:Bed, :top))
+        add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
+        return Process(fs, Cycle([Pressurise(5.0), Adsorb(5.0; velocity = v), Evacuate(5.0; to = 0.1bar)]))
+    end
+    # Set from the adsorption velocity, without rebuilding the bed
+    D(v) = M.compute_dispersion(M.axial_diffusivity(gas), v, a.particle_diameter)
+    p = process(v = 0.5)
+    @test only(p.parameters[:Bed][:AxialDispersion]) ≈ D(0.5)
+    @test p.flowsheet.specs[:Bed].velocity_used == 0.5
+    # A fixed velocity or dispersion is kept
+    @test only(process(v = 0.5; dispersion_velocity = 2.0).parameters[:Bed][:AxialDispersion]) ≈ D(2.0)
+    @test only(process(v = 0.5; dispersion = 1e-3).parameters[:Bed][:AxialDispersion]) == 1e-3
+    # Same flux as the transmissibility of the old DiffusionTransmissibilities,
+    # porosity·D through the faces
+    bed = p.flowsheet[:Bed]
+    g = Jutul.physical_representation(bed.data_domain)
+    T_old = Jutul.compute_face_trans(g, bed.data_domain[:porosity] .* D(0.5))
+    @test D(0.5) .* p.parameters[:Bed][:DispersionTransmissibilities] ≈ T_old
+    # And a design variable can set it
+    add_variable!(p, :D_ax, (:parameter, :Bed, :AxialDispersion))
+    p[:D_ax] = 2e-3
+    @test only(p.parameters[:Bed][:AxialDispersion]) == 2e-3
+end
+
 @testset "Design variable gradients and optimisation" begin
     p = four_stage_vsa_process(ncells = 8, durations = (10.0, 15.0, 20.0, 25.0), P_H = 1.1bar,
         timestepping = TimeStepping(max_dt = 1.0, first_dt = 0.05))

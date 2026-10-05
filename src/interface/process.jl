@@ -35,15 +35,21 @@ A cyclic adsorption process: the flowsheet `fs` (built with
   take gas from it; `pump_efficiency` and `heat_capacity_ratio` are those of
   both.
 - `ramp_rate` [1/s]: of the pressure ramps of steps that do not set their own.
-- `initial_state`: per bed, a NamedTuple with any of `pressure`,
-  `temperature`, `wall_temperature` and `composition`. By default each bed
-  starts at the lowest pressure of its cycle, at the feed temperature, full of
-  light product.
+- `initial_state`: per unit with holdup, a NamedTuple with any of
+  `pressure`, `temperature`, `wall_temperature` and `composition`. By default
+  each unit starts at the lowest pressure of its cycle (the feed pressure if
+  no step sets it), at the feed temperature, full of light product, with the
+  sorbent of a bed at equilibrium (see [`setup_unit_state`](@ref)).
 - `parameters`: per unit, values of its Jutul parameters to override, such as
   `Dict(:Bed => Dict(:AdsorbentDensity => 1200.0))`.
 
 Simulate it with [`simulate`](@ref), find its cyclic steady state with
 [`cyclic_steady_state`](@ref), and measure it with [`performance`](@ref).
+
+The process keeps its own copies of `fs` and `cycle`, so changing them
+afterwards does not change the process, and several processes can be built
+from the same ones. Change a process through its design variables (see
+[`add_variable!`](@ref)); `p.flowsheet` and `p.cycle` are its copies.
 """
 mutable struct Process
     name::String
@@ -65,19 +71,24 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
         ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = 1.4, ramp_rate = 0.5,
         initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
     _require_materials(fs, "Process")
+    # The process sets up and later changes its flowsheet (dispersion
+    # velocities, default boundaries, the feed) and its steps (design
+    # variables), so it works on copies of its own
+    fs = deepcopy(fs)
+    cycle = deepcopy(cycle)
     k = key_component isa Integer ? Int(key_component) : component_index(fs.gas, key_component)
     1 <= k <= number_of_components(fs.gas) || input_error("process", "key_component", "the gas has $(number_of_components(fs.gas)) components, got $k")
     options = ProcessOptions(k, ambient_pressure, pump_efficiency, heat_capacity_ratio, ramp_rate)
     compiled = compile_cycle(cycle, fs; ramp_rate = ramp_rate)
     _set_dispersion_velocities!(fs, compiled)
     _refresh_default_boundaries!(fs, compiled)
-    for b in beds(fs)
-        isempty(vcat([devices_at(fs, b, p) for p in keys(ports(fs.units[b]))]...)) && @warn "Bed $b has no devices attached"
+    for u in holdup_units(fs)
+        isempty(vcat([devices_at(fs, u, p) for p in keys(ports(fs.units[u]))]...)) && @warn "Unit $u has no devices attached"
     end
     model = setup_flowsheet_model(fs)
     ics = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in pairs(initial_state))
-    for b in keys(ics)
-        b in beds(fs) || input_error("initial_state", String(b), "$b is not a bed of the flowsheet")
+    for u in keys(ics)
+        u in holdup_units(fs) || input_error("initial_state", String(u), "$u is not a unit with holdup of the flowsheet")
     end
     settings = Dict{Symbol, Dict{Symbol, Any}}(Symbol(u) => Dict{Symbol, Any}(Symbol(n) => v for (n, v) in pairs(d)) for (u, d) in pairs(parameters))
     p = Process(String(name), fs, cycle, timestepping, options, ics, settings, Any[], model, Dict{Symbol, Any}(), compiled, nothing, WarmStart())
@@ -86,7 +97,11 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
 end
 
 function _process_parameters(p::Process)
-    prm = setup_flowsheet_parameters(p.flowsheet)
+    fs = p.flowsheet
+    prm = setup_flowsheet_parameters(fs)
+    for b in beds(fs)
+        get(fs.specs, b, nothing) isa BedSpec && (prm[b][:AxialDispersion] .= bed_dispersion(fs, b))
+    end
     for (u, d) in p.parameter_settings
         haskey(prm, u) || input_error("parameters", String(u), "$u is not a unit of the flowsheet")
         for (n, v) in d
@@ -97,7 +112,8 @@ function _process_parameters(p::Process)
     return prm
 end
 
-# Beds whose dispersion follows the adsorption velocity: rebuild them for it
+# Beds whose dispersion follows the adsorption velocity take that velocity;
+# their AxialDispersion parameter is set from it in _process_parameters
 function _set_dispersion_velocities!(fs, compiled)
     all_v = vcat(values(compiled.velocities)...)
     for b in beds(fs)
@@ -108,7 +124,7 @@ function _set_dispersion_velocities!(fs, compiled)
             @warn "No adsorption step sets a feed velocity, so the axial dispersion of bed $b uses 1 m/s; pass dispersion_velocity to add_bed! to set it"
             continue
         end
-        _set_dispersion_velocity!(fs, b, v)
+        fs.specs[b].velocity_used = v
     end
 end
 
@@ -190,20 +206,17 @@ The initial state of every unit; see `initial_state` in [`Process`](@ref).
 function initial_state(p::Process)
     fs = p.flowsheet
     compiled = _compiled(p)
-    bed_states = Dict{Symbol, Any}()
-    for b in beds(fs)
-        ic = get(p.initial_conditions, b, NamedTuple())
-        model = fs.units[b]
-        P = haskey(ic, :pressure) ? ic.pressure : (haskey(compiled.pressures, b) ? minimum(compiled.pressures[b]) : fs.feed.pressure)
+    unit_states = Dict{Symbol, Any}()
+    for u in holdup_units(fs)
+        ic = get(p.initial_conditions, u, NamedTuple())
+        P = haskey(ic, :pressure) ? ic.pressure : (haskey(compiled.pressures, u) ? minimum(compiled.pressures[u]) : fs.feed.pressure)
         T = get(ic, :temperature, fs.feed.temperature)
-        spec = get(fs.specs, b, nothing)
+        spec = get(fs.specs, u, nothing)
         Tw = get(ic, :wall_temperature, spec isa BedSpec ? spec.column.ambient_temperature : T)
-        y = haskey(ic, :composition) ? composition(fs.gas, ic.composition; location = "initial state of $b") : fs.feed.light_product
-        kw = Dict{Symbol, Any}(:Pressure => P, :Temperature => T, :y => y)
-        haskey(model.primary_variables, :WallTemperature) && (kw[:WallTemperature] = Tw)
-        bed_states[b] = setup_process_state(model; kw...)
+        y = haskey(ic, :composition) ? composition(fs.gas, ic.composition; location = "initial state of $u") : fs.feed.light_product
+        unit_states[u] = setup_unit_state(fs.units[u]; pressure = P, temperature = T, composition = y, wall_temperature = Tw)
     end
-    return setup_flowsheet_state(fs; bed_states...)
+    return setup_flowsheet_state(fs; unit_states...)
 end
 
 # ------------------------------------------------------------------------------
@@ -240,7 +253,7 @@ function Jutul.simulate(p::Process; cycles = 1, state0 = nothing, info_level = -
     x0 = isnothing(state0) ? initial_state(p) : state0
     case = MoccaCase(p.model, dt, forces; state0 = x0, parameters = p.parameters)
     states, ts = simulate_process(case; output_substates = true, info_level = info_level, kwarg...)
-    isapprox(sum(ts), sum(dt)) || error("The simulation stopped at t = $(sum(ts)) s of $(sum(dt)) s")
+    isapprox(sum(ts), sum(dt)) || throw(SimulationFailure("the simulation stopped at t = $(sum(ts)) s of $(sum(dt)) s"))
     n = cycles
     if cycles > 1
         w = cycle_window(ts, cycle_time(p), cycles)
@@ -281,7 +294,11 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
                 newton_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_iterations = 40,
                     jacobian = p.warm.jacobian, info_level = info_level, kwarg...)
             catch e
-                e isa InterruptException && rethrow()
+                # A start too far from the new steady state can make the
+                # solver fail; anything else is a bug and is passed on
+                _is_solver_failure(e) || rethrow()
+                info_level >= 0 && println("Newton's method from the warm start failed ($(sprint(showerror, e))); starting again from the initial state")
+                @debug "Warm-started Newton's method failed" exception = (e, catch_backtrace())
                 nothing
             end
             if !isnothing(r) && r.converged

@@ -106,8 +106,12 @@ end
     css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11)
     @test css.converged
     @test css.cycles <= 4
-    # Each iteration gains at least an order of magnitude
-    @test all(css.history[2:end] .< 0.1 .* css.history[1:end-1])
+    # The first step, from wherever the loose solve stopped, at least halves
+    # the cycle change; once close, each iteration gains at least an order of
+    # magnitude. (How far the first step gets depends on round-off: Anderson
+    # acceleration amplifies it into a different loose state.)
+    @test css.history[2] < 0.5 * css.history[1]
+    @test all(css.history[3:end] .< 0.1 .* css.history[2:end-1])
 
     G = (co2 = Mocca.StreamObjective(:V_vacuum; scale = 1e3), energy = Mocca.VacuumPumpObjective(:V_vacuum; scale = 1e-3))
     g = Mocca.cyclic_steady_state_gradient(c.mm, css.state0, c.prm, forces, dt, G; with_forces = true)
@@ -139,6 +143,15 @@ end
     jp, jm = objectives(v, pp), objectives(v, pm)
     for k in keys(G)
         @test isapprox(sum(g[k].parameters[:Bed][:SolidVolume] .* hp), (jp[k] - jm[k]) / 2, rtol = 1e-6)
+    end
+
+    # Axial dispersion, a unit parameter used in the face fluxes
+    hD = 1e-4 * only(c.prm[:Bed][:AxialDispersion])
+    pp = deepcopy(c.prm); pp[:Bed][:AxialDispersion] .+= hD
+    pm = deepcopy(c.prm); pm[:Bed][:AxialDispersion] .-= hD
+    jp, jm = objectives(v, pp), objectives(v, pm)
+    for k in keys(G)
+        @test isapprox(only(g[k].parameters[:Bed][:AxialDispersion]), (jp[k] - jm[k]) / (2hD), rtol = 1e-6)
     end
 
     # Adsorption time

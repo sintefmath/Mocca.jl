@@ -555,7 +555,7 @@ function _resolve_bed(fs, step, loc)
         return length(all_beds) == 1 ? all_beds[1] : nothing
     end
     for b in bs
-        haskey(fs.units, b) && !_is_device(fs.units[b]) || input_error(loc, "bed", "$b is not a bed of the flowsheet; beds are $(join(beds(fs), ", "))")
+        b in holdup_units(fs) || input_error(loc, "bed", "$b is not a unit with holdup of the flowsheet; beds are $(join(beds(fs), ", "))")
     end
     return bs[1]
 end
@@ -576,7 +576,9 @@ function _compile_sequence(elems, fs, ramp_rate, label, pressures_seen, velociti
             loc = _location(label, i, step_name(s))
             bed = _resolve_bed(fs, s, loc)
             ctx = StepContext(fs, bed, isnothing(bed) ? nothing : get(start, bed, nothing), start, ramp_rate, loc)
-            # Errors are reported by the second pass, with the pressures known
+            # A step may fail here because the pressure it starts from is not
+            # known yet. The second pass calls it again with the pressures
+            # known, so any error that remains is reported there.
             ends = try
                 end_pressures(s, ctx)
             catch err
