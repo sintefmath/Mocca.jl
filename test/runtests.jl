@@ -4,6 +4,8 @@ using Jutul
 using LinearAlgebra
 using StaticArrays
 
+include("haghpanah_cases.jl")
+
 @testset "Mocca.jl Tests" begin
     @testset "Input Parsing" begin
         include("data_input.jl")

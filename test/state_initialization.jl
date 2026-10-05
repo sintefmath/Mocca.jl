@@ -2,11 +2,9 @@
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.AdsorptionSystem(constants)
-    # Create a simple mesh
     ncells = 10
-    nc = Mocca.number_of_components(system)
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
+    nc = Mocca.number_of_components(model.system)
 
     # Test state initialization
     bar = 1e5  # Pa
@@ -69,11 +67,9 @@ end
     # Set up system and model
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.AdsorptionSystem(constants)
-    # Create a simple mesh
     ncells = 10
-    nc = Mocca.number_of_components(system)
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
+    nc = Mocca.number_of_components(model.system)
 
     # Test state initialization
     bar = 1e5  # Pa
@@ -112,10 +108,8 @@ end
 @testset "State Initialization with Different Conditions" begin
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.AdsorptionSystem(constants)
-
     ncells = 5
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
 
     # Test with different pressures
     bar = 1e5
@@ -167,17 +161,12 @@ end
 
 
 @testset "State Initialization with Restart State" begin
+    p = haghpanah_breakthrough(; ncells = 20, duration = 200.0, max_dt = 50.0)
+    r = simulate(p)
+    model = p.flowsheet[:Bed]
+    restart = r.states[end][:Bed]
 
-    (constants, info) = Mocca.parse_input(haghpanah_DCB_input())
-    case, ts_config = Mocca.setup_mocca_case(constants, info)
-
-    # #Run simulation
-    states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
-        output_substates = true, info_level = -1)
-
-    restart = states[end]
-
-    state0 = Mocca.setup_process_state(case.model;
+    state0 = Mocca.setup_process_state(model;
         state0 = restart,
     )
 
@@ -189,4 +178,3 @@ end
     @test all(state0[:WallTemperature] .≈ restart[:WallTemperature])
 
 end
-

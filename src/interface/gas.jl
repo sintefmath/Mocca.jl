@@ -170,6 +170,18 @@ function composition(gas::Gas, spec; trace = 1e-10, location = "composition")
 end
 
 """
+    light_product_composition(y_feed; trace = 1e-10)
+
+The feed composition with its first component reduced to `trace` and the rest
+renormalised: a stand-in for the light product of a separation.
+"""
+function light_product_composition(y_feed; trace = 1e-10)
+    rest = y_feed[2:end]
+    rest = rest ./ sum(rest) .* (1 - trace)
+    return vcat(trace, rest)
+end
+
+"""
     Feed(gas; composition, temperature = 298.15, pressure = 101325.0, light_product)
 
 The feed gas of a flowsheet: its composition (see [`composition`](@ref)),

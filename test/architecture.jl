@@ -1,24 +1,18 @@
 @testset "System hierarchy and aliases" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.FixedBed(constants)
+    model = haghpanah_bed(ncells = 5)
+    system = model.system
 
     @test Mocca.AdsorptionSystem === Mocca.FixedBed
-    # Column() for the unit entity still works, deprecated; Column is now a
-    # column geometry
-    @test Mocca.Column() === Mocca.Unit()
     @test system isa Mocca.SorbentBed
     @test system isa Mocca.DistributedUnit
     @test system isa Mocca.MoccaSystem
-
-    model = Mocca.setup_process_model(system, constants; ncells = 5)
     @test model isa Mocca.FixedBedModel
     @test model isa Mocca.MoccaModel
 end
 
 @testset "Boundary quantities are parameters" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.FixedBed(constants)
-    model = Mocca.setup_process_model(system, constants; ncells = 5)
+    constants = haghpanah_constants()
+    model = haghpanah_bed(constants; ncells = 5)
     parameters = Mocca.setup_process_parameters(model)
 
     @test haskey(parameters, :Permeability)
@@ -33,51 +27,38 @@ end
     @test Mocca.calc_bc_trans(model, nt, 1) ≈ 2 * Mocca.calc_bc_trans(model, parameters |> NamedTuple, 1)
 end
 
-function _short_breakthrough(system, constants; ncells = 20, t_end = 200.0, state_kw = (WallTemperature = constants.T_a,))
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
-    state0 = Mocca.setup_process_state(model;
-        Pressure = constants.p_high,
-        Temperature = constants.T_feed,
-        y = [1e-10, 1.0 - 1e-10],
-        state_kw...
-    )
-    parameters = Mocca.setup_process_parameters(model)
-    bcs = Mocca.setup_boundary_conditions(constants, ["adsorption"])
-    forces, dt = Mocca.setup_forces(model, [t_end], bcs; max_dt = 5.0)
-    case = Mocca.MoccaCase(model, dt, forces; state0 = state0, parameters = parameters)
-    states, = Mocca.simulate_process(case; info_level = -1)
-    return model, states
+# A 200 s breakthrough with steps of 5 s; returns the bed model and its states
+function _short_breakthrough(constants = haghpanah_constants(); ncells = 20, t_end = 200.0, kwarg...)
+    p = haghpanah_breakthrough(constants; ncells = ncells, duration = t_end, max_dt = 5.0, kwarg...)
+    r = simulate(p)
+    return p.flowsheet[:Bed], unit_states(r.states)
 end
 
 @testset "Thermal models" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
+    constants = haghpanah_constants()
 
-    sys_wall = Mocca.FixedBed(constants)
+    sys_wall = haghpanah_bed(ncells = 5).system
     @test Mocca.has_wall(sys_wall)
     @test Mocca.has_energy_balance(sys_wall)
 
-    sys_adiabatic = Mocca.FixedBed(constants; thermal = Mocca.Adiabatic())
-    @test !Mocca.has_wall(sys_adiabatic)
-    model_a, states_a = _short_breakthrough(sys_adiabatic, constants; state_kw = NamedTuple())
+    model_a, states_a = _short_breakthrough(; thermal = Mocca.Adiabatic())
+    @test !Mocca.has_wall(model_a.system)
     @test !haskey(model_a.primary_variables, :WallTemperature)
     @test !haskey(model_a.equations, :energy_wall)
     @test maximum(states_a[end][:Temperature]) > constants.T_feed + 1.0
 
-    sys_iso = Mocca.FixedBed(constants; thermal = Mocca.Isothermal(310.0))
-    @test !Mocca.has_energy_balance(sys_iso)
-    model_i, states_i = _short_breakthrough(sys_iso, constants; state_kw = NamedTuple())
+    model_i, states_i = _short_breakthrough(; thermal = Mocca.Isothermal(310.0))
+    @test !Mocca.has_energy_balance(model_i.system)
     @test all(isapprox.(states_i[end][:Temperature], 310.0, atol = 1e-6))
 
     # Adiabatic bed runs hotter than one losing heat through the wall
-    constants_hot = Mocca.HaghpanahConstants{Float64}(h_in = 50.0, h_out = 50.0)
-    _, states_w = _short_breakthrough(Mocca.FixedBed(constants_hot), constants_hot)
+    _, states_w = _short_breakthrough(haghpanah_constants(h_in = 50.0, h_out = 50.0))
     @test maximum(states_a[end][:Temperature]) > maximum(states_w[end][:Temperature])
 end
 
 @testset "Sorption heat over all components" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    sys_first = Mocca.FixedBed(constants)
-    sys_all = Mocca.FixedBed(constants; sorption_heat_all_components = true)
+    sys_first = haghpanah_bed(ncells = 5).system
+    sys_all = haghpanah_bed(ncells = 5; sorption_heat = :all).system
     @test !Mocca.sorption_heat_all_components(sys_first)
     @test Mocca.sorption_heat_all_components(sys_all)
 
@@ -96,8 +77,8 @@ end
     @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(), nothing, st, 1) ≈ 0.1 * 700.0 * 0.03 * 1.5
 
     # And the option reaches the simulation
-    _, s_first = _short_breakthrough(sys_first, constants)
-    _, s_all = _short_breakthrough(sys_all, constants)
+    _, s_first = _short_breakthrough()
+    _, s_all = _short_breakthrough(; sorption_heat = :all)
     @test !isapprox(maximum(s_all[end][:Temperature]), maximum(s_first[end][:Temperature]), atol = 0.1)
 end
 
@@ -108,9 +89,7 @@ end
 Mocca.energy_source(h::_ConstantHeater, model, state, state0, cell, Δt) = h.power
 
 @testset "Custom source term" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.FixedBed(constants; thermal = Mocca.Adiabatic())
-    model = Mocca.setup_process_model(system, constants; ncells = 4)
+    model = haghpanah_bed(ncells = 4, thermal = Mocca.Adiabatic())
     state0 = Mocca.setup_process_state(model; Pressure = 1e5, Temperature = 298.15, y = [1e-10, 1.0 - 1e-10])
     parameters = Mocca.setup_process_parameters(model)
 

@@ -2,36 +2,13 @@ using Test
 using Mocca
 using Jutul
 
+# Breakthrough of the feed of the Mocca 0.1.0 constants, with no heat
+# transfer to the wall, into a bed full of nitrogen at 1 bar, as a Process;
+# returns the bed states
 function run_dcb_simulation(; ncells = 200, t_ads = 5000.0, maxdt = 5000.0)
-    constants = Mocca.HaghpanahConstants{Float64}(h_in = 0.0, h_out = 0.0)
-    system = Mocca.AdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
-
-    bar = si_unit(:bar)
-    state0 = Mocca.setup_process_state(model;
-        Pressure = 1 * bar,
-        Temperature = 298.15,
-        WallTemperature = constants.T_a,
-        y = [1e-10, 1.0 - 1e-10]
-    )
-
-    parameters = Mocca.setup_process_parameters(model)
-
-    bcs = Mocca.setup_boundary_conditions(constants, ["adsorption"])
-
-    sim_forces, timesteps = Mocca.setup_forces(model, [t_ads], bcs;
-        num_cycles = 1, max_dt = maxdt)
-
-    case = Mocca.MoccaCase(model, timesteps, sim_forces;
-        state0 = state0, parameters = parameters)
-
-    states, timesteps_out = Mocca.simulate_process(case;
-        timestep_selector_cfg = (y = 0.01, Temperature = 10.0, Pressure = 10.0),
-        output_substates = true,
-        info_level = -1
-    )
-
-    return states, model, timesteps_out
+    p = haghpanah_breakthrough(haghpanah_constants(h_in = 0.0, h_out = 0.0); ncells = ncells, duration = t_ads, max_dt = maxdt)
+    r = simulate(p; timestep_selector_cfg = (Bed = (y = 0.01, Temperature = 10.0, Pressure = 10.0),))
+    return unit_states(r.states), p.flowsheet[:Bed], r.timesteps
 end
 
 function dcb_metrics(states, model, timesteps_out)
@@ -65,18 +42,19 @@ end
     states, model, timesteps_out = run_dcb_simulation()
     m = dcb_metrics(states, model, timesteps_out)
 
-    # Updated when the inlet boundary conditions were made to conserve each
-    # component (the pressurisation sign and upwinding were fixed with it)
+    # From the Process (flowsheet) form of the breakthrough. The legacy
+    # boundary conditions, whose references these replace, agreed to within
+    # 8e-5 in every quantity
     ref = (
-        y_outlet_CO2 = 0.14865412194754166,
-        y_outlet_N2 = 0.8513458780524578,
-        T_outlet = 301.7255919033596,
-        T_inlet = 298.14999477838853,
-        T_max = 301.7255919033596,
-        P_outlet = 100004.81221738287,
-        P_inlet = 101884.22639525759,
-        total_CO2_adsorbed = 774399.9320169437,
-        breakthrough_time = 486.85078101997647,
+        y_outlet_CO2 = 0.1486563818654154,
+        y_outlet_N2 = 0.851343618134585,
+        T_outlet = 301.7194262101073,
+        T_inlet = 298.14999483661705,
+        T_max = 301.7194262101073,
+        P_outlet = 100004.81235633386,
+        P_inlet = 101884.30990920354,
+        total_CO2_adsorbed = 774405.5802776606,
+        breakthrough_time = 486.88859725807845,
     )
 
     @test isapprox(m.y_outlet_CO2, ref.y_outlet_CO2, rtol=1e-3)

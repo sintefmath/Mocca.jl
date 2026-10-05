@@ -2,9 +2,9 @@
 # Cyclic VSA as a flowsheet
 
 This example looks inside the four-stage vacuum swing adsorption (VSA) cycle
-of Haghpanah et al. (2013) as a flowsheet of connected units, and compares it
-with the stage-specific boundary conditions of earlier Mocca versions. A fixed
-bed is connected to three flow devices:
+of Haghpanah et al. (2013) as a flowsheet of connected units, and then builds
+the same flowsheet by hand from the layer underneath. A fixed bed is connected
+to three flow devices:
 
     feed ──V_feed──┐                 ┌──V_product── raffinate
                    bottom  Bed  top
@@ -23,9 +23,7 @@ using Mocca.Units
 #
 # `four_stage_vsa_process` builds the flowsheet and its cycle of steps; the
 # [cyclic VSA](cyclic_vsa_haghpanah_2013_co2_n2.md) example builds the same
-# from its parts. The grid, stage durations, 1 s time steps and initial state
-# (nitrogen at 1 bar) are those of the boundary-condition version, so the two
-# can be compared at the end.
+# from its parts. The run uses steps of 1 s and starts from nitrogen at 1 bar.
 ncells = 200
 process = Mocca.four_stage_vsa_process(ncells = ncells, timestepping = Mocca.TimeStepping(max_dt = 1.0, first_dt = 1.0),
     initial_state = Dict(:Bed => (pressure = 1bar,)))
@@ -64,35 +62,73 @@ f_streams = Mocca.plot_flowsheet_streams(result.states, process.model, result.ti
 n_extract = Mocca.stream_totals(result.states, result.timesteps, :V_vacuum)
 println("CO₂ recovered through the vacuum line over three cycles: $(round(n_extract[1], digits = 2)) mol")
 
-# # 4. Comparison with the boundary-condition version
+# # 4. The same flowsheet by hand
 #
-# Run the same cycle with the stage-specific boundary conditions of earlier
-# Mocca versions. They are deprecated, and kept for comparisons like this.
-constants = Mocca.HaghpanahConstants{Float64}()
-bc_model = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = ncells)
-bc_state0 = Mocca.setup_process_state(bc_model;
-    Pressure = 1bar,
-    Temperature = 298.15,
-    WallTemperature = constants.T_a,
-    y = [1e-10, 1.0 - 1e-10],
-)
-bcs = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption", "blowdown", "evacuation"])
-bc_forces, bc_timesteps = Mocca.setup_forces(bc_model, [st.duration for st in Mocca.stages(process)], bcs; num_cycles = 3, max_dt = 1)
-bc_case = Mocca.MoccaCase(bc_model, bc_timesteps, bc_forces; state0 = bc_state0, parameters = Mocca.setup_process_parameters(bc_model))
-bc_states, bc_timesteps_out = Mocca.simulate_process(bc_case; info_level = 0, output_substates = true)
+# A [`Flowsheet`](@ref Mocca.Flowsheet) holds a `UnitNetwork`: the units, the
+# connections between their ports and the boundary conditions of device ports
+# that are not connected. Building the
+# network directly means giving everything the process filled in from the
+# device roles and steps: the bed model, the boundaries, the valve sizes and
+# the device settings of every stage.
+gas = Mocca.haghpanah_2013_gas()
+feed = Mocca.Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
+bed_model = Mocca.fixed_bed_model(gas, feed, Mocca.load_adsorbent("zeolite_13x_haghpanah_2013"),
+    Mocca.haghpanah_2013_column(); ncells = ncells, dispersion_velocity = 1.0)
 
-runs = [
-    "Flowsheet" => (bed_states, result.timesteps),
-    "Boundary conditions" => (bc_states, bc_timesteps_out),
+net = Mocca.UnitNetwork()
+Mocca.add_unit!(net, :Bed, bed_model)
+for d in (:V_feed, :V_product, :V_vacuum)
+    Mocca.add_unit!(net, d, Mocca.setup_device_model(gas.names))
+end
+Mocca.connect!(net, (:Bed, :bottom) => (:V_feed, :outlet))
+Mocca.connect!(net, (:Bed, :top) => (:V_product, :inlet))
+Mocca.connect!(net, (:Bed, :bottom) => (:V_vacuum, :inlet))
+
+# The free ports are the feed, the raffinate line and the vacuum line:
+T, y_feed, y_light = 298.15, feed.composition, feed.light_product
+condition(P, y) = Mocca.PortCondition(pressure = P, temperature = T, composition = y)
+Mocca.set_boundary!(net, :V_feed, :inlet, condition(1bar, y_feed))
+Mocca.set_boundary!(net, :V_product, :outlet, condition(1bar, y_light))
+Mocca.set_boundary!(net, :V_vacuum, :outlet, condition(0.1bar, y_feed))
+
+# Each stage gives the settings of the devices it opens; the others stay
+# closed. Valves have the conductance of the half cell at the bed end they are
+# attached to, and pressures follow exponential ramps at 0.5 s⁻¹.
+C_in, C_out = Mocca.port_conductance(bed_model, 1), Mocca.port_conductance(bed_model, ncells)
+ramp(from, to) = Mocca.ExponentialRamp(from, to, 0.5)
+rate = Mocca.interstitial_flow_rate(bed_model, 1.0)
+stages = [
+    Mocca.Stage("pressurisation", 15.0;
+        V_feed = (law = Mocca.LinearValve(C_in), inlet = condition(ramp(0.1bar, 1bar), y_feed))),
+    Mocca.Stage("adsorption", 15.0;
+        V_feed = (law = Mocca.VolumetricFlow(rate), inlet = condition(1bar, y_feed)),
+        V_product = (law = Mocca.LinearValve(C_out), outlet = condition(1bar, y_light))),
+    Mocca.Stage("blowdown", 30.0;
+        V_product = (law = Mocca.LinearValve(C_out), outlet = condition(ramp(1bar, 0.2bar), y_light))),
+    Mocca.Stage("evacuation", 40.0;
+        V_vacuum = (law = Mocca.LinearValve(C_in), outlet = condition(ramp(0.2bar, 0.1bar), y_feed))),
 ]
 
-# At the outlet and at the feed end the two agree closely. CO₂ has not reached
-# the outlet within three cycles. The small differences that remain come from
-# the time stepping: the solver splits the first step of some stages
-# differently in the two simulations.
+# The network becomes a Jutul `MultiModel`, the stages its forces, and it runs
+# like any Jutul case:
+model = Mocca.setup_flowsheet_model(net)
+bed0 = Mocca.setup_unit_state(bed_model; pressure = 1bar, temperature = T, composition = y_light)
+state0 = Mocca.setup_flowsheet_state(net; Bed = bed0)
+parameters = Mocca.setup_flowsheet_parameters(net)
+forces, dt = Mocca.setup_schedule(net, model, stages; num_cycles = 3, max_dt = 1.0)
+states, timesteps = Mocca.simulate_process(Mocca.MoccaCase(model, dt, forces; state0 = state0, parameters = parameters);
+    info_level = 0, output_substates = true)
+
+runs = [
+    "Process" => (bed_states, result.timesteps),
+    "By hand" => ([s[:Bed] for s in states], timesteps),
+]
+
+# The two describe the same flowsheet and give the same results, at the
+# outlet and at the feed end:
 f_outlet_comparison = Mocca.plot_cell_comparison(runs, bed, ncells)
 f_inlet_comparison = Mocca.plot_cell_comparison(runs, bed, 1)
 
-# Profiles along the bed at the end of the simulation:
+# and along the bed at the end of the simulation:
 f_column_comparison = Mocca.plot_state_comparison(
     [label => first(r)[end] for (label, r) in runs], bed)

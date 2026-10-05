@@ -24,8 +24,7 @@ function Jutul.update_parameter_before_step!(x, ::TimeScale, storage, model, dt,
 end
 _time_scale_force(forces) = hasproperty(forces, :time_scale) ? forces.time_scale : nothing
 
-# Every distributed unit takes the time scale as a force (a fixed bed also
-# takes the legacy boundary conditions, see legacy_bcs/forces.jl)
+# Every distributed unit takes the time scale as a force
 Jutul.setup_forces(model::DistributedUnitModel; time_scale = nothing) = (time_scale = time_scale,)
 
 # The time step of a unit's time derivatives

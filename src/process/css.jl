@@ -105,7 +105,7 @@ end
 
 Repeat one cycle, given by its `forces` and `timesteps`, until the
 [`cycle_change`](@ref) of a cycle falls below `tol` or `max_cycles` is reached.
-Works for a single bed with legacy boundary conditions and for flowsheets.
+Works for a single unit model and for flowsheets.
 
 Each cycle maps its initial state `x` to its final state `Φ(x)`, and cyclic
 steady state is the fixed point `x = Φ(x)`. With `acceleration = :none` the next
