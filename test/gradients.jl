@@ -31,6 +31,19 @@ end
             @test g[d].law == f[d].law
         end
     end
+    # The conventions of Jutul's MultiModel that the device methods rely on:
+    # each device's values sit at its offset in the whole vector, and come back
+    # from its own slice, or from the whole vector with its offset
+    f = forces[end]
+    X, cfg = Jutul.vectorize_forces(f, c.mm)
+    for d in (:V_feed, :V_product, :V_vacuum)
+        Xd, = Jutul.vectorize_forces(f[d], c.mm[d])
+        o = first(cfg[d].offsets) - 1
+        @test X[o .+ (1:length(Xd))] == Xd
+        @test Jutul.devectorize_forces(f[d], c.mm[d], X, cfg[d]; offset = o)[:law] == f[d].law
+        @test Jutul.devectorize_forces(f[d], c.mm[d], X[o .+ (1:length(Xd))], cfg[d])[:law] == f[d].law
+    end
+    @test sum(first(cfg[d].offsets) > 1 for d in (:V_feed, :V_product, :V_vacuum)) >= 2
     # Evacuation: the vacuum valve's conductance and opening, and the ramp
     # (start, stop, λ), temperature and composition of its outlet
     evac = forces[end]

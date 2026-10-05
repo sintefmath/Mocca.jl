@@ -1,6 +1,12 @@
+# Mocca's convergence criteria are relative errors over a step (see
+# core/convergence.jl). Over the many steps and cycles of a cyclic process they
+# add up, so they are held tighter than Jutul's default of 1e-3.
+const DEFAULT_NONLINEAR_TOLERANCE = 1e-6
+
 function setup_process_simulator(model, state0, parameters;
         timestep_selector_cfg = nothing,
         initial_dt = 1.0,
+        nonlinear_tolerance = DEFAULT_NONLINEAR_TOLERANCE,
         kwargs...
     )
 
@@ -27,6 +33,7 @@ function setup_process_simulator(model, state0, parameters;
     # Set up config
     cfg = Jutul.simulator_config(sim;
         timestep_selectors = timesteppers,
+        nonlinear_tolerance = nonlinear_tolerance,
         kwargs...
     )
 

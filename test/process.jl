@@ -85,7 +85,7 @@ end
     grad = Jutul.solve_adjoint_sensitivities(case, result, G; info_level = -1)
     # SolidVolume and FluidVolume multiply time differences of the loading and
     # pressure; they need those differences to go through secondary variables
-    for p in (:FluidViscosity, :FluidDensity, :InnerHeatTransferCoeff, :Transmissibilities, :SolidVolume, :FluidVolume)
+    for p in (:FluidViscosity, :InnerHeatTransferCoeff, :Transmissibilities, :SolidVolume, :FluidVolume)
         h = 1e-4 .* abs.(prm[:Bed][p])
         pp = deepcopy(prm); pp[:Bed][p] .+= h
         pm = deepcopy(prm); pm[:Bed][p] .-= h

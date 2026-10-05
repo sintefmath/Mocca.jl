@@ -96,6 +96,41 @@ Mocca.add_cross_terms!(mm, net, c::_TestTie) = (c.calls[] += 1; mm)
     @test occursin("UnitNetwork with 2 units and 1 device", sprint(show, MIME"text/plain"(), net))
 end
 
+@testset "Streams carry the enthalpy of the upstream port" begin
+    bed = haghpanah_bed(ncells = 3)
+    sys = bed.system
+    eq_m, eq_e = bed.equations[:mass_conservation], bed.equations[:energy_column]
+    device(F, y_in, T_in, y_out, T_out; P_in = 1e5) = (MolarFlow = [F],
+        InletComposition = reshape(y_in, :, 1), InletTemperature = [T_in], InletPressure = [P_in],
+        OutletComposition = reshape(y_out, :, 1), OutletTemperature = [T_out], OutletPressure = [0.5e5])
+    cell(T, y) = (Temperature = fill(T, 3), y = repeat(y, 1, 3))
+    function term(ct, eq, target, dev)
+        out = zeros(eq isa typeof(eq_m) ? 2 : 1)
+        Jutul.update_cross_term_in_entity!(out, 1, target, target, dev, dev, bed, nothing, ct, eq, 1.0)
+        return out
+    end
+    cp(y) = sum(y .* sys.heat_capacity_gas) * sum(y .* sys.molecular_masses)
+    # A link from the top of bed A (cell 3) to the bottom of bed B (cell 1),
+    # whose cells differ in temperature and composition
+    yA, TA, yB, TB = [0.3, 0.7], 320.0, [0.05, 0.95], 300.0
+    A, B = cell(TA, yA), cell(TB, yB)
+    for F in (0.02, -0.03)
+        dev = device(F, yA, TA, yB, TB)
+        y_up, T_up = F > 0 ? (yA, TA) : (yB, TB)
+        # What leaves one bed enters the other, component by component and in
+        # enthalpy, which is that of the upstream port
+        @test term(Mocca.StreamCT(3, 1), eq_m, A, dev) ≈ -term(Mocca.StreamCT(1, 2), eq_m, B, dev)
+        @test term(Mocca.StreamCT(3, 1), eq_e, A, dev) ≈ -term(Mocca.StreamCT(1, 2), eq_e, B, dev)
+        @test term(Mocca.StreamCT(1, 2), eq_e, B, dev)[1] ≈ -F * cp(y_up) * T_up
+    end
+    # A stream from a boundary brings its own enthalpy, whatever its pressure
+    # and the state of the cell it enters
+    feed = [0.15, 0.85]
+    e1 = term(Mocca.StreamCT(1, 2), eq_e, cell(300.0, [1e-10, 1 - 1e-10]), device(0.1, feed, 298.15, feed, 298.15))
+    e2 = term(Mocca.StreamCT(1, 2), eq_e, cell(350.0, [0.5, 0.5]), device(0.1, feed, 298.15, feed, 298.15; P_in = 0.1e5))
+    @test e1 ≈ e2 ≈ [-0.1 * cp(feed) * 298.15]
+end
+
 # State at the end of the step finishing at time t
 _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
 

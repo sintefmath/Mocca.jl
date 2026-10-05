@@ -233,6 +233,10 @@ Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. T
 
 - **The single-unit mode is gone.** The stage boundary conditions of Mocca 0.1.0 (`legacy_bcs/`) are removed; every simulation is a flowsheet. The regression tests run the same cyclic VSA and breakthrough as processes; their references were regenerated after checking that they agree with the boundary-condition results to within 4e-4 (8e-5 for the breakthrough), apart from a trace of CO2 of order 1e-8. Issues 2–4 and 6 below concern that removed code.
 
+- **Convergence criteria that do not depend on the size of a cell** (`src/core/convergence.jl`). Gas and sorbent mass balances are checked by CNV, the residual over a step as a fraction of the cell's holdup; energy balances by the temperature error the residual over a step amounts to. Device laws measure their flow error against a flow scale of the law (`flow_scale`), and their port copies against the port state; `set_default_tolerances!` holds a device's equations to `DEVICE_TOLERANCE_FACTOR` (1e-3) times the nonlinear tolerance, since a flow error accumulates in the cells it feeds. This replaces the fixed residual scales of the devices and the absolute checks in mol/s and W, which held small cells and large columns to very different accuracies. Mocca's default nonlinear tolerance is 1e-6 rather than Jutul's 1e-3 (`DEFAULT_NONLINEAR_TOLERANCE`): the criteria are relative errors over a step, which add up over the steps and cycles of a cyclic process. The old energy check in W happened to hold the beds to about 4e-7 K per step, which is what the tests and cyclic steady state solvers had come to rely on. A device's flow scale includes its current flow, so that a valve just closed measures what is left of its flow against itself rather than against a tiny scale that Jutul would take for divergence.
+- **Streams carry the enthalpy of their upstream port.** The energy a stream brings into or takes out of a cell is `F·c_p(y)·T` at the device's upstream port, so both ends of a device see opposite terms. The stream used the receiving cell's heat capacity, and inflow added a conduction term from the legacy Danckwerts condition, `F·(RT/P)·ρ_feed·c_p·(T_s − T)`, on top of the upwinded enthalpy: heat no stream carries, with the feed density at any port pressure. In an adiabatic breakthrough the gas enthalpy balance over the bed closed to 3.4% of the feed enthalpy with it and 2.2% without; the rest is the temperature form of the bed's energy balance (cell-local heat capacities in the face fluxes and the accumulation, with a mixing rule that varies with composition), and does not shrink with the time step. The `FluidDensity` parameter, used only by that term, is gone. The regression references moved with it: 1.1% less CO2 held over the cyclic VSA, a 0.5 K higher average peak temperature, and a breakthrough 0.8 s earlier.
+- **Jutul versions.** Mocca overrides some Jutul internals (force vectorisation for devices, see issue 9), so its compat bound is the range it was tested with, 0.4.29 to 0.5.1. A CI job lifts the bound and runs the tests against the newest Jutul, without failing the build.
+
 ### Issues found in the existing code
 
 Each is left at its old behaviour unless noted, so earlier results are reproduced.
@@ -256,7 +260,8 @@ Each is left at its old behaviour unless noted, so earlier results are reproduce
 
 - Rebase the membrane branch onto `FlowChannel`, with `counter_current_pair` for the tube and shell sides.
 - Gradients of global objectives (ratios such as purity and recovery) directly, rather than by the quotient rule from sum objectives.
-- Report the force adjoint bugs (issue 9) to Jutul, with a Jutul-only reproduction.
+- Report the force adjoint bugs (issue 9) to Jutul, with a Jutul-only reproduction, and drop the device force vectorisation once they are fixed.
+- Write the gas energy balance in a conservative enthalpy form, so that a bed's energy balance closes as its component balances do.
 - Ergun momentum, a Peng–Robinson EOS, and the Phase 5 units.
 - Move plotting into a Makie package extension (a breaking change for `plot_*` users).
 

@@ -52,6 +52,7 @@ export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorb
 import Jutul
 import Jutul: simulate
 import JSON
+using LinearAlgebra
 using StaticArrays
 
 import Jutul: JutulCase

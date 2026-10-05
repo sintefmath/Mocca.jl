@@ -43,18 +43,21 @@ end
     m = dcb_metrics(states, model, timesteps_out)
 
     # From the Process (flowsheet) form of the breakthrough. The legacy
-    # boundary conditions, whose references these replace, agreed to within
-    # 8e-5 in every quantity
+    # boundary conditions agreed with it to within 8e-5. Carrying the stream
+    # enthalpy into the bed without an extra conduction term at the ports, and
+    # the scale-free convergence criteria, then moved the breakthrough 0.8 s
+    # earlier and everything else by less than 3e-5. Computed at the default
+    # nonlinear tolerance of 1e-6
     ref = (
-        y_outlet_CO2 = 0.1486563818654154,
-        y_outlet_N2 = 0.851343618134585,
-        T_outlet = 301.7194262101073,
-        T_inlet = 298.14999483661705,
-        T_max = 301.7194262101073,
-        P_outlet = 100004.81235633386,
-        P_inlet = 101884.30990920354,
-        total_CO2_adsorbed = 774405.5802776606,
-        breakthrough_time = 486.88859725807845,
+        y_outlet_CO2 = 0.1486551789855897,
+        y_outlet_N2 = 0.8513448210144097,
+        T_outlet = 301.72153592029326,
+        T_inlet = 298.1499890365365,
+        T_max = 301.72153592029326,
+        P_outlet = 100004.81238305905,
+        P_inlet = 101884.30864197432,
+        total_CO2_adsorbed = 774407.0601990309,
+        breakthrough_time = 486.1153581417196,
     )
 
     @test isapprox(m.y_outlet_CO2, ref.y_outlet_CO2, rtol=1e-3)

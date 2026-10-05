@@ -72,9 +72,10 @@ can be overridden, all at once as a vector in gas order or for some
 components by name, such as `heat_capacities = (CO2 = 697.6,)`:
 
 - `molar_masses` [kg/mol] and `heat_capacities` [J/(kg·K)] per component;
-- `viscosity` [Pa·s] and `density` [kg/m³] of the mixture. By default they
-  are those of the feed: the Herning–Zipperer mixture of the component
-  viscosities, and the ideal gas density at the feed pressure and temperature;
+- `viscosity` [Pa·s] of the mixture. By default that of the feed, the
+  Herning–Zipperer mixture of the component viscosities;
+- `density` [kg/m³] of the mixture, by default the ideal gas at the feed
+  pressure and temperature. The built-in units do not use it;
 - `diffusivity` [m²/s]: molecular diffusivity, one value or one per
   component. It sets the macropore diffusion of the default linear driving
   force and, through the first component, the axial dispersion. The default is

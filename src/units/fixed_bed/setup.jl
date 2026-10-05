@@ -32,7 +32,7 @@ function mocca_domain(mesh;
     diffusion_coefficient, thermal_conductivity,
     adsorbent_density, adsorbent_heat_capacity,
     wall_density, wall_heat_capacity, wall_conductivity,
-    fluid_viscosity, fluid_density,
+    fluid_viscosity,
     inner_htc, outer_htc, ambient_temperature,
     kwarg...
 )
@@ -56,7 +56,6 @@ function mocca_domain(mesh;
     domain[:wall_heat_capacity, Unit()] = wall_heat_capacity
     domain[:wall_conductivity, Unit()] = wall_conductivity
     domain[:fluid_viscosity, Unit()] = fluid_viscosity
-    domain[:fluid_density, Unit()] = fluid_density
     domain[:inner_htc, Unit()] = inner_htc
     domain[:outer_htc, Unit()] = outer_htc
     domain[:ambient_temperature, Unit()] = ambient_temperature

@@ -149,7 +149,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     out[1] = -state_s.Pressure[c] + anchor
     out[2] = -state_s.Temperature[c] + anchor
     for k in 1:(N - 1)
-        out[2 + k] = -DEVICE_FRACTION_SCALE * state_s.y[k, c] + anchor
+        out[2 + k] = -state_s.y[k, c] + anchor
     end
     return out
 end
@@ -196,22 +196,32 @@ function Jutul.update_cross_term_in_entity!(out, i,
     return out
 end
 
+# Molar heat capacity [J/(mol·K)] of the gas at device port `k`, with the
+# mixing rule of the energy balance (`C_pg·M̄`, both mole-fraction averages)
+@inline function _port_molar_heat_capacity(sys, device_state, k)
+    C, M = sys.heat_capacity_gas, sys.molecular_masses
+    cp = zero(port_temperature(device_state, k))
+    mm = zero(cp)
+    for i in eachindex(C)
+        y = port_composition(device_state, k, i)
+        cp += y * C[i]
+        mm += y * M[i]
+    end
+    return cp * mm
+end
+
+# The stream carries the enthalpy of the upstream port, `F·c_p(y)·T`, as the
+# interior faces carry that of the upstream cell. Both ends of a device read the
+# same upstream port, so what one unit loses the other gains.
 function Jutul.update_cross_term_in_entity!(out, i,
         state_t, state0_t, state_s, state0_s, model_t, model_s,
         ct::StreamCT, eq::Jutul.ConservationLaw{:ColumnConservedEnergy}, dt, ldisc = Jutul.local_discretization(ct, i))
     c = ct.cell
     F_in, up = _stream_into_unit(ct, state_s)
-    T_s = port_temperature(state_s, up)
-    P_s = port_pressure(state_s, up)
-    C_pg = state_t.C_pg[c]
-    avm = state_t.AverageMolarMass[c]
-    # Enthalpy carried with the pressure-flux term, as in the interior faces
-    advective = -F_in * T_s * C_pg * avm
-    # Sensible heat of incoming gas relative to the cell, only for inflow
-    F_inflow = ifelse(F_in > 0, F_in, zero(F_in))
-    q_vol = F_inflow * GAS_CONSTANT * T_s / P_s
-    sensible = q_vol * state_t.FluidDensity[1] * C_pg * (T_s - state_t.Temperature[c])
-    out[1] = advective - sensible
+    h = _port_molar_heat_capacity(model_t.system, state_s, up) * port_temperature(state_s, up)
+    # The enthalpy does not depend on the unit's state, so anchor to it to keep
+    # the sparsity pattern
+    out[1] = -F_in * h + _target_anchor(state_t.Temperature[c])
     return out
 end
 
