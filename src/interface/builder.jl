@@ -2,19 +2,6 @@
 # devices with roles.
 
 """
-    Flowsheet(gas::Gas, feed::Feed)
-
-An empty flowsheet for `gas`, fed with `feed`. Add beds with
-[`add_bed!`](@ref) and devices with [`add_device!`](@ref).
-"""
-Flowsheet(gas::Gas, feed::Feed) = (fs = Flowsheet(); Flowsheet(fs.units, fs.order, fs.connections, fs.boundaries, gas, feed,
-    fs.roles, fs.specs, fs.default_boundaries))
-
-# ------------------------------------------------------------------------------
-# Beds
-# ------------------------------------------------------------------------------
-
-"""
 How a bed was built, so that it can be rebuilt and written to a file.
 """
 mutable struct BedSpec
@@ -27,6 +14,42 @@ mutable struct BedSpec
     permeability::Union{Nothing, Float64}
     velocity_used::Float64
 end
+
+"""
+    Flowsheet(gas::Gas, feed::Feed)
+
+An empty flowsheet for `gas`, fed with `feed`. Add beds with
+[`add_bed!`](@ref) and devices with [`add_device!`](@ref), and run it as a
+[`Process`](@ref).
+
+Devices have roles (feed, product, extract, ...) that give their default
+boundary conditions and valve sizes, tell the step templates which device to
+open, and tell [`performance`](@ref) which streams are feed and product. The
+units and connections are a [`UnitNetwork`](@ref), so the lower-level
+functions, such as [`add_unit!`](@ref), [`connect!`](@ref) and
+[`setup_flowsheet_model`](@ref), work on a flowsheet too.
+"""
+struct Flowsheet <: AbstractFlowsheet
+    network::UnitNetwork
+    gas::Gas
+    feed::Feed
+    roles::Dict{Symbol, Symbol}            # device => role
+    specs::Dict{Symbol, BedSpec}           # bed => how it was built
+    default_boundaries::Set{PortRef}       # boundaries set from a role's defaults
+end
+Flowsheet(gas::Gas, feed::Feed) = Flowsheet(UnitNetwork(), gas, feed, Dict{Symbol, Symbol}(), Dict{Symbol, BedSpec}(), Set{PortRef}())
+
+network(fs::Flowsheet) = fs.network
+
+function set_boundary!(fs::Flowsheet, device::Symbol, port::Symbol, condition::PortCondition)
+    set_boundary!(fs.network, device, port, condition)
+    delete!(fs.default_boundaries, PortRef(device, port))
+    return fs
+end
+
+# ------------------------------------------------------------------------------
+# Beds
+# ------------------------------------------------------------------------------
 
 """
     fixed_bed_model(gas, feed, adsorbent, column; ncells = 30, thermal = WithWall(),
@@ -91,7 +114,6 @@ be set through `parameters` of a `Process` or a design variable. See
 """
 function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
         dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing)
-    _require_materials(fs, "add_bed!")
     dispersion_velocity isa Symbol && dispersion_velocity != :adsorption &&
         input_error("bed $name", "dispersion_velocity", "use :adsorption or a velocity in m/s, got $dispersion_velocity")
     v = dispersion_velocity isa Symbol ? 1.0 : Float64(dispersion_velocity)
@@ -116,10 +138,8 @@ function bed_dispersion(fs::Flowsheet, name::Symbol)
     return compute_dispersion(axial_diffusivity(fs.gas), spec.velocity_used, spec.adsorbent.particle_diameter)
 end
 
-_require_materials(fs, f) = isnothing(fs.gas) && error("$f needs a flowsheet made with Flowsheet(gas, feed)")
-
 "Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."
-beds(fs::Flowsheet) = [n for n in fs.order if holds_sorbent(fs.units[n])]
+beds(fs::AbstractFlowsheet) = [n for n in unit_names(fs) if holds_sorbent(fs[n])]
 
 # ------------------------------------------------------------------------------
 # Devices with roles
@@ -161,7 +181,6 @@ cycle. Pass `boundary` (a [`PortCondition`](@ref), or a NamedTuple with any of
 `pressure`, `temperature` and `composition`) to set it.
 """
 function add_device!(fs::Flowsheet, name::Symbol, role::Symbol; at = nothing, from = nothing, to = nothing, boundary = nothing)
-    _require_materials(fs, "add_device!")
     loc = "device $name"
     role in DEVICE_ROLES || input_error(loc, "role", "unknown role $role; roles are $(join(DEVICE_ROLES, ", "))")
     add_unit!(fs, name, setup_device_model(fs.gas.names))
@@ -177,8 +196,8 @@ function add_device!(fs::Flowsheet, name::Symbol, role::Symbol; at = nothing, fr
             inlet = role in INLET_ROLES
             connect!(fs, _port_pair(at) => (name, inlet ? :outlet : :inlet))
             port = inlet ? :inlet : :outlet
-            fs.boundaries[(name, port)] = _role_boundary(fs, role, boundary, loc)
-            isnothing(boundary) && push!(fs.default_boundaries, (name, port))
+            set_boundary!(fs.network, name, port, _role_boundary(fs, role, boundary, loc))
+            isnothing(boundary) && push!(fs.default_boundaries, PortRef(name, port))
         end
     end
     return fs
@@ -196,14 +215,19 @@ function _role_boundary(fs, role, boundary, loc; pressure = fs.feed.pressure)
     return PortCondition(pressure = p, temperature = T, composition = y)
 end
 
+"Role of device `d` (see [`add_device!`](@ref)), or `nothing`."
+device_role(fs::AbstractFlowsheet, d::Symbol) = nothing
 device_role(fs::Flowsheet, d::Symbol) = get(fs.roles, d, nothing)
-devices_with_role(fs::Flowsheet, role::Symbol) = [d for d in fs.order if get(fs.roles, d, nothing) == role]
+devices_with_role(fs::AbstractFlowsheet, role::Symbol) = [d for d in unit_names(fs) if device_role(fs, d) == role]
 
 "Devices connected at port `port` of unit `u`, in flowsheet order."
-devices_at(fs::Flowsheet, u::Symbol, port::Symbol) = [d for d in fs.order if any(c -> c[1] == u && c[2] == port && c[3] == d, fs.connections)]
+function devices_at(fs::AbstractFlowsheet, u::Symbol, port::Symbol)
+    r = PortRef(u, port)
+    return [d for d in unit_names(fs) if any(c -> c.unit == r && c.device.name == d, stream_connections(fs))]
+end
 
-"Connections of device `d` as (unit, unit port, device port)."
-attachments(fs::Flowsheet, d::Symbol) = [(c[1], c[2], c[4]) for c in fs.connections if c[3] == d]
+"The [`StreamConnection`](@ref)s of device `d`."
+attachments(fs::AbstractFlowsheet, d::Symbol) = [c for c in stream_connections(fs) if c.device.name == d]
 
 """
     default_conductance(fs, device)
@@ -214,7 +238,7 @@ no more resistance than the bed's end and the bed follows the pressure set at
 the other side. For a link, the two half cells in series.
 """
 function default_conductance(fs::Flowsheet, d::Symbol)
-    C = [port_conductance(fs.units[u], ports(fs.units[u])[up]) for (u, up, _) in attachments(fs, d)]
+    C = [port_conductance(fs[c.unit.name], ports(fs[c.unit.name])[c.unit.port]) for c in attachments(fs, d)]
     isempty(C) && input_error("device $d", "", "it is not connected to any unit")
     return length(C) == 1 ? C[1] : 1 / (1 / C[1] + 1 / C[2])
 end
@@ -233,12 +257,16 @@ superficial_flow_rate(bed, u) = u * compute_column_face_area(bed, NamedTuple(Jut
 # Inspection
 # ------------------------------------------------------------------------------
 
-function Base.show(io::IO, ::MIME"text/plain", fs::Flowsheet)
-    nb = count(n -> !_is_device(fs.units[n]), fs.order)
-    println(io, "Flowsheet with $nb unit$(nb == 1 ? "" : "s") and $(length(fs.order) - nb) device$(length(fs.order) - nb == 1 ? "" : "s")",
-        isnothing(fs.gas) ? "" : " for $(join(fs.gas.names, ", "))")
+function Base.show(io::IO, ::MIME"text/plain", fs::AbstractFlowsheet)
+    nb = length(holdup_units(fs))
+    nd = length(unit_names(fs)) - nb
+    println(io, nameof(typeof(fs)), " with $nb unit$(nb == 1 ? "" : "s") and $nd device$(nd == 1 ? "" : "s")",
+        fs isa Flowsheet ? " for $(join(fs.gas.names, ", "))" : "")
     print_flowsheet_diagram(io, fs)
 end
+
+_unit_spec(fs::AbstractFlowsheet, u) = nothing
+_unit_spec(fs::Flowsheet, u) = get(fs.specs, u, nothing)
 
 """
     print_flowsheet_diagram([io], fs)
@@ -246,14 +274,13 @@ end
 Print each unit of `fs` with the devices at each of its ports, their roles and
 boundaries.
 """
-print_flowsheet_diagram(fs::Flowsheet) = print_flowsheet_diagram(stdout, fs)
-function print_flowsheet_diagram(io::IO, fs::Flowsheet)
-    for u in fs.order
-        _is_device(fs.units[u]) && continue
-        spec = get(fs.specs, u, nothing)
-        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells" : string(typeof(fs.units[u].system).name.name)
+print_flowsheet_diagram(fs::AbstractFlowsheet) = print_flowsheet_diagram(stdout, fs)
+function print_flowsheet_diagram(io::IO, fs::AbstractFlowsheet)
+    for u in holdup_units(fs)
+        spec = _unit_spec(fs, u)
+        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells" : string(nameof(typeof(fs[u].system)))
         println(io, "  ", u, ": ", desc)
-        for p in keys(ports(fs.units[u]))
+        for p in keys(ports(fs[u]))
             ds = devices_at(fs, u, p)
             isempty(ds) && continue
             println(io, "    ", rpad(string(p), 7), join([_device_label(fs, d, u) for d in ds], "; "))
@@ -264,12 +291,12 @@ end
 function _device_label(fs, d, from_unit)
     role = device_role(fs, d)
     s = string(d, isnothing(role) ? "" : " ($role)")
-    for (u, up, dp) in attachments(fs, d)
-        u == from_unit || (s *= " to $u $up")
+    for c in attachments(fs, d)
+        c.unit.name == from_unit || (s *= " to $(c.unit.name) $(c.unit.port)")
     end
     for p in DEVICE_PORTS
-        haskey(fs.boundaries, (d, p)) || continue
-        c = fs.boundaries[(d, p)]
+        haskey(network(fs).boundaries, PortRef(d, p)) || continue
+        c = boundary_condition(fs, d, p)
         s *= ", $(p == :inlet ? "from" : "to") boundary at $(round(evaluate_profile(c.pressure, 0.0) / 1e5, sigdigits = 4)) bar"
     end
     return s

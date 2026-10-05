@@ -100,8 +100,8 @@ end
     function check(fs, stages, state0, p; cycles = 1)
         model = M.setup_flowsheet_model(fs)
         prm = M.setup_flowsheet_parameters(fs)
-        @test fs.order == p.flowsheet.order
-        @test all(prm[u][k] == p.parameters[u][k] for u in fs.order for k in keys(prm[u]))
+        @test M.unit_names(fs) == M.unit_names(p.flowsheet)
+        @test all(prm[u][k] == p.parameters[u][k] for u in M.unit_names(fs) for k in keys(prm[u]))
         f, dt = M.setup_schedule(fs, model, stages; num_cycles = cycles, max_dt = p.timestepping.max_dt, first_dt = p.timestepping.first_dt)
         fp, dtp = M.cycle_schedule(p; cycles = cycles)
         @test dt == dtp
@@ -197,7 +197,7 @@ end
     @test M.stages(p)[4].settings[:V_vacuum].outlet.pressure.stop == 0.12bar
     @test M.stages(p)[1].settings[:V_feed].inlet.pressure.start == 0.12bar
     # The extract line sits at the lowest pressure of the cycle
-    @test p.flowsheet.boundaries[(:V_vacuum, :outlet)].pressure == 0.12bar
+    @test M.boundary_condition(p.flowsheet, :V_vacuum, :outlet).pressure == 0.12bar
     @test_throws MoccaInputError add_variable!(p, :bad, ("evacuation", :speed))
     @test_throws MoccaInputError add_variable!(p, :bad, ("evacuationn", :to))
     path = write_process(joinpath(mktempdir(), "p.json"), p)
@@ -242,6 +242,29 @@ end
     @test any(e -> occursin("extract", e.message), v)
 end
 
+@testset "A flowsheet holds a unit network" begin
+    gas = M.haghpanah_2013_gas()
+    feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
+    fs = Flowsheet(gas, feed)
+    @test fs isa M.AbstractFlowsheet && M.network(fs) isa UnitNetwork
+    @test fieldtype(Flowsheet, :gas) == Gas && fieldtype(Flowsheet, :feed) == Feed
+    add_bed!(fs, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), M.haghpanah_2013_column(); ncells = 5)
+    add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+    add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
+    @test M.unit_names(fs) == M.unit_names(M.network(fs)) == [:Bed, :V_feed, :V_vacuum]
+    @test M.holdup_units(fs) == M.beds(fs) == [:Bed]
+    @test M.attachments(fs, :V_vacuum) == [M.StreamConnection(M.PortRef(:Bed, :bottom), M.PortRef(:V_vacuum, :inlet))]
+    # The lower-level functions work on the flowsheet
+    @test M.setup_flowsheet_model(fs) isa Jutul.MultiModel
+    # Role boundaries are defaults until set
+    r = M.PortRef(:V_vacuum, :outlet)
+    @test r in fs.default_boundaries
+    set_boundary!(fs, :V_vacuum, :outlet, PortCondition(pressure = 0.2bar, temperature = 298.15, composition = feed.composition))
+    @test !(r in fs.default_boundaries) && M.boundary_condition(fs, :V_vacuum, :outlet).pressure == 0.2bar
+    # Building on a bare network needs a Flowsheet's gas and feed
+    @test_throws MethodError add_bed!(UnitNetwork(), :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), M.haghpanah_2013_column())
+end
+
 @testset "A process owns its flowsheet and cycle" begin
     gas = M.haghpanah_2013_gas()
     feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
@@ -251,15 +274,15 @@ end
     add_device!(fs, :V_product, :product; at = (:Bed, :top))
     add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
     cycle = Cycle([Pressurise(5.0), Adsorb(5.0; velocity = 0.5), Blowdown(5.0; to = 0.3bar), Evacuate(5.0; to = 0.1bar)])
-    bed, boundary, spec = fs[:Bed], fs.boundaries[(:V_vacuum, :outlet)], deepcopy(fs.specs[:Bed])
+    bed, boundary, spec = fs[:Bed], M.boundary_condition(fs, :V_vacuum, :outlet), deepcopy(fs.specs[:Bed])
     p = Process(fs, cycle)
     q = Process(fs, cycle)
     # Building them leaves the flowsheet and cycle as they were
-    @test fs[:Bed] === bed && fs.boundaries[(:V_vacuum, :outlet)] == boundary
+    @test fs[:Bed] === bed && M.boundary_condition(fs, :V_vacuum, :outlet) == boundary
     @test fs.specs[:Bed].velocity_used == spec.velocity_used
     # The model of each process is built from its own units
     for r in (p, q)
-        @test all(r.model.models[u] === r.flowsheet.units[u] for u in r.flowsheet.order)
+        @test all(r.model.models[u] === r.flowsheet[u] for u in M.unit_names(r.flowsheet))
     end
     # Changing one process changes neither the other nor what they came from
     add_variable!(p, :P_L, ("evacuation", :to))

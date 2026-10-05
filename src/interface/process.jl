@@ -70,7 +70,6 @@ end
 function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStepping(), key_component = 1,
         ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = 1.4, ramp_rate = 0.5,
         initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
-    _require_materials(fs, "Process")
     # The process sets up and later changes its flowsheet (dispersion
     # velocities, default boundaries, the feed) and its steps (design
     # variables), so it works on copies of its own
@@ -83,7 +82,7 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     _set_dispersion_velocities!(fs, compiled)
     _refresh_default_boundaries!(fs, compiled)
     for u in holdup_units(fs)
-        isempty(vcat([devices_at(fs, u, p) for p in keys(ports(fs.units[u]))]...)) && @warn "Unit $u has no devices attached"
+        isempty(vcat([devices_at(fs, u, p) for p in keys(ports(fs[u]))]...)) && @warn "Unit $u has no devices attached"
     end
     model = setup_flowsheet_model(fs)
     ics = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in pairs(initial_state))
@@ -131,15 +130,15 @@ end
 # Default boundaries follow the cycle: extract and waste lines sit at the lowest
 # pressure of their bed, the others at the feed pressure
 function _refresh_default_boundaries!(fs, compiled)
-    for (d, port) in fs.default_boundaries
-        role = device_role(fs, d)
-        c = fs.boundaries[(d, port)]
+    for r in fs.default_boundaries
+        role = device_role(fs, r.name)
         P = fs.feed.pressure
         if role in (:extract, :waste)
-            b = first(attachments(fs, d))[1]
+            b = first(attachments(fs, r.name)).unit.name
             haskey(compiled.pressures, b) && (P = minimum(compiled.pressures[b]))
         end
-        fs.boundaries[(d, port)] = PortCondition(pressure = P, temperature = fs.feed.temperature, composition = role_composition(fs, role))
+        # On the network, so that the boundary stays a default one
+        set_boundary!(fs.network, r.name, r.port, PortCondition(pressure = P, temperature = fs.feed.temperature, composition = role_composition(fs, role)))
     end
 end
 
@@ -214,7 +213,7 @@ function initial_state(p::Process)
         spec = get(fs.specs, u, nothing)
         Tw = get(ic, :wall_temperature, spec isa BedSpec ? spec.column.ambient_temperature : T)
         y = haskey(ic, :composition) ? composition(fs.gas, ic.composition; location = "initial state of $u") : fs.feed.light_product
-        unit_states[u] = setup_unit_state(fs.units[u]; pressure = P, temperature = T, composition = y, wall_temperature = Tw)
+        unit_states[u] = setup_unit_state(fs[u]; pressure = P, temperature = T, composition = y, wall_temperature = Tw)
     end
     return setup_flowsheet_state(fs; unit_states...)
 end
@@ -337,7 +336,7 @@ end
 _last_cycle(r::ProcessResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
 
 adsorbent_volume(p::Process) = sum(b -> sum(p.parameters[b][:SolidVolume]), beds(p.flowsheet))
-adsorbent_mass(p::Process) = sum(b -> sorbent_mass(p.flowsheet.units[b], p.parameters[b]), beds(p.flowsheet))
+adsorbent_mass(p::Process) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 
 """
     performance(r::ProcessResult) → NamedTuple
@@ -405,7 +404,7 @@ function Base.show(io::IO, ::MIME"text/plain", p::Process)
     end
     println(io, "  cycle of $(length(sts)) stages, $(round(sum(s -> s.duration, sts), sigdigits = 5)) s:")
     for st in sts
-        open_ = [string(d) for d in fs.order if haskey(st.settings, d)]
+        open_ = [string(d) for d in unit_names(fs) if haskey(st.settings, d)]
         println(io, "    ", rpad(st.name, 34), lpad(string(round(st.duration, sigdigits = 5)), 8), " s   ", isempty(open_) ? "all closed" : join(open_, ", "))
     end
     if !isempty(p.variables)

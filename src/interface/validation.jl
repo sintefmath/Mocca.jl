@@ -23,7 +23,7 @@ function validate(p::Process)
         nothing
     end
     for u in holdup_units(fs)
-        isempty(vcat([devices_at(fs, u, q) for q in keys(ports(fs.units[u]))]...)) && note("unit $u", "", "no devices are attached")
+        isempty(vcat([devices_at(fs, u, q) for q in keys(ports(fs[u]))]...)) && note("unit $u", "", "no devices are attached")
     end
     isempty(devices_with_role(fs, :feed)) && note("flowsheet", "", "there is no feed device")
     isempty(devices_with_role(fs, :extract)) && note("flowsheet", "", "there is no extract device, so purity, recovery and energy cannot be measured")

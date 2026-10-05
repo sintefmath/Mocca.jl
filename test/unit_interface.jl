@@ -117,7 +117,7 @@ end
 
 @testset "A unit without a time scale is refused" begin
     gas = MU.haghpanah_2013_gas()
-    fs = MU.Flowsheet()
+    fs = MU.UnitNetwork()
     MU.add_unit!(fs, :Tank, _gas_tank_model(gas, 298.15; volume = 1.0, time_scale = false))
     MU.add_unit!(fs, :V, MU.setup_device_model(gas.names))
     MU.connect!(fs, (:Tank, :bottom) => (:V, :outlet))

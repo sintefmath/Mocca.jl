@@ -10,7 +10,8 @@ export AbstractThermalModel, WithWall, Adiabatic, Isothermal
 export AbstractSourceTerm
 export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, VolumetricFlow
 export PortCondition, ExponentialRamp, port_conductance
-export Flowsheet, add_unit!, connect!, set_boundary!, setup_flowsheet_model
+export Flowsheet, UnitNetwork, add_unit!, connect!, set_boundary!, setup_flowsheet_model
+export AbstractConnection, StreamConnection, PortRef
 export setup_flowsheet_state, setup_flowsheet_parameters
 export Stage, setup_schedule, four_stage_vsa_flowsheet, two_bed_vsa_flowsheet
 export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass

@@ -106,12 +106,12 @@ function find_device(ctx::StepContext, roles; port = nothing, device = nothing)
     fs, bed = ctx.fs, ctx.bed
     isnothing(bed) && input_error(ctx.location, "bed", "the flowsheet has several beds ($(join(beds(fs), ", "))); say which one the step acts on with bed = ...")
     if !isnothing(device)
-        haskey(fs.units, device) && _is_device(fs.units[device]) || input_error(ctx.location, "device", "$device is not a device of the flowsheet")
-        any(a -> a[1] == bed, attachments(fs, device)) || input_error(ctx.location, "device", "$device is not attached to $bed")
+        haskey(fs, device) && is_device(fs, device) || input_error(ctx.location, "device", "$device is not a device of the flowsheet")
+        any(a -> a.unit.name == bed, attachments(fs, device)) || input_error(ctx.location, "device", "$device is not attached to $bed")
         return device
     end
-    ports_ = isnothing(port) ? collect(keys(ports(fs.units[bed]))) : [port]
-    isnothing(port) || haskey(ports(fs.units[bed]), port) || input_error(ctx.location, "through", "$bed has no port $port; its ports are $(join(keys(ports(fs.units[bed])), ", "))")
+    ports_ = isnothing(port) ? collect(keys(ports(fs[bed]))) : [port]
+    isnothing(port) || haskey(ports(fs[bed]), port) || input_error(ctx.location, "through", "$bed has no port $port; its ports are $(join(keys(ports(fs[bed])), ", "))")
     for role in roles, p in ports_, d in devices_at(fs, bed, p)
         device_role(fs, d) == role && return d
     end
@@ -137,7 +137,7 @@ default boundary.
 function boundary(ctx::StepContext, d::Symbol, pressure)
     p = _boundary_port(ctx.fs, d)
     isnothing(p) && input_error(ctx.location, "", "device $d has no boundary port")
-    c = ctx.fs.boundaries[(d, p)]
+    c = boundary_condition(ctx.fs, d, p)
     return PortCondition(pressure = pressure, temperature = c.temperature, composition = c.composition)
 end
 
@@ -251,7 +251,7 @@ end
 Adsorb(duration; kwarg...) = Adsorb(; duration = duration, kwarg...)
 default_step_name(::Adsorb) = "adsorption"
 
-_has_role_at(fs, bed, role) = [(d, p) for p in keys(ports(fs.units[bed])) for d in devices_at(fs, bed, p) if device_role(fs, d) == role]
+_has_role_at(fs, bed, role) = [(d, p) for p in keys(ports(fs[bed])) for d in devices_at(fs, bed, p) if device_role(fs, d) == role]
 
 function step_settings(s::Adsorb, ctx::StepContext)
     fs, bed = ctx.fs, ctx.bed
@@ -261,13 +261,13 @@ function step_settings(s::Adsorb, ctx::StepContext)
     feeds = isnothing(s.feed_device) ? _has_role_at(fs, bed, :feed) : [(find_device(ctx, (:feed,); device = s.feed_device), nothing)]
     if !isempty(feeds)
         d = first(feeds[1])
-        rate = _flow_rate(ctx, fs.units[bed], s.velocity, s.superficial_velocity, s.flow_rate)
+        rate = _flow_rate(ctx, fs[bed], s.velocity, s.superficial_velocity, s.flow_rate)
         push!(out, d => (law = VolumetricFlow(rate), inlet = boundary(ctx, d, P)))
-        in_port = only(a[2] for a in attachments(fs, d) if a[1] == bed)
+        in_port = only(a.unit.port for a in attachments(fs, d) if a.unit.name == bed)
     else
         any(!isnothing, (s.velocity, s.superficial_velocity, s.flow_rate)) &&
             input_error(ctx.location, "velocity", "$bed has no feed device, so it is fed through a link and takes no flow setting")
-        links_in = [a[2] for d in devices_with_role(fs, :link) for a in attachments(fs, d) if a[1] == bed && a[3] == :outlet]
+        links_in = [a.unit.port for d in devices_with_role(fs, :link) for a in attachments(fs, d) if a.unit.name == bed && a.device.port == :outlet]
         isempty(links_in) && input_error(ctx.location, "", "$bed has neither a feed device nor a link feeding it")
         in_port = links_in[1]
     end
@@ -275,7 +275,7 @@ function step_settings(s::Adsorb, ctx::StepContext)
         out_port = _other_port(in_port)
         cands = [d for d in devices_at(fs, bed, out_port) if device_role(fs, d) == :product]
         if isempty(cands)
-            cands = [d for d in devices_at(fs, bed, out_port) if device_role(fs, d) == :link && any(a -> a[1] == bed && a[3] == :inlet, attachments(fs, d))]
+            cands = [d for d in devices_at(fs, bed, out_port) if device_role(fs, d) == :link && any(a -> a.unit.name == bed && a.device.port == :inlet, attachments(fs, d))]
         end
         isempty(cands) && input_error(ctx.location, "outlet", "$bed has no product device or link at its $out_port")
         o = cands[1]
@@ -369,11 +369,11 @@ Purge(duration; kwarg...) = Purge(; duration = duration, kwarg...)
 function step_settings(s::Purge, ctx::StepContext)
     fs, bed = ctx.fs, ctx.bed
     d_in = find_device(ctx, (:light_inlet,))
-    in_port = only(a[2] for a in attachments(fs, d_in) if a[1] == bed)
+    in_port = only(a.unit.port for a in attachments(fs, d_in) if a.unit.name == bed)
     d_out = find_device(ctx, (:extract, :waste); port = _other_port(in_port))
     P = start_pressure(ctx, s.pressure)
-    rate = _flow_rate(ctx, fs.units[bed], s.velocity, s.superficial_velocity, s.flow_rate)
-    in_c = fs.boundaries[(d_in, :inlet)]
+    rate = _flow_rate(ctx, fs[bed], s.velocity, s.superficial_velocity, s.flow_rate)
+    in_c = boundary_condition(fs, d_in, :inlet)
     return [d_in => (law = VolumetricFlow(rate), inlet = boundary(ctx, d_in, evaluate_profile(in_c.pressure, 0.0))),
         d_out => (law = valve(ctx, d_out; conductance = s.conductance), outlet = boundary(ctx, d_out, P))]
 end
@@ -403,7 +403,7 @@ function _equalisation_link(s::Equalise, ctx)
         return s.device
     end
     for d in devices_with_role(ctx.fs, :link)
-        us = Set(a[1] for a in attachments(ctx.fs, d))
+        us = Set(a.unit.name for a in attachments(ctx.fs, d))
         us == Set(s.beds) && return d
     end
     input_error(ctx.location, "", "no link joins $(s.beds[1]) and $(s.beds[2]); add one with add_device!(fs, name, :link; from, to)")
@@ -635,7 +635,7 @@ function _record_velocity!(velocities, fs, s::Adsorb, bed, settings)
     isnothing(bed) && return
     for (d, v) in settings
         device_role(fs, d) == :feed && v.law isa VolumetricFlow || continue
-        u = isnothing(s.velocity) ? _interstitial_velocity(fs.units[bed], v.law.rate) : s.velocity
+        u = isnothing(s.velocity) ? _interstitial_velocity(fs[bed], v.law.rate) : s.velocity
         push!(get!(velocities, bed, Float64[]), u)
     end
 end

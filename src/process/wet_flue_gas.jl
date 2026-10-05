@@ -179,7 +179,7 @@ function lpp_vsa_flowsheet(;
     bed = setup_process_model(system, constants; ncells = ncells)
     names = component_names(system)
     light = wet_flue_gas_light_product()
-    fs = Flowsheet()
+    fs = UnitNetwork()
     add_unit!(fs, :Bed, bed)
     for d in (:V_feed, :V_product, :V_lpp, :V_vacuum)
         add_unit!(fs, d, setup_device_model(names))
@@ -274,7 +274,7 @@ function dual_adsorbent_vsa_flowsheet(;
     names = component_names(zeolite_system)
     light = wet_flue_gas_light_product()
 
-    fs = Flowsheet()
+    fs = UnitNetwork()
     add_unit!(fs, :SilicaGel, sg)
     add_unit!(fs, :Zeolite, x)
     for d in (:V_feed, :V_waste, :V_link, :V_product, :V_lpp, :V_vacuum)

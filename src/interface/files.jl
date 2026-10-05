@@ -309,8 +309,7 @@ function process_to_dict(p::Process)
         return k
     end
     units = Any[]
-    for u in fs.order
-        _is_device(fs.units[u]) && continue
+    for u in holdup_units(fs)
         spec = get(fs.specs, u, nothing)
         spec isa BedSpec || input_error("unit $u", "", "only beds added with add_bed! can be written to a file")
         ka = key_of(adsorbents, spec.adsorbent, spec.adsorbent.name, "adsorbent")
@@ -324,21 +323,21 @@ function process_to_dict(p::Process)
     o["columns"] = _obj((k => _column_to_dict(c) for (k, c) in columns)...)
     o["units"] = units
     devices = Any[]
-    for d in fs.order
-        _is_device(fs.units[d]) || continue
+    for d in unit_names(fs)
+        is_device(fs, d) || continue
         role = device_role(fs, d)
         isnothing(role) && input_error("device $d", "", "only devices added with add_device! can be written to a file")
         e = _obj("name" => String(d), "role" => String(role))
         att = attachments(fs, d)
         if role == :link
-            from = only(a for a in att if a[3] == :inlet)
-            to = only(a for a in att if a[3] == :outlet)
-            e["from"], e["to"] = [String(from[1]), String(from[2])], [String(to[1]), String(to[2])]
+            from = only(a.unit for a in att if a.device.port == :inlet)
+            to = only(a.unit for a in att if a.device.port == :outlet)
+            e["from"], e["to"] = [String(from.name), String(from.port)], [String(to.name), String(to.port)]
         else
             a = only(att)
-            e["at"] = [String(a[1]), String(a[2])]
+            e["at"] = [String(a.unit.name), String(a.unit.port)]
             port = role in INLET_ROLES ? :inlet : :outlet
-            (d, port) in fs.default_boundaries || (e["boundary"] = _condition_to_dict(fs, fs.boundaries[(d, port)]))
+            PortRef(d, port) in fs.default_boundaries || (e["boundary"] = _condition_to_dict(fs, boundary_condition(fs, d, port)))
         end
         push!(devices, e)
     end
