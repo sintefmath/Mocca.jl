@@ -118,7 +118,7 @@ started from it fails, the next cycle starts from `Φ(x)` instead.
 Returns a NamedTuple with the states and time steps of the last cycle, its
 initial state `state0`, the change per cycle in `history`, the number of
 `cycles` simulated, and whether it `converged`. Extra keywords go to
-[`simulate_process`](@ref).
+`simulate_process`.
 """
 function simulate_to_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5, info_level = -1, kwarg...)
@@ -205,7 +205,7 @@ water, can still be accumulating when it is met; use
 Returns a NamedTuple with the states and time steps of the last cycle, its
 initial state `state0`, the balance error of each cycle in `history`, the number
 of `cycles` simulated, and whether the criterion was met (`converged`). Extra
-keywords go to [`simulate_process`](@ref).
+keywords go to `simulate_process`.
 """
 function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters, forces, timesteps;
         inflow, outflow, component = 1, tol = 0.005, consecutive = 5,

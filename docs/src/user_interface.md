@@ -80,6 +80,7 @@ valve size, tells the steps which device to open, and tells
 [`performance`](@ref) which streams are feed and product.
 
 ```@docs
+Flowsheet
 add_bed!
 fixed_bed_model
 add_device!
@@ -181,26 +182,74 @@ krishnamurthy_2014_column
 convert_constants
 ```
 
-## Deprecated
+## Migrating from Mocca 0.1.0
 
-These functions of Mocca 0.1.0 still work, with a deprecation warning when
-Julia runs with `--depwarn=yes`:
+Mocca 0.1.0 described a process by a constants struct, boundary conditions
+and stage times. These were removed in favour of the objects on this page:
 
-| Deprecated | Use instead |
+| Removed | Use instead |
 |---|---|
-| `HaghpanahConstants`, `adsorptionConstants` with `FixedBed(constants)`, `setup_process_model(system, constants)`, `DualSiteLangmuir(constants)` | [`Gas`](@ref), [`Adsorbent`](@ref), [`Column`](@ref) and [`add_bed!`](@ref); [`convert_constants`](@ref) converts the structs |
+| `adsorptionConstants` with `FixedBed(constants)`, `setup_process_model(system, constants)`, `DualSiteLangmuir(constants)` | [`Gas`](@ref), [`Adsorbent`](@ref), [`Column`](@ref) and [`add_bed!`](@ref) |
 | `setup_boundary_conditions`, `setup_forces(model, stage_times, bcs)` and the `AdsorptionBC`, `PressurisationBC`, `BlowdownBC`, `EvacuationBC` boundary conditions | a flowsheet with devices and a [`Cycle`](@ref), run as a [`Process`](@ref) |
-| `parse_input`, `setup_mocca_case` and their JSON format | [`read_process`](@ref) and [Process files](@ref) |
+| `setup_mocca_case` | [`read_process`](@ref) and [Process files](@ref) |
 | `four_stage_vsa_flowsheet`, `two_bed_vsa_flowsheet`, `lpp_vsa_flowsheet`, `dual_adsorbent_vsa_flowsheet` | [`four_stage_vsa_process`](@ref), [`two_bed_vsa_process`](@ref), [`lpp_vsa_process`](@ref), [`dual_adsorbent_vsa_process`](@ref) |
 | `wet_flue_gas_isotherm`, `wet_flue_gas_constants`, `wet_flue_gas_system`, `wet_flue_gas_initial_state` | [`load_adsorbent`](@ref), [`krishnamurthy_2014_gas`](@ref), [`krishnamurthy_2014_column`](@ref) |
 | `Column()` for the unit entity | `Unit()` |
 
+The constants structs remain for moving inputs over: `HaghpanahConstants`,
+or `Mocca.parse_input` for a JSON file of Mocca 0.1.0, gives a struct that
+[`convert_constants`](@ref) turns into the gas, feed, adsorbent and column of
+a [`Flowsheet`](@ref).
+
 ## The layer underneath
 
-The objects above build these, which can also be used directly.
+The objects above build these, which can also be used directly. A
+[`Flowsheet`](@ref) holds a [`UnitNetwork`](@ref): the unit models and the
+connections between their ports, from which the simulation model is built.
 
 ```@docs
-Flowsheet
+MoccaSystem
+DistributedUnit
+LumpedUnit
+FlowElement
+component_names
+AbstractFlowsheet
+UnitNetwork
+network
+add_unit!
+connect!
+set_boundary!
+PortRef
+AbstractConnection
+connection_ports
+check_connection
+add_cross_terms!
+StreamConnection
+holdup_units
+```
+
+### Adding a kind of unit
+
+A new kind of unit is a `MoccaSystem` with these methods.
+
+```@docs
+stream_equations
+setup_unit_state
+setup_unit_parameters
+holds_sorbent
+AxialDispersion
+```
+
+### Devices, schedules and steady states
+
+```@docs
+FlowDevice
+setup_device_model
+AbstractDeviceLaw
+device_flow
+LinearValve
+PortStateCT
+StreamCT
 Stage
 setup_schedule
 parallel_stages
@@ -208,6 +257,8 @@ PortCondition
 ExponentialRamp
 port_conductance
 setup_flowsheet_model
+setup_flowsheet_state
+setup_flowsheet_parameters
 DualSiteLangmuir
 AbstractIsotherm
 AbstractMassTransfer
@@ -215,5 +266,13 @@ LinearDrivingForce
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state
 simulate_until_mass_balance
+cycle_change
 cyclic_steady_state_gradient
+force_gradients
+stream_totals
+vacuum_pump_energy
+StreamObjective
+VacuumPumpObjective
+CompressorObjective
+SimulationFailure
 ```

@@ -36,14 +36,14 @@ function stream_equations(model::MoccaModel)
     error("$(nameof(typeof(model.system))) does not define Mocca.stream_equations, so streams cannot connect to it")
 end
 
+# Typed on MoccaModel rather than Jutul.SimulationModel: Julia ranks a plain
+# SimulationModel above SimulationModel{<:Any, <:SorbentBed, <:Any, <:Any}, so
+# the method for beds would never be called
 """
     setup_unit_parameters(model; overrides...) → Dict
 
 Parameters of a unit, with `overrides` for any of them.
 """
-# Typed on MoccaModel rather than Jutul.SimulationModel: Julia ranks a plain
-# SimulationModel above SimulationModel{<:Any, <:SorbentBed, <:Any, <:Any}, so
-# the method for beds would never be called
 setup_unit_parameters(model::MoccaModel; kwarg...) = Jutul.setup_parameters(model; kwarg...)
 
 """

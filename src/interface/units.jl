@@ -11,7 +11,7 @@ Evacuate(40.0; to = 0.1bar)
 ```
 
 [`Units.celsius`](@ref) converts a temperature in °C to K. Files read with
-[`read_process`](@ref) may give a number with one of these units as a string,
+[`read_process`](@ref Mocca.read_process) may give a number with one of these units as a string,
 such as `"0.1 bar"`.
 """
 module Units
