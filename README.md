@@ -5,13 +5,14 @@
 ![Mocca.jl logo](docs/src/assets/mocca_small_light.png)
 
 
-[Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture. 
+[Mocca.jl](https://github.com/sintefmath/Mocca.jl) is a [Julia](https://julialang.org/) package for simulating cyclic adsorption processes for CO2 capture, such as pressure and vacuum swing adsorption (PSA/VSA). It finds the cyclic steady state of a process, measures its purity, recovery, energy use and productivity, and computes their gradients with respect to the operating settings, for optimisation.
 
 To learn more about using Mocca please see the [documentation](https://sintefmath.github.io/Mocca.jl/dev/).
 
-Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) and [Haghpanah Cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl). For an example of setting up a simulation through defining your own parameters and potentially custom models in a script, see [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
+Mocca comes with the four-step VSA process of Haghpanah et al. (2013) on zeolite 13X, a two-bed VSA with pressure equalisation, and the wet flue gas processes of Krishnamurthy et al. (2014), and any number of beds can be connected through valves and flow controllers. The examples include a [breakthrough curve](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl), a [cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl), a [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl), [gradients at cyclic steady state](https://github.com/sintefmath/Mocca.jl/blob/main/examples/flowsheet_vsa_gradients.jl), [optimisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [history matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl).
 
-In the future we hope to implement examples of other systems and isotherms e.g. temperature swing adsorption for Direct Air Capture (DAC).
+Temperature swing processes, for example for Direct Air Capture (DAC), are not yet included.
+
 
 # Installation
 
@@ -47,7 +48,7 @@ component (`dual_site_langmuir`) and a `Column`; a `Flowsheet` of beds
 (`add_bed!`) and devices with roles (`add_device!`); and a `Cycle` of steps
 (`Pressurise`, `Adsorb`, `Blowdown`, `Evacuate`, `Purge`, `Equalise`, `Idle`,
 or your own). Units are SI; `Mocca.Units` has conversions such as `bar` and
-`kJ_per_mol`. See the [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl)
+`kJ_per_mol`. See the [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl)
 example for a process built from its parts, and the
 [JSON input](https://github.com/sintefmath/Mocca.jl/blob/main/examples/json_input.jl)
 example for the file format.

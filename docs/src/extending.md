@@ -33,7 +33,8 @@ ramp
 
 ## The layer underneath
 
-The objects above build these, which can also be used directly. A
+The objects of the [Reference](@ref) build these, which can also be used
+directly. A
 [`Flowsheet`](@ref) holds a [`UnitNetwork`](@ref): the unit models and the
 connections between their ports, from which the simulation model is built.
 
