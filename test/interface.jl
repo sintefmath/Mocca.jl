@@ -57,7 +57,7 @@ end
 
 @testset "Isotherms and adsorbents" begin
     c = M.HaghpanahConstants{Float64}()
-    old = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
+    old = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi)
     a = load_adsorbent("zeolite_13x_haghpanah_2013")
     gas = M.haghpanah_2013_gas()
     iso = M.isotherm(a, gas)
@@ -90,7 +90,7 @@ end
     fs = Flowsheet(k.gas, k.feed)
     add_bed!(fs, :Bed, k.adsorbent, k.column; ncells = 10, dispersion_velocity = k.dispersion_velocity)
     bed = fs[:Bed]
-    iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
+    iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi)
     @test bed.system.isotherm.qsb == iso.qsb && bed.system.isotherm.ΔH == iso.ΔH
     d = bed.data_domain
     @test all(d[:porosity] .== c.Φ) && all(d[:permeability] .== M.compute_permeability(c.Φ, c.d_p))
