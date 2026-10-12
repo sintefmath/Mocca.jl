@@ -109,6 +109,35 @@ end
     end
 end
 
+@testset "Duration gradients of a split stage" begin
+    # The evacuation split in two stages, as parallel_stages splits a step
+    # that spans a stage boundary of another sequence: the second stage's ramp
+    # started before it
+    c = gradient_test_case(stage_durations = [5.0, 5.0, 5.0, 5.0])
+    evac = c.stages[4]
+    split = [c.stages[1:3]..., Mocca.Stage("evacuation a", 2.5, evac.settings),
+        Mocca.Stage("evacuation b", 2.5, Dict{Symbol, Any}(k => Mocca._shift_setting(v, -2.5) for (k, v) in evac.settings))]
+    reference = [st.duration for st in split]
+    schedule(d) = Mocca.setup_schedule(c.fs, c.mm, [Mocca.Stage(st.name, d[i], st.settings) for (i, st) in enumerate(split)];
+        num_cycles = 1, max_dt = 1.0, reference_durations = reference)
+    G = Mocca.StreamObjective(:V_vacuum; scale = 1e3)
+    function objective_with(f, steps)
+        states, ts, sf = Mocca._simulate_steps(c.mm, c.state0, c.prm, f, steps)
+        return Mocca._evaluate_objective(G, c.mm, states, ts, sf)
+    end
+    forces, dt = schedule(reference)
+    g = Mocca.force_gradients(c.mm, c.state0, c.prm, forces, dt, G)
+    @test length(g.durations) == 5
+    for i in 4:5
+        h = 1e-4
+        up, down = copy(reference), copy(reference)
+        up[i] *= 1 + h
+        down[i] *= 1 - h
+        fd = (objective_with(schedule(up)...) - objective_with(schedule(down)...)) / (2h * reference[i])
+        @test isapprox(g.durations[i], fd, rtol = 1e-6)
+    end
+end
+
 @testset "Cyclic steady state gradient" begin
     # Short first steps keep the cycle map smooth through the abrupt start of
     # each stage

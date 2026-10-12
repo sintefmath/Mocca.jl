@@ -136,20 +136,25 @@ end
 # of its steps by s. The adjoints differentiate with respect to s at s = 1,
 # with the steps kept as simulated: s multiplies the time step in the time
 # derivatives of each unit (the TimeScale parameter, set through the units'
-# `time_scale` force), and the rate of each pressure ramp, which runs on time
-# since the start of its stage. Later stages run on their own time, so they
-# are unchanged. The objective's own dependence on the time step is added
-# separately.
+# `time_scale` force), and the rate of each pressure ramp over the stage, from
+# the stage's start time `t_start`. A ramp may have started before the stage,
+# when a step is split into several stages by parallel_stages, so it is first
+# restarted at `t_start` from its value there, which leaves it unchanged as
+# simulated, and only the part within the stage is stretched. Later stages run
+# on their own time, so they are unchanged. The objective's own dependence on
+# the time step is added separately.
 
-_scale_time(x, s) = x
-_scale_time(r::ExponentialRamp, s) = ExponentialRamp(r.start, r.stop, r.λ * s; t0 = r.t0)
-_scale_time(f::PortSetpoint{K}, s) where K =
-    PortSetpoint{K}(PortCondition(_scale_time(f.condition.pressure, s), f.condition.temperature, f.condition.composition))
-function _scale_time(f::NamedTuple, s)
-    g = map(v -> _scale_time(v, s), f)
+_scale_time(x, s, t_start) = x
+function _scale_time(r::ExponentialRamp, s, t_start)
+    return ExponentialRamp(evaluate_profile(r, t_start), r.stop, r.λ * s; t0 = t_start)
+end
+_scale_time(f::PortSetpoint{K}, s, t_start) where K =
+    PortSetpoint{K}(PortCondition(_scale_time(f.condition.pressure, s, t_start), f.condition.temperature, f.condition.composition))
+function _scale_time(f::NamedTuple, s, t_start)
+    g = map(v -> _scale_time(v, s, t_start), f)
     return haskey(g, :time_scale) ? merge(g, (time_scale = s,)) : g
 end
-_scale_time(f::AbstractDict, s) = Dict{Symbol, Any}(k => _scale_time(v, s) for (k, v) in f)
+_scale_time(f::AbstractDict, s, t_start) = Dict{Symbol, Any}(k => _scale_time(v, s, t_start) for (k, v) in f)
 
 function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     sets, set_of_step = _force_sets(forces)
@@ -166,9 +171,11 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     n_forces = length(X)
     append!(X, ones(length(sets)))
     devectorize(X, i) = Jutul.devectorize_forces(sets[i], model, X[(offsets[i] + 1):offsets[i + 1]], configs[i])
+    t = cumsum(dt)
+    t_start = [t[k] - dt[k] for k in (findfirst(==(i), set_of_step) for i in eachindex(sets))]
     function F(X, step_info)
         s = X[n_forces .+ (1:length(sets))]
-        forces_X = [_scale_time(devectorize(X, i), s[i]) for i in eachindex(sets)]
+        forces_X = [_scale_time(devectorize(X, i), s[i], t_start[i]) for i in eachindex(sets)]
         return JutulCase(model, dt, forces_X[set_of_step]; state0 = state0, parameters = parameters)
     end
     # One setup serves every objective: the residual's dependence on X, and
@@ -179,7 +186,6 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     storage = Jutul.AdjointsDI.setup_adjoint_storage_generic(X, F, packed, first(objectives);
         state0 = state0, info_level = -1, single_step_sparsity = false, sparsity_step_type = :all)
     N = length(dt)
-    t = cumsum(dt)
     durations = [sum(dt[set_of_step .== i]) for i in eachindex(sets)]
     out = map(objectives) do Gi
         storage[:adjoint_objective_helper].G = Jutul.adjoint_wrap_objective(Gi, model)
