@@ -74,8 +74,7 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         component_names = gas.names,
         heat_capacity_gas = gas.heat_capacities,
         heat_capacity_adsorbed = adsorbed_heat_capacities(adsorbent, gas),
-        thermal = thermal,
-        sorption_heat_all_components = adsorbent.sorption_heat == :all)
+        thermal = thermal)
     perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
     disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas), dispersion_velocity, adsorbent.particle_diameter) : dispersion
     mesh = column_mesh(ncells, column.length, column.radius)

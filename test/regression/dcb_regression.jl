@@ -46,18 +46,20 @@ end
     # boundary conditions agreed with it to within 8e-5. Carrying the stream
     # enthalpy into the bed without an extra conduction term at the ports, and
     # the scale-free convergence criteria, then moved the breakthrough 0.8 s
-    # earlier and everything else by less than 3e-5. Computed at the default
-    # nonlinear tolerance of 1e-6
+    # earlier and everything else by less than 3e-5. Counting the heat of
+    # sorption of N2 as well as CO2 then delayed the breakthrough by 10.6 s
+    # (2.2%) and raised the outlet temperature by 0.2 K. Computed at the
+    # default nonlinear tolerance of 1e-6
     ref = (
-        y_outlet_CO2 = 0.1486551789855897,
-        y_outlet_N2 = 0.8513448210144097,
-        T_outlet = 301.72153592029326,
-        T_inlet = 298.1499890365365,
-        T_max = 301.72153592029326,
-        P_outlet = 100004.81238305905,
-        P_inlet = 101884.30864197432,
-        total_CO2_adsorbed = 774407.0601990309,
-        breakthrough_time = 486.1153581417196,
+        y_outlet_CO2 = 0.14858132418815131,
+        y_outlet_N2 = 0.8514186758118468,
+        T_outlet = 301.9198211172765,
+        T_inlet = 298.14998839776024,
+        T_max = 301.9198211172765,
+        P_outlet = 100004.81514282645,
+        P_inlet = 101884.44866125289,
+        total_CO2_adsorbed = 774199.080744145,
+        breakthrough_time = 496.7032946626421,
     )
 
     @test isapprox(m.y_outlet_CO2, ref.y_outlet_CO2, rtol=1e-3)

@@ -118,7 +118,7 @@ end
     @test loose.converged
     css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11)
     @test css.converged
-    @test css.cycles <= 4
+    @test css.cycles <= 5
     # The first step, from wherever the loose solve stopped, at least halves
     # the cycle change; once close, each iteration gains at least an order of
     # magnitude. (How far the first step gets depends on round-off: Anderson

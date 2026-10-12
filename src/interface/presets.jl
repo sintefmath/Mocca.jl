@@ -239,9 +239,7 @@ The [`Gas`](@ref), [`Feed`](@ref), [`Adsorbent`](@ref) and [`Column`](@ref)
 described by a `HaghpanahConstants` or `adsorptionConstants` struct, and its
 operating conditions: `p_high`, `p_intermediate` and `p_low` [Pa], the
 superficial feed velocity `v_feed` and the interstitial `velocity` [m/s], the
-ramp rate `λ` [1/s] and the `dispersion_velocity` [m/s] the struct used. The
-adsorbent counts the heat of sorption of its first component only, as Mocca
-0.1.0 did.
+ramp rate `λ` [1/s] and the `dispersion_velocity` [m/s] the struct used.
 """
 function convert_constants(c::ConstantsStruct)
     names = c isa HaghpanahConstants ? ["CO2", "N2"] : collect(String, c.component_names)
@@ -250,7 +248,7 @@ function convert_constants(c::ConstantsStruct)
     iso = dual_site_langmuir((n => (qsb = c.qsbi[i], b0 = c.b0[i], ΔUb = c.ΔUbi[i], qsd = c.qsdi[i], d0 = c.d0[i], ΔUd = c.ΔUdi[i]) for (i, n) in enumerate(names))...;
         reference_temperature = c.T0)
     adsorbent = Adsorbent(""; isotherm = iso, density = c.ρ_s, heat_capacity = c.C_ps, particle_diameter = c.d_p,
-        particle_porosity = c.ϵ_p, tortuosity = c.τ, adsorbed_heat_capacity = collect(c.C_pa), sorption_heat = :first_component)
+        particle_porosity = c.ϵ_p, tortuosity = c.τ, adsorbed_heat_capacity = collect(c.C_pa))
     column = Column(; length = c.L, radius = c.r_in, outer_radius = c.r_out, porosity = c.Φ, axial_conductivity = c.K_z,
         wall = Wall(density = c.ρ_w, heat_capacity = c.C_pw, conductivity = c.K_w),
         inner_heat_transfer = c.h_in, outer_heat_transfer = c.h_out, ambient_temperature = c.T_a)

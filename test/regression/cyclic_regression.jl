@@ -40,16 +40,18 @@ end
     # into the bed without an extra conduction term at the ports then lowered
     # the CO2 held by 1.1% and raised the average peak temperature by 0.5 K;
     # the scale-free convergence criteria moved nothing by more than 1e-4
-    # apart from the trace of CO2 at the top of the bed. Computed at the
-    # default nonlinear tolerance of 1e-6
+    # apart from the trace of CO2 at the top of the bed. Counting the heat of
+    # sorption of N2 as well as CO2 then lowered the final top temperature by
+    # 2.4 K and the average peak temperature by 1.3 K. Computed at the default
+    # nonlinear tolerance of 1e-6
     ref = (
-        y_CO2_final = 6.564727010646069e-8,
-        y_N2_final = 0.9999999343527307,
-        T_final = 295.76761284065645,
-        P_final = 9998.202956436902,
-        total_CO2_adsorbed_final = 50242.140960161836,
-        avg_T_last_cycle = 348.84602987208797,
-        avg_P_last_cycle = 40166.56860054164,
+        y_CO2_final = 5.540219427310748e-8,
+        y_N2_final = 0.9999999445978052,
+        T_final = 293.3962731654778,
+        P_final = 9998.471927554892,
+        total_CO2_adsorbed_final = 50215.80381763518,
+        avg_T_last_cycle = 347.51098939059665,
+        avg_P_last_cycle = 40170.12038925197,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

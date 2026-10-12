@@ -56,7 +56,6 @@
         "CO2": 1030.0,
         "N2": 1030.0
       },
-      "sorption_heat": "all",
       "isotherm": {
         "type": "dual_site_langmuir",
         "reference_temperature": 298.15,
@@ -98,7 +97,6 @@
         "CO2": 1030.0,
         "N2": 1030.0
       },
-      "sorption_heat": "all",
       "isotherm": {
         "type": "dual_site_langmuir",
         "reference_temperature": 298.15,

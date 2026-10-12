@@ -81,7 +81,7 @@ end
     # Writing and reading an adsorbent gives it back
     path = save_adsorbent(joinpath(mktempdir(), "a.json"), a)
     b = load_adsorbent(path)
-    @test M.isotherm(b, gas).ΔH == iso.ΔH && b.adsorbed_heat_capacity == a.adsorbed_heat_capacity && b.sorption_heat == :first_component
+    @test M.isotherm(b, gas).ΔH == iso.ΔH && b.adsorbed_heat_capacity == a.adsorbed_heat_capacity
 end
 
 @testset "The old constants convert to the same bed" begin
@@ -92,7 +92,6 @@ end
     bed = fs[:Bed]
     iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
     @test bed.system.isotherm.qsb == iso.qsb && bed.system.isotherm.ΔH == iso.ΔH
-    @test !M.sorption_heat_all_components(bed.system)
     d = bed.data_domain
     @test all(d[:porosity] .== c.Φ) && all(d[:permeability] .== M.compute_permeability(c.Φ, c.d_p))
     @test first(d[:diffusion_coefficient, M.Unit()]) == M.compute_dispersion(c.D_m, c.V0_inter, c.d_p)

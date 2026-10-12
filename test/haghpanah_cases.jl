@@ -1,32 +1,24 @@
 # Beds and processes of Haghpanah et al. (2013) for the tests. They are built
 # from the constants of Mocca 0.1.0 through convert_constants, so they keep the
-# inputs the tests were written for: the heat of sorption of the first
-# component only, and the axial dispersion at the constants' velocity.
+# axial dispersion at the constants' velocity.
 
 using Mocca
 using Mocca.Units
 
 haghpanah_constants(; kwarg...) = Mocca.HaghpanahConstants{Float64}(; kwarg...)
 
-function _haghpanah_adsorbent(k, sorption_heat)
-    a = k.adsorbent
-    return Mocca.Adsorbent(a.name; isotherm = a.isotherm, density = a.density, heat_capacity = a.heat_capacity,
-        particle_diameter = a.particle_diameter, particle_porosity = a.particle_porosity, tortuosity = a.tortuosity,
-        adsorbed_heat_capacity = a.adsorbed_heat_capacity, sorption_heat = sorption_heat, mass_transfer = a.mass_transfer)
-end
-
 "Model of a bed of the constants `c`."
-function haghpanah_bed(c = haghpanah_constants(); ncells = 20, thermal = Mocca.WithWall(), sorption_heat = :first_component)
+function haghpanah_bed(c = haghpanah_constants(); ncells = 20, thermal = Mocca.WithWall())
     k = Mocca.convert_constants(c)
-    return Mocca.fixed_bed_model(k.gas, k.feed, _haghpanah_adsorbent(k, sorption_heat), k.column;
+    return Mocca.fixed_bed_model(k.gas, k.feed, k.adsorbent, k.column;
         ncells = ncells, thermal = thermal, dispersion_velocity = k.dispersion_velocity)
 end
 
 "Flowsheet of a bed of `c` with a feed and a product device, and an extract device if `extract`."
-function haghpanah_flowsheet(c; ncells, thermal = Mocca.WithWall(), sorption_heat = :first_component, extract = true)
+function haghpanah_flowsheet(c; ncells, thermal = Mocca.WithWall(), extract = true)
     k = Mocca.convert_constants(c)
     fs = Flowsheet(k.gas, k.feed)
-    add_bed!(fs, :Bed, _haghpanah_adsorbent(k, sorption_heat), k.column; ncells = ncells, thermal = thermal,
+    add_bed!(fs, :Bed, k.adsorbent, k.column; ncells = ncells, thermal = thermal,
         dispersion_velocity = k.dispersion_velocity)
     add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
     add_device!(fs, :V_product, :product; at = (:Bed, :top))

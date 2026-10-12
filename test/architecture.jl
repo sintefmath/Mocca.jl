@@ -57,12 +57,7 @@ end
 end
 
 @testset "Sorption heat over all components" begin
-    sys_first = haghpanah_bed(ncells = 5).system
-    sys_all = haghpanah_bed(ncells = 5; sorption_heat = :all).system
-    @test !Mocca.sorption_heat_all_components(sys_first)
-    @test Mocca.sorption_heat_all_components(sys_all)
-
-    # Check the term against a hand calculation for a two-component state
+    # Check the terms against a hand calculation for a two-component state
     q0 = [1.0 2.0; 3.0 4.0]
     q1 = [1.5 2.0; 2.0 4.0]  # cell 1: CO2 adsorbs, N2 desorbs
     st0 = (AdsorbedLoading = q0,)
@@ -71,15 +66,8 @@ end
     Δt = 2.0
     dq = (q1[:, 1] .- q0[:, 1]) ./ Δt
     per_component = [(700.0 * 0.03 * 300.0 + st.ΔH[i, 1]) * dq[i] for i in 1:2]
-    @test Mocca.energy_source(Mocca.HeatOfSorption(), nothing, st, st0, 1, Δt) ≈ -0.1 * per_component[1]
-    @test Mocca.energy_source(Mocca.HeatOfSorption(all_components = true), nothing, st, st0, 1, Δt) ≈ -0.1 * sum(per_component)
-    @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(all_components = true), nothing, st, 1) ≈ 0.1 * 700.0 * 0.03 * (1.5 + 2.0)
-    @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(), nothing, st, 1) ≈ 0.1 * 700.0 * 0.03 * 1.5
-
-    # And the option reaches the simulation
-    _, s_first = _short_breakthrough()
-    _, s_all = _short_breakthrough(; sorption_heat = :all)
-    @test !isapprox(maximum(s_all[end][:Temperature]), maximum(s_first[end][:Temperature]), atol = 0.1)
+    @test Mocca.energy_source(Mocca.HeatOfSorption(), nothing, st, st0, 1, Δt) ≈ -0.1 * sum(per_component)
+    @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(), nothing, st, 1) ≈ 0.1 * 700.0 * 0.03 * (1.5 + 2.0)
 end
 
 # A unit can be extended by adding a source term, without touching the residuals
