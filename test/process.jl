@@ -64,6 +64,37 @@ end
     @test isapprox(sum(n_feed), sum(n_out), rtol = 1e-2)
 end
 
+@testset "Scale of trace components and empty loadings" begin
+    bed = haghpanah_vsa(; ncells = 4).flowsheet[:Bed]
+    floors = Mocca.LOADING_SCALE_FRACTION .* Mocca.saturation_capacity(bed.system.isotherm)
+    state(y, q) = Mocca.setup_process_state(bed; Pressure = 1e5, Temperature = 298.15, WallTemperature = 298.15,
+        y = y, AdsorbedConcentration = q)
+    # A bed with nothing adsorbed, at the minimum loading, and the same bed after
+    # a change of round-off size: the change is measured against each
+    # component's floor
+    s0 = state([0.5, 0.5], fill(1e-10, 2, 4))
+    s1 = deepcopy(s0)
+    s1[:AdsorbedConcentration] .+= 1e-12
+    @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-12 / minimum(floors)
+    @test Mocca._variable_scale(bed, :AdsorbedConcentration, s0[:AdsorbedConcentration]) == floors
+    @test minimum(Mocca._stack_scale(bed, s0)) >= min(maximum(floors), 0.5)
+    # A loaded component keeps its own scale, an empty one gets its floor
+    q = [fill(2floors[1], 1, 4); fill(1e-10, 1, 4)]
+    @test Mocca._variable_scale(bed, :AdsorbedConcentration, q) == [2floors[1], floors[2]]
+
+    # A trace in the gas is measured against its own level, not against the
+    # major component
+    s0 = state([1e-5, 1 - 1e-5], fill(1.0, 2, 4))
+    s1 = deepcopy(s0)
+    s1[:y][1, :] .+= 1e-9
+    @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-9 / 1e-5
+    # and a fraction below the floor against the floor
+    s0 = state([1e-10, 1 - 1e-10], fill(1.0, 2, 4))
+    s1 = deepcopy(s0)
+    s1[:y][1, :] .+= 1e-12
+    @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-12 / Mocca.MOLE_FRACTION_SCALE_FLOOR
+end
+
 @testset "Flowsheet adjoint gradients" begin
     # Gradients of a product stream with respect to bed parameters, through the
     # devices and cross terms, match central finite differences

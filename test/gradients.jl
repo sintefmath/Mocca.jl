@@ -119,11 +119,13 @@ end
     css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11)
     @test css.converged
     @test css.cycles <= 5
-    # The first step, from wherever the loose solve stopped, at least halves
-    # the cycle change; once close, each iteration gains at least an order of
-    # magnitude. (How far the first step gets depends on round-off: Anderson
-    # acceleration amplifies it into a different loose state.)
-    @test css.history[2] < 0.5 * css.history[1]
+    # The first two steps, from wherever the loose solve stopped, gain at least
+    # an order of magnitude in the cycle change; once close, each iteration
+    # gains at least another. (The first step alone can raise the change of a
+    # small component before the rest converges, and how far it gets depends
+    # on round-off: Anderson acceleration amplifies it into a different loose
+    # state.)
+    @test css.history[3] < 0.1 * css.history[1]
     @test all(css.history[3:end] .< 0.1 .* css.history[2:end-1])
 
     G = (co2 = Mocca.StreamObjective(:V_vacuum; scale = 1e3), energy = Mocca.VacuumPumpObjective(:V_vacuum; scale = 1e-3))

@@ -25,4 +25,13 @@ and temperature.
 """
 function compute_enthalpy end
 
+"""
+    saturation_capacity(iso::AbstractIsotherm) → capacities or nothing
+
+Saturation capacity per component [mol/m³ adsorbent], the loading the isotherm
+tends to at high pressure, or `nothing` if it has none. Optional: it sets the
+scale of the loading when changes over a cycle are measured.
+"""
+saturation_capacity(iso::AbstractIsotherm) = nothing
+
 include("dual_site_langmuir.jl")

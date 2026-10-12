@@ -70,3 +70,5 @@ function compute_equilibrium(iso::DualSiteLangmuir{N}, concentration, temperatur
 end
 
 compute_enthalpy(iso::DualSiteLangmuir, concentration, temperature) = iso.ΔH
+
+saturation_capacity(iso::DualSiteLangmuir) = iso.qsb .+ iso.qsd
