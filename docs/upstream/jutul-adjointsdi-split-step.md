@@ -1,6 +1,7 @@
 # AdjointsDI: `deps = :case` gives wrong gradients when the first report step is split
 
 **Package:** Jutul 0.4.25 and 0.4.29, `src/ad/AdjointsDI/adjoints.jl`
+**Status:** fixed by Jutul PR #372 (merged 2026-10-09), after the 0.5.2 release.
 **Reproduction:** [`jutul_adjointsdi_split_step.jl`](jutul_adjointsdi_split_step.jl) (Jutul only, about a minute)
 
 ## Summary

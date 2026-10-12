@@ -21,7 +21,7 @@ test = ["Test", "Statistics"]
 [compat]
 CairoMakie = "0.14.0, 0.15"
 JSON = "1.4.0"
-Jutul = "0.4.29 - 0.5.1"
+Jutul = "0.4.29 - 0.5.2"
 Parameters = "0.12.3, 0.13"
 StaticArrays = "1.9.16"
 LinearAlgebra = "1"
