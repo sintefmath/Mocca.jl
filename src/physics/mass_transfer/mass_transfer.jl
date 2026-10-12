@@ -11,7 +11,7 @@ abstract type AbstractMassTransfer end
 """
     compute_mass_transfer_rate(mt::AbstractMassTransfer, C, q, qstar) → rate
 
-Compute mass transfer rate [mol/(kg·s)] for the adsorption process.
+Compute mass transfer rate [mol/(m³ adsorbent·s)] for the adsorption process.
 """
 function compute_mass_transfer_rate end
 

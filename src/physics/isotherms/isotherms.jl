@@ -4,7 +4,7 @@
 Abstract base type for adsorption isotherm models.
 
 Implementations must provide:
-- `compute_equilibrium(iso, C, T)`: equilibrium loading per component [mol/kg]
+- `compute_equilibrium(iso, C, T)`: equilibrium loading per component [mol/m³ adsorbent]
 - `compute_enthalpy(iso, C, T)`: isosteric heat of adsorption per component [J/mol]
 """
 abstract type AbstractIsotherm end
@@ -12,7 +12,7 @@ abstract type AbstractIsotherm end
 """
     compute_equilibrium(iso::AbstractIsotherm, C, T) → qstar
 
-Compute equilibrium loading per component [mol/kg] for given concentrations [mol/m³]
+Compute equilibrium loading per component [mol/m³ adsorbent] for given concentrations [mol/m³]
 and temperature [K]. Returns a vector with one entry per component.
 """
 function compute_equilibrium end
