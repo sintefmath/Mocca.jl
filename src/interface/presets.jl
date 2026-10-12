@@ -63,8 +63,8 @@ end
 
 """
     two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0,
-        equalisation_time = 10.0, equalisation_conductance = 1e-6, P_H = 1e5, P_I = 0.2e5,
-        P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
+        equalisation_time = 10.0, equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5,
+        velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
 
 Two beds, A and B, running the four-stage VSA cycle half a cycle apart, with
 a pressure equalisation valve joining their tops:
@@ -89,10 +89,11 @@ which saves feed gas and compression work:
 | 6     | equalisation (takes)   | equalisation (gives)   |
 
 After equalising, a bed is taken to be midway between the high and low
-pressures, where its pressurisation starts; evacuation ramps from `P_I`.
+pressures, where its pressurisation or evacuation starts. A bed evacuates
+through two stages, along one ramp to `P_L`.
 """
 function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0, equalisation_time = 10.0,
-        equalisation_conductance = 1e-6, P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
+        equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
         timestepping = TimeStepping(), name = "two-bed VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
     feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
@@ -108,13 +109,17 @@ function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_tim
     add_device!(fs, :V_eq, :link; from = (:A, :top), to = (:B, :top))
     P_eq = (P_H + P_L) / 2
     tp, tf, te = pressurisation_time, feed_time, equalisation_time
-    evacuate(b, t) = Evacuate(t; bed = b, from = P_I, to = P_L)
+    # A bed evacuates through two stages. The second carries on along the ramp
+    # of the first, from where it left the bed: the pressure of the ramp from
+    # P_eq after the first stage
+    P_mid = evaluate_profile(ExponentialRamp(P_eq, P_L, ramp_rate), tp)
+    evacuate(b, t, from) = Evacuate(t; bed = b, from = from, to = P_L)
     cycle = Cycle([
-        Concurrent(Pressurise(tp; bed = :A, from = P_eq), evacuate(:B, tp)),
-        Concurrent(Adsorb(tf; bed = :A, velocity = velocity), evacuate(:B, tf)),
+        Concurrent(Pressurise(tp; bed = :A, from = P_eq), evacuate(:B, tp, P_eq)),
+        Concurrent(Adsorb(tf; bed = :A, velocity = velocity), evacuate(:B, tf, P_mid)),
         Equalise(te; beds = (:A, :B), conductance = equalisation_conductance),
-        Concurrent(Pressurise(tp; bed = :B, from = P_eq), evacuate(:A, tp)),
-        Concurrent(Adsorb(tf; bed = :B, velocity = velocity), evacuate(:A, tf)),
+        Concurrent(Pressurise(tp; bed = :B, from = P_eq), evacuate(:A, tp, P_eq)),
+        Concurrent(Adsorb(tf; bed = :B, velocity = velocity), evacuate(:A, tf, P_mid)),
         Equalise(te; beds = (:B, :A), conductance = equalisation_conductance),
     ])
     return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5)

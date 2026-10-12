@@ -249,8 +249,11 @@ end
 
 @testset "Two-bed VSA with pressure equalisation" begin
     P_H, P_L = 1e5, 0.1e5
+    # Both beds start where the cycle has them after equalising, midway between
+    # the high and low pressures
+    P_eq = (P_H + P_L) / 2
     p = two_bed_vsa_process(ncells = 20, timestepping = TimeStepping(max_dt = 1.0, first_dt = 1.0),
-        initial_state = Dict(:A => (pressure = P_H / 2,), :B => (pressure = P_L,)))
+        initial_state = Dict(:A => (pressure = P_eq,), :B => (pressure = P_eq,)))
     @test length(Mocca.stages(p)) == 6
     state0, prm = Mocca.initial_state(p), p.parameters
     r = simulate(p; state0 = state0)
