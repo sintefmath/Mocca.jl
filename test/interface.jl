@@ -254,6 +254,11 @@ end
     @test M.cycle_steps(q.cycle)[4][2].to == 0.1bar && q.flowsheet.feed.pressure == 1bar
     @test M.stages(q)[4].settings[:V_vacuum].outlet.pressure.stop == 0.1bar
     @test M.stages(p)[4].settings[:V_vacuum].outlet.pressure.stop == 0.12bar
+    # A new feed temperature reaches the stages at once
+    add_variable!(p, :T_feed, (:feed, :temperature))
+    p[:T_feed] = 310.0
+    @test M.stages(p)[1].settings[:V_feed].inlet.temperature == 310.0
+    @test M.stages(p)[2].settings[:V_feed].inlet.temperature == 310.0
 end
 
 @testset "Axial dispersion is a parameter" begin

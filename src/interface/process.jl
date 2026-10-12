@@ -78,9 +78,8 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     k = key_component isa Integer ? Int(key_component) : component_index(fs.gas, key_component)
     1 <= k <= number_of_components(fs.gas) || input_error("process", "key_component", "the gas has $(number_of_components(fs.gas)) components, got $k")
     options = ProcessOptions(k, ambient_pressure, pump_efficiency, heat_capacity_ratio, ramp_rate)
-    compiled = compile_cycle(cycle, fs; ramp_rate = ramp_rate)
+    compiled = _compile!(fs, cycle, ramp_rate)
     _set_dispersion_velocities!(fs, compiled)
-    _refresh_default_boundaries!(fs, compiled)
     for u in holdup_units(fs)
         isempty(vcat([devices_at(fs, u, p) for p in keys(ports(fs[u]))]...)) && @warn "Unit $u has no devices attached"
     end
@@ -127,26 +126,40 @@ function _set_dispersion_velocities!(fs, compiled)
     end
 end
 
-# Default boundaries follow the cycle: extract and waste lines sit at the lowest
-# pressure of their bed, the others at the feed pressure
-function _refresh_default_boundaries!(fs, compiled)
+# Default boundaries follow the feed and the cycle: they take the feed
+# temperature and the composition of their role, and extract and waste lines
+# sit at the lowest pressure of their bed, the others at the feed pressure.
+# Without `compiled`, the pressures are left as they are.
+function _refresh_default_boundaries!(fs, compiled = nothing)
     for r in fs.default_boundaries
         role = device_role(fs, r.name)
-        P = fs.feed.pressure
-        if role in (:extract, :waste)
-            b = first(attachments(fs, r.name)).unit.name
-            haskey(compiled.pressures, b) && (P = minimum(compiled.pressures[b]))
+        if isnothing(compiled)
+            P = boundary_condition(fs, r.name, r.port).pressure
+        else
+            P = fs.feed.pressure
+            if role in (:extract, :waste)
+                b = first(attachments(fs, r.name)).unit.name
+                haskey(compiled.pressures, b) && (P = minimum(compiled.pressures[b]))
+            end
         end
         # On the network, so that the boundary stays a default one
         set_boundary!(fs.network, r.name, r.port, PortCondition(pressure = P, temperature = fs.feed.temperature, composition = role_composition(fs, role)))
     end
 end
 
+# Compile the cycle and update the default boundaries. The steps take the
+# temperature and composition of a boundary from the network, so those are
+# updated first; the pressures follow from the compiled cycle.
+function _compile!(fs, cycle, ramp_rate)
+    _refresh_default_boundaries!(fs)
+    compiled = compile_cycle(cycle, fs; ramp_rate = ramp_rate)
+    _refresh_default_boundaries!(fs, compiled)
+    return compiled
+end
+
 "Recompile the cycle after a change to its steps or the feed."
 function _refresh!(p::Process)
-    compiled = compile_cycle(p.cycle, p.flowsheet; ramp_rate = p.options.ramp_rate)
-    _refresh_default_boundaries!(p.flowsheet, compiled)
-    p.compiled = compiled
+    p.compiled = _compile!(p.flowsheet, p.cycle, p.options.ramp_rate)
     return p
 end
 
