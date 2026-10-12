@@ -58,12 +58,12 @@ function (G::VacuumPumpObjective)(model, state, dt, step_info, forces)
 end
 
 """
-    CompressorObjective(device; suction_pressure = 1e5, efficiency = 0.72, γ = 1.4, scale = 1.0)
+    CompressorObjective(device; suction_pressure = 101325.0, efficiency = 0.72, γ = 1.4, scale = 1.0)
 
 Objective for adjoint gradients: `scale` times the work [J] to compress the
 gas entering through `device` from `suction_pressure` up to the pressure at
-its outlet, such as a feed compressor taking flue gas at 1 bar up to the bed
-inlet pressure. Only steps with forward flow and an outlet above the suction
+its outlet, such as a feed compressor taking flue gas at atmospheric pressure
+up to the bed inlet pressure, as in [`compressor_energy`](@ref). Only steps with forward flow and an outlet above the suction
 pressure count. The gas is compressed adiabatically with isentropic
 `efficiency`, from the device's inlet temperature.
 """
@@ -74,7 +74,7 @@ struct CompressorObjective
     γ::Float64
     scale::Float64
 end
-CompressorObjective(device::Symbol; suction_pressure = 1e5, efficiency = 0.72, γ = 1.4, scale = 1.0) =
+CompressorObjective(device::Symbol; suction_pressure = 101325.0, efficiency = 0.72, γ = 1.4, scale = 1.0) =
     CompressorObjective(device, suction_pressure, efficiency, γ, scale)
 
 function (G::CompressorObjective)(model, state, dt, step_info, forces)
