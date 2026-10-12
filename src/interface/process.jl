@@ -348,7 +348,7 @@ end
 
 _last_cycle(r::ProcessResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
 
-adsorbent_volume(p::Process) = sum(b -> sum(p.parameters[b][:SolidVolume]), beds(p.flowsheet))
+adsorbent_volume(p::Process) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 adsorbent_mass(p::Process) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 
 """
@@ -388,7 +388,7 @@ function performance(r::ProcessResult)
     V = adsorbent_volume(p)
     return (purity = purity(n_extract; component = k), recovery = recovery(n_extract, n_feed; component = k),
         specific_energy = specific_energy_kwh_per_tonne(E, n_extract, fs.gas.molar_masses[k]; component = k),
-        productivity = n_extract[k] / (V * T), energy = E, cycle_time = T,
+        productivity = productivity(n_extract, T, V; component = k), energy = E, cycle_time = T,
         feed = n_feed, extract = n_extract, product = n_product, adsorbent_volume = V, adsorbent_mass = adsorbent_mass(p))
 end
 

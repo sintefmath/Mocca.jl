@@ -31,7 +31,9 @@ import Jutul.DictOptimization: DictParameters, free_optimization_parameter!, par
     @test p > constants.y_feed[1]  # the extract is enriched in CO2
     m_s = Mocca.sorbent_mass(fs[:Bed], prm[:Bed])
     @test m_s ≈ sum(prm[:Bed][:SolidVolume]) * constants.ρ_s
-    @test Mocca.productivity(n_ext, 100.0, m_s) > 0
+    V_s = Mocca.adsorbent_volume(fs[:Bed], prm[:Bed])
+    @test V_s ≈ π * constants.r_in^2 * constants.L * (1 - constants.Φ)
+    @test Mocca.productivity(n_ext, 100.0, V_s) ≈ n_ext[1] / (V_s * 100.0)
 
     W = Mocca.vacuum_pump_energy(states, ts, :V_vacuum; window = w2)
     @test W > 0
