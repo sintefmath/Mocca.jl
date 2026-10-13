@@ -65,60 +65,60 @@ No multipliers set.
     solution_history = true
 );</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Optimization: Starting calibration of 1 parameters.
 Optimization: Setting up adjoint storage.
-Optimization: Finished setup in 3.5953328 seconds.
-Optimization: Adjoint solve took 18.471205327 seconds.
+Optimization: Finished setup in 3.548187358 seconds.
+Optimization: Adjoint solve took 18.487902943 seconds.
 
 Optimization: Objective #1: 3.41251e+05, gradient 2-norm: 5.60913e+05
 It.  | Objective  | Proj. grad | Linesearch-its
 -----------------------------------------------
    0 | 6.0839e-01 | 1.5000e+02 | -
-Optimization: Adjoint solve took 0.370474667 seconds.
+Optimization: Adjoint solve took 0.365454468 seconds.
 
 Optimization: Objective #2: 1.15577e+06 (f/f0=3.387e+00), gradient 2-norm: 1.56853e-06
-Optimization: Adjoint solve took 1.925090321 seconds.
+Optimization: Adjoint solve took 1.926457784 seconds.
 
 Optimization: Objective #3: 2.33199e+05 (f/f0=6.834e-01), gradient 2-norm: 7.11058e+05
-Optimization: Adjoint solve took 0.372442059 seconds.
+Optimization: Adjoint solve took 0.37829004 seconds.
 
 Optimization: Objective #4: 1.15577e+06 (f/f0=3.387e+00), gradient 2-norm: 1.56853e-06
-Optimization: Adjoint solve took 1.761658192 seconds.
+Optimization: Adjoint solve took 1.760328483 seconds.
 
 Optimization: Objective #5: 1.19065e+05 (f/f0=3.489e-01), gradient 2-norm: 8.88513e+05
-Optimization: Adjoint solve took 0.33920576 seconds.
+Optimization: Adjoint solve took 0.352695013 seconds.
 
 Optimization: Objective #6: 1.15577e+06 (f/f0=3.387e+00), gradient 2-norm: 1.56853e-06
 LBFGS: Line search unable to succeed in 5 iterations ...
-Optimization: Adjoint solve took 2.311287049 seconds.
+Optimization: Adjoint solve took 1.875114046 seconds.
 
 Optimization: Objective #7: 1.19065e+05 (f/f0=3.489e-01), gradient 2-norm: 8.88513e+05
    1 | 2.1227e-01 | 1.5000e+02 | 5
-Optimization: Adjoint solve took 0.459686943 seconds.
+Optimization: Adjoint solve took 0.344796026 seconds.
 
 Optimization: Objective #8: 1.15577e+06 (f/f0=3.387e+00), gradient 2-norm: 1.56853e-06
-Optimization: Adjoint solve took 1.792161486 seconds.
+Optimization: Adjoint solve took 1.757740968 seconds.
 
 Optimization: Objective #9: 1.60637e+04 (f/f0=4.707e-02), gradient 2-norm: 6.24670e+05
    2 | 2.8638e-02 | 2.3760e+02 | 2
-Optimization: Adjoint solve took 1.942531843 seconds.
+Optimization: Adjoint solve took 1.95094399 seconds.
 
 Optimization: Objective #10: 3.84195e+05 (f/f0=1.126e+00), gradient 2-norm: 2.31961e+06
-Optimization: Adjoint solve took 1.718169818 seconds.
+Optimization: Adjoint solve took 1.783408906 seconds.
 
 Optimization: Objective #11: 3.43361e+02 (f/f0=1.006e-03), gradient 2-norm: 1.05343e+05
    3 | 6.1215e-04 | 1.6705e+02 | 2
-Optimization: Adjoint solve took 1.7198137 seconds.
+Optimization: Adjoint solve took 1.847192315 seconds.
 
 Optimization: Objective #12: 3.35912e+01 (f/f0=9.844e-05), gradient 2-norm: 3.17097e+04
    4 | 5.9887e-05 | 2.8171e+01 | 1
-Optimization: Adjoint solve took 1.657289579 seconds.
+Optimization: Adjoint solve took 1.827466419 seconds.
 
 Optimization: Objective #13: 1.21890e-02 (f/f0=3.572e-08), gradient 2-norm: 6.35802e+02
    5 | 2.1731e-08 | 8.4798e+00 | 1
-Optimization: Adjoint solve took 1.656072414 seconds.
+Optimization: Adjoint solve took 1.780968472 seconds.
 
 Optimization: Objective #14: 1.91768e-05 (f/f0=5.620e-11), gradient 2-norm: 2.52183e+01
    6 | 3.4189e-11 | 1.7003e-01 | 1
-Optimization: Finished in 58.966985186 seconds.</code></pre><p>We can see a clear reduction of the objective function value throughout the optimization iterations, indicating a close match between the reference solution and our simulation.</p><pre><code class="language-julia hljs">f = Mocca.plot_optimization_history(dprm)</code></pre><img src="0c7e6534.png" alt="Example block output"/><p>We can look at the optimization result:</p><pre><code class="language-julia hljs">dprm</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 1 parameters (1 active), and 0 multipliers:
+Optimization: Finished in 59.422740886 seconds.</code></pre><p>We can see a clear reduction of the objective function value throughout the optimization iterations, indicating a close match between the reference solution and our simulation.</p><pre><code class="language-julia hljs">f = Mocca.plot_optimization_history(dprm)</code></pre><img src="0c7e6534.png" alt="Example block output"/><p>We can look at the optimization result:</p><pre><code class="language-julia hljs">dprm</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 1 parameters (1 active), and 0 multipliers:
 <span class="sgr1">Active optimization parameters</span>
 ┌──────────┬───────────────┬───────┬────────┬───────┬─────────────────┬────────┐
 │<span class="sgr1">     Name </span>│<span class="sgr1"> Initial value </span>│<span class="sgr1"> Count </span>│<span class="sgr1">    Min </span>│<span class="sgr1">   Max </span>│<span class="sgr1"> Optimized value </span>│<span class="sgr1"> Change </span>│
@@ -141,4 +141,4 @@ No multipliers set.
     343.3612499399473
      33.59118728471851
       0.012189042129208075
-      1.9176833561574434e-5</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../wet_flue_gas_dual_adsorbent_vsa/">« Wet flue gas: dual-adsorbent VSA</a><a class="docs-footer-nextpage" href="../optimization/">Optimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Tuesday 13 October 2026 10:11">Tuesday 13 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+      1.9176833561574434e-5</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../wet_flue_gas_dual_adsorbent_vsa/">« Wet flue gas: dual-adsorbent VSA</a><a class="docs-footer-nextpage" href="../optimization/">Optimization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Tuesday 13 October 2026 12:26">Tuesday 13 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
