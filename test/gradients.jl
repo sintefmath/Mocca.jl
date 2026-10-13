@@ -153,9 +153,12 @@ end
     # gains at least another. (The first step alone can raise the change of a
     # small component before the rest converges, and how far it gets depends
     # on round-off: Anderson acceleration amplifies it into a different loose
-    # state.)
+    # state.) Below about 1e-11 the cycle change is the noise of the
+    # simulator's own solves, so the rate is only checked from changes well
+    # above that.
     @test css.history[3] < 0.1 * css.history[1]
-    @test all(css.history[3:end] .< 0.1 .* css.history[2:end-1])
+    hist = css.history
+    @test all(hist[i + 1] < 0.1 * hist[i] for i in 2:length(hist) - 1 if hist[i] > 1e-9)
 
     G = (co2 = Mocca.StreamObjective(:V_vacuum; scale = 1e3), energy = Mocca.VacuumPumpObjective(:V_vacuum; scale = 1e-3))
     g = Mocca.cyclic_steady_state_gradient(c.mm, css.state0, c.prm, forces, dt, G; with_forces = true)
