@@ -34,4 +34,3 @@ scale of the loading when changes over a cycle are measured.
 """
 saturation_capacity(iso::AbstractIsotherm) = nothing
 
-include("dual_site_langmuir.jl")

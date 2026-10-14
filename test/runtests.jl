@@ -18,6 +18,10 @@ include("haghpanah_cases.jl")
         include("architecture.jl")
     end
 
+    @testset "Module names" begin
+        include("module_names.jl")
+    end
+
     @testset "Flowsheets" begin
         include("flowsheet.jl")
     end

@@ -58,8 +58,8 @@ end
     g = Mocca.force_gradients(c.mm, c.state0, c.prm, forces, dt, G)
     @test length(g.forces) == 4
     function objective(f)
-        states, ts, sf = Mocca._simulate_steps(c.mm, c.state0, c.prm, f, dt)
-        return Mocca._evaluate_objective(G, c.mm, states, ts, sf)
+        states, ts, sf = Mocca.Operation._simulate_steps(c.mm, c.state0, c.prm, f, dt)
+        return Mocca.Operation._evaluate_objective(G, c.mm, states, ts, sf)
     end
     @test g.objective ≈ objective(forces)
 
@@ -98,8 +98,8 @@ end
         return Mocca.setup_schedule(s.fs, s.mm, s.stages; num_cycles = 1, max_dt = 1.0, reference_durations = reference)
     end
     function objective_with(f, steps)
-        states, ts, sf = Mocca._simulate_steps(c.mm, c.state0, c.prm, f, steps)
-        return Mocca._evaluate_objective(G, c.mm, states, ts, sf)
+        states, ts, sf = Mocca.Operation._simulate_steps(c.mm, c.state0, c.prm, f, steps)
+        return Mocca.Operation._evaluate_objective(G, c.mm, states, ts, sf)
     end
     @test length(g.durations) == 4
     for i in 1:4
@@ -116,14 +116,14 @@ end
     c = gradient_test_case(stage_durations = [5.0, 5.0, 5.0, 5.0])
     evac = c.stages[4]
     split = [c.stages[1:3]..., Mocca.Stage("evacuation a", 2.5, evac.settings),
-        Mocca.Stage("evacuation b", 2.5, Dict{Symbol, Any}(k => Mocca._shift_setting(v, -2.5) for (k, v) in evac.settings))]
+        Mocca.Stage("evacuation b", 2.5, Dict{Symbol, Any}(k => Mocca.Operation._shift_setting(v, -2.5) for (k, v) in evac.settings))]
     reference = [st.duration for st in split]
     schedule(d) = Mocca.setup_schedule(c.fs, c.mm, [Mocca.Stage(st.name, d[i], st.settings) for (i, st) in enumerate(split)];
         num_cycles = 1, max_dt = 1.0, reference_durations = reference)
     G = Mocca.StreamObjective(:V_vacuum; scale = 1e3)
     function objective_with(f, steps)
-        states, ts, sf = Mocca._simulate_steps(c.mm, c.state0, c.prm, f, steps)
-        return Mocca._evaluate_objective(G, c.mm, states, ts, sf)
+        states, ts, sf = Mocca.Operation._simulate_steps(c.mm, c.state0, c.prm, f, steps)
+        return Mocca.Operation._evaluate_objective(G, c.mm, states, ts, sf)
     end
     forces, dt = schedule(reference)
     g = Mocca.force_gradients(c.mm, c.state0, c.prm, forces, dt, G)
@@ -172,8 +172,8 @@ end
             reference_durations = reference)
         r = Mocca.newton_cyclic_steady_state(s.mm, css.state0, prm, f, ts; tol = 1e-11)
         @test r.converged
-        states, steps, sf = Mocca._simulate_steps(s.mm, r.state0, prm, f, ts)
-        return map(Gi -> Mocca._evaluate_objective(Gi, s.mm, states, steps, sf), G)
+        states, steps, sf = Mocca.Operation._simulate_steps(s.mm, r.state0, prm, f, ts)
+        return map(Gi -> Mocca.Operation._evaluate_objective(Gi, s.mm, states, steps, sf), G)
     end
     @test g.co2.objective ≈ objectives(c.constants.v_feed, c.prm).co2
 

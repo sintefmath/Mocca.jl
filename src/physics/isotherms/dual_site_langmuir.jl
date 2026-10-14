@@ -1,5 +1,3 @@
-using StaticArrays
-
 """
     DualSiteLangmuir{N, T} <: AbstractIsotherm
 

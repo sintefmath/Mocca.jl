@@ -34,7 +34,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
   test-latest-jutul:
-    # Mocca overrides some Jutul internals (see src/units/equipment/device.jl),
+    # Mocca overrides some Jutul internals (see src/devices/device.jl),
     # so its compat bound stops at the last Jutul it was tested with. This job
     # lifts the bound, to show early whether a new Jutul release breaks it.
     name: Testing with the latest Jutul

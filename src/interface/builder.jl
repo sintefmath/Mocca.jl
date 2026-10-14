@@ -39,9 +39,9 @@ struct Flowsheet <: AbstractFlowsheet
 end
 Flowsheet(gas::Gas, feed::Feed) = Flowsheet(UnitNetwork(), gas, feed, Dict{Symbol, Symbol}(), Dict{Symbol, BedSpec}(), Set{PortRef}())
 
-network(fs::Flowsheet) = fs.network
+Networks.network(fs::Flowsheet) = fs.network
 
-function set_boundary!(fs::Flowsheet, device::Symbol, port::Symbol, condition::PortCondition)
+function Networks.set_boundary!(fs::Flowsheet, device::Symbol, port::Symbol, condition::PortCondition)
     set_boundary!(fs.network, device, port, condition)
     delete!(fs.default_boundaries, PortRef(device, port))
     return fs

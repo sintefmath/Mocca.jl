@@ -1,8 +1,3 @@
-
-export haghpanah_DCB_input
-export haghpanah_cyclic_input
-
-
 function haghpanah_DCB_input()
 # Define a dictionary containing the Haghpanah DCB case input parameters
 haghpanah_input = Dict{String, Any}(

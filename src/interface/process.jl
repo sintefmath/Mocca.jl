@@ -348,7 +348,7 @@ end
 
 _last_cycle(r::ProcessResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
 
-adsorbent_volume(p::Process) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
+Operation.adsorbent_volume(p::Process) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 adsorbent_mass(p::Process) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 
 """

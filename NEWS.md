@@ -1,5 +1,19 @@
 # Mocca.jl release notes
 
+## Unreleased
+
+### Changed
+
+- **Submodules.** The source is split into one submodule per layer
+  (`Mocca.Framework`, `Mocca.Physics`, `Mocca.Balances`, `Mocca.Devices`,
+  `Mocca.FixedBeds`, `Mocca.Networks`, `Mocca.Operation`, `Mocca.Interface`),
+  plus `Mocca.Legacy` for 0.1 inputs and `Mocca.Plotting`. `using Mocca`
+  exports the same names as before, and `Mocca.X` still works for every name
+  with a docstring. Other internal names are now reached through their module,
+  such as `Mocca.Operation._simulate_steps`, and names from CairoMakie, such as
+  `Mocca.Figure`, are no longer reachable through `Mocca`.
+- Loading Mocca no longer creates a `results` directory.
+
 ## v0.2.0
 
 Mocca 0.2 is a rewrite of the simulator. A process is now a flowsheet of beds
