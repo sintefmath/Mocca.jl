@@ -21,6 +21,12 @@
   such as `Mocca.Operation._simulate_steps`, and names from CairoMakie, such as
   `Mocca.Figure`, are no longer reachable through `Mocca`.
 - Loading Mocca no longer creates a `results` directory.
+- **Examples.** Each example now covers its own part of the package:
+  `getting_started` (now with the CSV export), `process_from_parts` (which
+  replaces `custom_setup_cyclic_vsa` and `cyclic_vsa_haghpanah_2013_co2_n2`),
+  `breakthrough` (formerly `dcb_haghpanah_2013_co2_n2`, now comparing the
+  thermal models), a new `two_bed_vsa` with pressure equalisation, and
+  `unit_network` (formerly `flowsheet_vsa`).
 
 ## v0.2.0
 

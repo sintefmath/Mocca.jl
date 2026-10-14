@@ -108,7 +108,9 @@ write_results("results/base_case", result)
 The time series have one row per time step and device (or bed end), with the
 cycle and stage it belongs to, so a pivot table or a filter picks out one
 device or stage. For a spreadsheet set up with a decimal comma, use
-`write_results(dir, result; delim = ';', decimal = ',')`.
+`write_results(dir, result; delim = ';', decimal = ',')`. The
+[Getting started](@ref) example writes these files and reads some of them
+back.
 
 For other variables, write the CSV file yourself:
 

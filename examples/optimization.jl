@@ -12,7 +12,7 @@
 # [gradients](flowsheet_vsa_gradients.md) example). A gradient-based optimiser
 # (BFGS within the bounds) then needs far fewer evaluations than a population
 # of designs would. For more details about the VSA modelling, see the
-# [Haghpanah cyclic VSA](cyclic_vsa_haghpanah_2013_co2_n2.md) example.
+# [process from its parts](process_from_parts.md) example.
 
 import Mocca
 using Mocca.Units
@@ -42,5 +42,9 @@ println(best.values)
 println("purity $(round(100best.metrics.purity, digits = 2))%, recovery $(round(100best.metrics.recovery, digits = 2))%, ",
     "$(round(best.metrics.specific_energy, digits = 1)) kWh/t")
 
-# The process is left at the best design:
-process
+# The process is left at the best design. To share it, export its steady
+# state to a spreadsheet; `write_results` also saves the process, as
+# `process.json`, to rerun it with `read_process`:
+dir = joinpath(mktempdir(), "optimised")
+Mocca.write_results(dir, Mocca.cyclic_steady_state(process))
+foreach(println, filter(startswith("Performance"), readlines(joinpath(dir, "summary.csv"))))
