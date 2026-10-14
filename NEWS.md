@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New
+
+- **`write_results`.** Writes a process result to CSV files for a
+  spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
+  performance and the mass balance, a stream table per cycle and per stage,
+  the streams and bed ends through time, and profiles along each bed at the
+  end of each stage.
+
 ### Changed
 
 - **Submodules.** The source is split into one submodule per layer

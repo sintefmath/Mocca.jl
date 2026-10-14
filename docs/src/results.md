@@ -87,7 +87,30 @@ n = stream_totals(result.states, result.timesteps, :V_vacuum)   # mol of CO₂, 
 
 ## Export to a spreadsheet
 
-Write any of these to a CSV file and open it in Excel or another tool:
+[`write_results`](@ref) writes a result to a folder of CSV files, in bara, °C,
+mol%, kg/h, Nm³/h and mol/kg, with the units in the column headers:
+
+```julia
+result = cyclic_steady_state(process)
+write_results("results/base_case", result)
+```
+
+| File | Contents |
+|---|---|
+| `summary.csv` | Feed, stage durations, purity, recovery, productivity, specific energy, the mass balance of each component over the cycle, and the beds |
+| `streams.csv` | Stream table: one row per device, with its composition, mean flow and amount per cycle |
+| `stage_streams.csv` | The stream table for each stage |
+| `stream_history.csv` | Flow, composition, temperature and pressures of every device at every time step |
+| `bed_history.csv` | Pressure, temperatures, gas composition and loading at both ends of each bed at every time step |
+| `bed_profiles.csv` | The same along each bed, at the start of the cycle and the end of each stage |
+| `process.json` | The process, to read back with [`read_process`](@ref) |
+
+The time series have one row per time step and device (or bed end), with the
+cycle and stage it belongs to, so a pivot table or a filter picks out one
+device or stage. For a spreadsheet set up with a decimal comma, use
+`write_results(dir, result; delim = ';', decimal = ',')`.
+
+For other variables, write the CSV file yourself:
 
 ```julia
 t = cumsum(result.timesteps)
@@ -126,6 +149,7 @@ save("bed_top.png", f)
 
 ```@docs
 ProcessResult
+write_results
 plot_cell
 plot_state
 plot_profiles
