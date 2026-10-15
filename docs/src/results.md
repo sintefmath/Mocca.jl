@@ -21,32 +21,43 @@ times measured from the start of that cycle.
 
 ## Following the approach to steady state
 
-In the REPL, [`cyclic_steady_state`](@ref) prints each cycle as it runs. In a
-terminal the line of the current cycle is rewritten in place, and the end of
-each phase stays on screen:
+In the REPL, [`cyclic_steady_state`](@ref) prints each cycle as it runs. By
+default it works in two phases, each with its own line and bar: Anderson
+acceleration brings the change over a cycle to `1e-3`, then Newton's method
+takes it to the tolerance in a few iterations. In a terminal the lines are
+rewritten in place. While Anderson acceleration runs, Newton's method waits:
 
 ```
-Cyclic steady state of four-stage VSA by Newton's method to 1.0e-09
-  Anderson      cycle  76  change 4.46e-03 → 1.0e-03  ▕███████████ ▏  92%  ~6 cycles, ~3.7 s left  47 s
+Cyclic steady state of four-stage VSA: Anderson acceleration to 1.0e-03, then Newton's method to 1.0e-09
+  Anderson      cycle  60       change 1.53e-02 → 1.0e-03  ▕██████████▍ ▏  86%  ~60 cycles, ~9.9 s left  40 s
+  Newton                        to 1.0e-09                 ▕            ▏   0%  waiting for Anderson
+```
+
+Newton's method builds its Jacobian with one adjoint per variable of the beds,
+shown as it goes:
+
+```
+  Anderson      115 cycles      change 7.1e-04 < 1.0e-03   ▕████████████▏ 100%  done, on to Newton  50 s
+  Newton        iteration   0   change 7.1e-04 → 1.0e-09   ▕            ▏   0%  building the Jacobian: adjoint 30 of 60
 ```
 
 and when it is done:
 
 ```
-Cyclic steady state of four-stage VSA by Newton's method to 1.0e-09
-  Anderson      115 cycles  change 7.1e-04 < 1.0e-03  converged  52 s
-  Newton          3 iterations  change 1.35e-11 < 1.0e-09  converged  2 Jacobians built  40 s
+Cyclic steady state of four-stage VSA: Anderson acceleration to 1.0e-03, then Newton's method to 1.0e-09
+  Anderson      115 cycles      change 7.1e-04 < 1.0e-03   ▕████████████▏ 100%  done, on to Newton  50 s
+  Newton          3 iterations  change 1.35e-11 < 1.0e-09  ▕████████████▏ 100%  converged  2 Jacobians built  37 s
 Converged after 119 cycles simulated in 1 min 34 s
 ```
 
 The change is the largest relative change of any variable of the beds over
-one cycle (see [`cycle_change`](@ref)), and the bar shows how far the smallest
-change so far has come from the first cycle to the tolerance, on a log scale.
-Anderson acceleration first brings the change to `1e-3`, then Newton's method
-takes it to the tolerance in a few iterations; building its Jacobian, with one
-adjoint per variable of the beds, is shown as it goes. With
-`method = :mass_balance` the line shows the balance error of the key component
-instead, and how many cycles in a row it has been below the tolerance.
+one cycle (see [`cycle_change`](@ref)). Each bar shows how far the smallest
+change so far has come from the first cycle of its phase to the phase's
+tolerance, on a log scale, and the estimate of what is left is for that phase.
+From the last steady state of the process, Newton's method starts at once,
+with a single line. With `method = :mass_balance` the line shows the balance
+error of the key component instead, and how many cycles in a row it has been
+below the tolerance.
 
 Pass `progress = false` to turn it off, or `progress = true` to have it in a
 script, as the examples do. Outside a terminal, such as in a log file, each

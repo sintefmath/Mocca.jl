@@ -309,10 +309,15 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
     name = isempty(p.name) ? "the process" : p.name
     if method == :newton
         tol = something(tol, 1e-9)
-        report_note!(pr, "Cyclic steady state of $name by Newton's method to $(_sci(tol))" * (has_warm ? ", from the last steady state" : ""))
+        # Anderson acceleration to a loose steady state, for Newton's method
+        loose_tol = 1e-3
+        phases = [("Anderson", loose_tol, "cycle"), ("Newton", tol, "iteration")]
+        report_note!(pr, "Cyclic steady state of $name: " * (has_warm ? "Newton's method to $(_sci(tol)) from the last steady state" :
+            "Anderson acceleration to $(_sci(loose_tol)), then Newton's method to $(_sci(tol))"))
         p.timestepping.first_dt < p.timestepping.max_dt ||
             @warn "Newton's method needs a smooth cycle map; start each stage with short steps (TimeStepping(first_dt = 0.05))" maxlog = 1
         if has_warm
+            plan_phases!(pr, phases[2:2])
             r = try
                 newton_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_iterations = 40,
                     jacobian = p.warm.jacobian, progress = pr, info_level = info_level, kwarg...)
@@ -332,7 +337,8 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
             isnothing(r) || report_note!(pr, "  Starting again from the initial state")
             x0 = initial_state(p)
         end
-        loose = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = 1e-3, max_cycles = max_cycles,
+        plan_phases!(pr, phases)
+        loose = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = loose_tol, max_cycles = max_cycles,
             progress = pr, info_level = info_level, kwarg...)
         r = newton_cyclic_steady_state(model, loose.state0, prm, forces, dt; tol = tol, max_iterations = 10,
             progress = pr, info_level = info_level, kwarg...)
@@ -343,7 +349,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
             loose.cycles + r.cycles, r.jacobian)
     elseif method == :anderson
         tol = something(tol, 1e-6)
-        report_note!(pr, "Cyclic steady state of $name by Anderson acceleration to $(_sci(tol))" * (has_warm ? ", from the last steady state" : ""))
+        report_note!(pr, "Cyclic steady state of $name: Anderson acceleration to $(_sci(tol))" * (has_warm ? " from the last steady state" : ""))
         r = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_cycles = max_cycles,
             progress = pr, info_level = info_level, kwarg...)
         finish_progress!(pr, r.converged)
@@ -355,7 +361,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
         outflow = Tuple(vcat([devices_with_role(fs, r) for r in OUTLET_ROLES]...))
         kw = isnothing(tol) ? NamedTuple() : (tol = tol,)
         k = p.options.key_component
-        report_note!(pr, "Cyclic steady state of $name by the $(fs.gas.names[k]) mass balance" * (has_warm ? ", from the last steady state" : ""))
+        report_note!(pr, "Cyclic steady state of $name: $(fs.gas.names[k]) mass balance" * (has_warm ? " from the last steady state" : ""))
         r = simulate_until_mass_balance(model, x0, prm, forces, dt; inflow = inflow, outflow = outflow,
             component = k, max_cycles = max_cycles, progress = pr, info_level = info_level, kw..., kwarg...)
         finish_progress!(pr, r.converged)

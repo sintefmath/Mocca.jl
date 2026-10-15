@@ -103,20 +103,88 @@ end
     @test O._mass_balance_cycles_left([1.0, 0.1, 0.03, 0.009], 0.005, 5, 0) == (5, 0)
     @test O._mass_balance_cycles_left([0.1, 0.03], 0.005, 5, 10) == (8, 0)
 
-    # A live printout rewrites one line in place, kept within the display
+    # What a terminal shows of a live printout, which only returns to the start
+    # of a line, starts a new one, clears to its end and moves up
+    function terminal_screen(out)
+        rows, r, col = [""], 1, 0
+        for m in eachmatch(r"\r|\n|\e\[K|\e\[(\d+)A|[^\r\n\e]+", out)
+            t = m.match
+            if t == "\r"
+                col = 0
+            elseif t == "\n"
+                r += 1
+                r > length(rows) && push!(rows, "")
+                col = 0
+            elseif t == "\e[K"
+                rows[r] = first(rows[r], col)
+            elseif startswith(t, "\e[")
+                r -= parse(Int, m.captures[1])
+            else
+                rows[r] = first(rows[r], col) * t
+                col += length(t)
+            end
+        end
+        return rows
+    end
+
+    # A live printout of a single phase rewrites one line in place, kept within
+    # the display
     io = IOBuffer()
-    pr = Mocca.CycleProgress(IOContext(io, :displaysize => (24, 40)); live = true)
+    pr = Mocca.CycleProgress(IOContext(io, :displaysize => (24, 60)); live = true)
     O.start_phase!(pr, "Anderson"; tol = 1e-4)
     O.report_cycle!(pr, 1, 1e-1)
     O.report_cycle!(pr, 2, 1e-2)
     O.finish_phase!(pr, 2, false)
     O.finish_progress!(pr, false)
+    screen = terminal_screen(String(take!(io)))
+    @test length(screen) == 3 && screen[end] == ""
+    @test all(l -> textwidth(l) <= 59, screen)
+    @test occursin(r"^  Anderson +2 cycles +change 1\.0e-02 ≥ 1\.0e-04 ", screen[1])
+    @test startswith(screen[2], "Not converged after 2 cycles simulated")
+
+    # With two phases planned, each has its own line and bar: the second
+    # waits for the first, which is done rather than converged when it hands
+    # over
+    io = IOBuffer()
+    out = ""
+    show_screen() = (out *= String(take!(io)); terminal_screen(out))
+    pr = Mocca.CycleProgress(IOContext(io, :displaysize => (24, 200)); live = true)
+    O.plan_phases!(pr, [("Anderson", 1e-3, "cycle"), ("Newton", 1e-9, "iteration")])
+    O.start_phase!(pr, "Anderson"; tol = 1e-3)
+    O.report_cycle!(pr, 1, 1e-1)
+    screen = show_screen()
+    @test length(screen) == 2
+    @test contains(screen[1], "Anderson") && contains(screen[1], "cycle   1") && contains(screen[1], "change 1.0e-01 → 1.0e-03")
+    @test contains(screen[2], "Newton") && contains(screen[2], "to 1.0e-09") && contains(screen[2], "  0%  waiting for Anderson")
+    # The bars line up
+    @test findfirst(==('▕'), collect(screen[1])) == findfirst(==('▕'), collect(screen[2]))
+    O.report_cycle!(pr, 2, 1e-4)
+    O.finish_phase!(pr, 2, true)
+    O.start_phase!(pr, "Newton"; tol = 1e-9, noun = "iteration", estimate = false)
+    O.report_cycle!(pr, 0, 1e-4)
+    O.report_cycle!(pr, 1, 1e-10)
+    O.finish_phase!(pr, 1, true)
+    O.finish_progress!(pr, true)
+    screen = show_screen()
+    @test length(screen) == 4 && screen[end] == ""
+    @test contains(screen[1], "2 cycles") && contains(screen[1], "100%  done, on to Newton") && !contains(screen[1], "converged")
+    @test contains(screen[2], "1 iteration ") && contains(screen[2], "< 1.0e-09") && contains(screen[2], "100%  converged")
+    @test startswith(screen[3], "Converged after 4 cycles simulated")
+
+    # Without a terminal, each cycle gets its own line and the waiting phase
+    # none
+    io = IOBuffer()
+    pr = Mocca.CycleProgress(io; live = false)
+    O.plan_phases!(pr, [("Anderson", 1e-3, "cycle"), ("Newton", 1e-9, "iteration")])
+    O.start_phase!(pr, "Anderson"; tol = 1e-3)
+    O.report_cycle!(pr, 1, 1e-1)
+    O.report_cycle!(pr, 2, 1e-4)
+    O.finish_phase!(pr, 2, true)
     out = String(take!(io))
-    @test count("\r\e[K", out) == 4
-    @test count('\n', out) == 2
-    @test all(l -> textwidth(l) <= 39, split(out, "\r\e[K")[2:3])
-    @test contains(out, "2 cycles  change 1.0e-02 ≥ 1.0e-04  not converged")
-    @test contains(out, "Not converged after 2 cycles simulated")
+    lines = split(out, '\n'; keepempty = false)
+    @test length(lines) == 3 && all(contains("Anderson"), lines)
+    @test !contains(out, "\e") && !any(startswith("  Newton"), lines)
+    @test contains(lines[end], "done, on to Newton")
     @test isnothing(O.cycle_progress(false))
 end
 
