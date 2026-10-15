@@ -11,7 +11,7 @@
     AbstractFlowsheet
 
 Units and the connections between them, which [`setup_flowsheet_model`](@ref)
-assembles: a [`UnitNetwork`](@ref), or a [`Flowsheet`](@ref) of the user
+assembles: a [`UnitNetwork`](@ref), or a [`Flowsheet`](@ref Mocca.Interface.Flowsheet) of the user
 interface, which holds one. Subtypes provide [`network`](@ref).
 """
 abstract type AbstractFlowsheet end
@@ -31,7 +31,7 @@ the boundary conditions of device ports that are not connected. Build it with
 [`add_unit!`](@ref), [`connect!`](@ref) and [`set_boundary!`](@ref), and turn
 it into a `Jutul.MultiModel` with [`setup_flowsheet_model`](@ref). For a
 process described in terms of materials and device roles, use a
-[`Flowsheet`](@ref) instead.
+[`Flowsheet`](@ref Mocca.Interface.Flowsheet) instead.
 
 Unconnected device ports are boundaries and need a [`PortCondition`](@ref),
 set with [`set_boundary!`](@ref) or per stage.

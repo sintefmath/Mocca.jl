@@ -205,5 +205,6 @@ plot_cell_comparison
 plot_state_comparison
 stream_totals
 vacuum_pump_energy
+compressor_energy
 specific_energy_kwh_per_tonne
 ```
