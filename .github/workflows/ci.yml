@@ -12,32 +12,65 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
-    name: Testing
+    name: Testing (Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
+    permissions:
+      # julia-actions/cache deletes the old caches it has made
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # 'min' is the oldest Julia allowed by the compat entry in Project.toml
+        version:
+          - 'min'
+          - '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+  test-latest-jutul:
+    # Mocca overrides some Jutul internals (see src/devices/device.jl),
+    # so its compat bound stops at the last Jutul it was tested with. This job
+    # lifts the bound, to show early whether a new Jutul release breaks it.
+    name: Testing with the latest Jutul
+    runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       actions: write
       contents: read
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
+      - uses: julia-actions/cache@v3
+      # Installs the General registry, which Pkg.compat needs to resolve
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Lift the Jutul compat bound
+        run: julia --project=. -e 'using Pkg; Pkg.compat("Jutul", ">= 0.4.29"); Pkg.update("Jutul"); Pkg.status("Jutul")'
       - uses: julia-actions/julia-runtest@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   docs:
     name: Documentation
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
+      pull-requests: read
+      statuses: write
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
-      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          # Tags pushed by TagBot only start this workflow when it pushes them
+          # with this deploy key, and Documenter then deploys with it too.
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

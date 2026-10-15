@@ -5,69 +5,54 @@
 ![Mocca.jl logo](docs/src/assets/mocca_small_light.png)
 
 
-[Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture. 
+[Mocca.jl](https://github.com/sintefmath/Mocca.jl) is a [Julia](https://julialang.org/) package for simulating cyclic adsorption processes for CO2 capture, such as pressure and vacuum swing adsorption (PSA/VSA). It finds the cyclic steady state of a process, measures its purity, recovery, energy use and productivity, and computes their gradients with respect to the operating settings, for optimisation.
 
 To learn more about using Mocca please see the [documentation](https://sintefmath.github.io/Mocca.jl/dev/).
 
-Currently there is an implementation of a 4-stage vacuum swing adsorption process for CO2 capture, from a two-component flue gas, using Zeolite 13X and a dual-site Langmuir model. See [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) and [Haghpanah Cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl). For an example of setting up a simulation through defining your own parameters and potentially custom models in a script, see [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
+Mocca comes with the four-step VSA process of Haghpanah et al. (2013) on zeolite 13X, a two-bed VSA with pressure equalisation, and the wet flue gas processes of Krishnamurthy et al. (2014), and any number of beds can be connected through valves and flow controllers. The examples include [getting started](https://github.com/sintefmath/Mocca.jl/blob/main/examples/getting_started.jl) (run a process to cyclic steady state and export the results to a spreadsheet), a [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/process_from_parts.jl), a [breakthrough curve](https://github.com/sintefmath/Mocca.jl/blob/main/examples/breakthrough.jl), a [two-bed VSA with pressure equalisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/two_bed_vsa.jl), the [wet flue gas](https://github.com/sintefmath/Mocca.jl/blob/main/examples/wet_flue_gas_dual_adsorbent_vsa.jl) processes, [gradients at cyclic steady state](https://github.com/sintefmath/Mocca.jl/blob/main/examples/flowsheet_vsa_gradients.jl), [optimisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [history matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl).
 
-In the future we hope to implement examples of other systems and isotherms e.g. temperature swing adsorption for Direct Air Capture (DAC).
+Temperature swing processes, for example for Direct Air Capture (DAC), are not yet included.
+
 
 # Installation
 
-The latest stable version of Mocca can be installed directly from Julia. First install Julia from [here](https://julialang.org/downloads/).
-
-## Working in an environment (optional)
-We recommend running in a specific environment (similar to a virtual environment in python). More information on environments in Julia can be found [here](https://pkgdocs.julialang.org/v1/environments/).
-
-To create an environment in Julia, navigate to the folder where you want the environment to be, start the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/) and type the following at the Julia prompt:
+Install Julia 1.10 or later from [julialang.org](https://julialang.org/downloads/). In a folder for your work, start Julia with `julia --project=.` and add Mocca, and CairoMakie for saving plots:
 
 ```julia
 using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
+Pkg.add(url = "https://github.com/sintefmath/Mocca.jl", rev = "main")
+Pkg.add("CairoMakie")
 ```
 
-## Installing Mocca in your environment
-
-To install Mocca just add the package to your current environment in the Julia REPL:
-
-```julia
-Pkg.add("Mocca")
-```
-
-This will add Mocca to the current environment and install all necessary dependencies. Mocca is now installed and ready to use.
-
-To get started try the [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl) or [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+The version in Julia's package registry (0.1.0) has the earlier interface, so install from GitHub as above until the next release. The first run in a session takes a few minutes while Julia compiles. See the [installation guide](https://sintefmath.github.io/Mocca.jl/dev/installation/) for more.
 
 
 # Quick start example
-Run the following code to quickly setup and run a
-Direct Column breakthrough adsorption simulation using predefined input parameters.
-
-The example uses some utility functions which simplify the simulation setup.
-To see the steps used in more detail, please refer to the
-[Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) example.
+Run the following code to read the four-step vacuum swing adsorption (VSA)
+process of Haghpanah et al. (2013) from Mocca's library, find its cyclic
+steady state, measure its performance and export the results:
 
 ```julia
 using Mocca
+using Mocca.Units
 
-# Import and load input parameters
-json_dir = joinpath(dirname(pathof(Mocca)), "../models/json/")
-filepath = joinpath(json_dir, "dcb_haghpanah_2013_co2_n2_input_simple.json")
-(constants, info ) = Mocca.parse_input(filepath)
-
-# Setup and run simulation
-case, ts_config = Mocca.setup_mocca_case(constants, info)
-states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
-    output_substates = true, info_level = 0)
-
-# Save results to CSV and plot
-Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "dcb_haghpanah_2013_co2_n2_results.csv"),
-    case, states, timesteps; format="csv")
-f = Mocca.plot_outlet(case, states, timesteps)
-display(f)
+process = read_process("haghpanah_2013_four_stage_vsa")
+process[:P_L] = 0.05bar              # a design variable: the evacuation pressure
+result = cyclic_steady_state(process)
+performance(result)                  # purity, recovery, specific energy, productivity
+write_results("base_case", result)   # CSV files for a spreadsheet
 ```
+
+A process is described in layers, each of which can be edited and saved on
+its own: a `Gas` and its `Feed`; an `Adsorbent` with its isotherm given by
+component (`dual_site_langmuir`) and a `Column`; a `Flowsheet` of beds
+(`add_bed!`) and devices with roles (`add_device!`); and a `Cycle` of steps
+(`Pressurise`, `Adsorb`, `Blowdown`, `Evacuate`, `Purge`, `Equalise`, `Idle`,
+or your own). Units are SI; `Mocca.Units` has conversions such as `bar` and
+`kJ_per_mol`. See the [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/process_from_parts.jl)
+example for a process built from its parts, and the
+[getting started](https://github.com/sintefmath/Mocca.jl/blob/main/examples/getting_started.jl)
+example for exporting results to CSV files and for the process file format.
 
 # Acknowledgements
 

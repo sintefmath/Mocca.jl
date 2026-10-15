@@ -3,57 +3,22 @@ using Mocca
 using Jutul
 using Statistics: mean
 
+# The four-stage VSA of the Mocca 0.1.0 constants, from a bed full of nitrogen
+# at 1 bar, as a Process; returns the bed states
 function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
-
-    bar = si_unit(:bar)
-    state0 = Mocca.setup_process_state(model;
-        Pressure = 1 * bar,
-        Temperature = 298.15,
-        WallTemperature = constants.T_a,
-        y = [1e-10, 1.0 - 1e-10]
-    )
-
-    parameters = Mocca.setup_process_parameters(model)
-
-    stage_times = [15.0, 15.0, 30.0, 40.0]
-    stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
-    bcs = Mocca.setup_boundary_conditions(constants, stage_names)
-
-    sim_forces, timesteps = Mocca.setup_forces(model, stage_times, bcs;
-        num_cycles = num_cycles, max_dt = max_dt)
-
-    case = Mocca.MoccaCase(model, timesteps, sim_forces;
-        state0 = state0, parameters = parameters)
-
-    states, timesteps_out = Mocca.simulate_process(case;
-        output_substates = true,
-        info_level = -1
-    )
-
-    return states, model, timesteps_out, num_cycles, stage_times
+    p = haghpanah_vsa(; ncells = ncells, max_dt = max_dt, initial_pressure = 1e5)
+    r = simulate(p; cycles = num_cycles)
+    stage_times = [st.duration for st in Mocca.stages(p)]
+    return unit_states(r.states), p.flowsheet[:Bed], r.timesteps, num_cycles, stage_times
 end
 
+# The averages over the last cycle are weighted by time, so that they do not
+# depend on where the solver splits a step
 function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
     nc = number_of_cells(model.domain)
     final = states[end]
-
-    cycle_duration = sum(stage_times)
-    last_cycle_start_time = (num_cycles - 1) * cycle_duration
-
-    cumtime = 0.0
-    last_cycle_start_idx = 1
-    for i in 1:length(timesteps_out)
-        if cumtime >= last_cycle_start_time
-            last_cycle_start_idx = i
-            break
-        end
-        cumtime += timesteps_out[i]
-    end
-
-    last_cycle_states = states[last_cycle_start_idx:end]
+    w = Mocca.cycle_window(timesteps_out, sum(stage_times), num_cycles)
+    time_average(f) = sum(f(states[i]) * timesteps_out[i] for i in w) / sum(timesteps_out[w])
 
     return (
         y_CO2_final = final[:y][1, nc],
@@ -61,8 +26,8 @@ function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
         T_final = final[:Temperature][nc],
         P_final = final[:Pressure][nc],
         total_CO2_adsorbed_final = sum(final[:AdsorbedConcentration][1, :]),
-        avg_T_last_cycle = mean([maximum(s[:Temperature]) for s in last_cycle_states]),
-        avg_P_last_cycle = mean([mean(s[:Pressure]) for s in last_cycle_states]),
+        avg_T_last_cycle = time_average(s -> maximum(s[:Temperature])),
+        avg_P_last_cycle = time_average(s -> mean(s[:Pressure])),
     )
 end
 
@@ -70,14 +35,23 @@ end
     states, model, timesteps_out, num_cycles, stage_times = run_cyclic_simulation()
     m = cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
 
+    # From the Process (flowsheet) form of the cycle. The legacy boundary
+    # conditions agreed with it to within 4e-4. Carrying the stream enthalpy
+    # into the bed without an extra conduction term at the ports then lowered
+    # the CO2 held by 1.1% and raised the average peak temperature by 0.5 K;
+    # the scale-free convergence criteria moved nothing by more than 1e-4
+    # apart from the trace of CO2 at the top of the bed. Counting the heat of
+    # sorption of N2 as well as CO2 then lowered the final top temperature by
+    # 2.4 K and the average peak temperature by 1.3 K. Computed at the default
+    # nonlinear tolerance of 1e-6
     ref = (
-        y_CO2_final = 7.100524006314865e-8,
-        y_N2_final = 0.9999999289947609,
-        T_final = 295.76741982625623,
-        P_final = 9998.130045421889,
-        total_CO2_adsorbed_final = 52325.83782488843,
-        avg_T_last_cycle = 348.8714798098076,
-        avg_P_last_cycle = 40071.222347007766,
+        y_CO2_final = 5.540219427310748e-8,
+        y_N2_final = 0.9999999445978052,
+        T_final = 293.3962731654778,
+        P_final = 9998.471927554892,
+        total_CO2_adsorbed_final = 50215.80381763518,
+        avg_T_last_cycle = 347.51098939059665,
+        avg_P_last_cycle = 40170.12038925197,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

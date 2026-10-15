@@ -2,27 +2,69 @@
 CurrentModule = Mocca
 ```
 
-The latest stable version of Mocca can be installed directly from Julia. First install Julia from [here](https://julialang.org/downloads/).
+# Installation
 
-## Working in an environment (optional)
-We recommend running in a specific environment (similar to a virtual environment in python). More information on environments in Julia can be found [here](https://pkgdocs.julialang.org/v1/environments/).
+## 1. Install Julia
 
-To create an environment in Julia, navigate to the folder where you want the environment to be, start the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/) and type the following at the Julia prompt:
+Install Julia 1.10 or later with [juliaup](https://julialang.org/downloads/),
+the official installer. For writing and running scripts, [VS Code with the
+Julia extension](https://www.julia-vscode.org/) works well: it runs a script
+line by line and shows plots in a side pane.
+
+## 2. Make a project folder
+
+Julia keeps the packages of a project in an *environment*, much like a Python
+virtual environment. Make a folder for your work, open a terminal in it and
+start Julia with that folder as the environment:
+
+```
+julia --project=.
+```
+
+## 3. Add Mocca and CairoMakie
+
+At the `julia>` prompt:
 
 ```julia
 using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
+Pkg.add(url = "https://github.com/sintefmath/Mocca.jl", rev = "main")
+Pkg.add("CairoMakie")
 ```
 
-## Installing Mocca in your environment
+!!! warning "Install from GitHub for now"
+    These docs describe the development version of Mocca. The version in
+    Julia's package registry (0.1.0) has the earlier interface, without
+    `read_process`, `Process` or `cyclic_steady_state`, so install from GitHub
+    as above until the next release.
 
-To install Mocca just add the package to your current environment in the Julia REPL:
+CairoMakie is only needed to save plots to files and to run the examples that
+draw their own figures.
+
+The next time you start Julia in the folder with `julia --project=.`, the
+packages are there.
+
+## 4. Check that it works
 
 ```julia
-Pkg.add("Mocca")
+using Mocca
+library_processes()
 ```
 
-This will add Mocca to the current environment and install all necessary dependencies. Mocca is now installed and ready to use.
+The first `using Mocca` in a new session compiles the code, and the first
+simulation compiles the solver, which can take a few minutes. Later runs in
+the same session take seconds, so keep the session open while you work.
 
-To get started try the [Cyclic VSA simulation with explicit parameter setup](@ref) or [Direct Column Breakthrough simulation](@ref) examples. Bear in mind that the first time you run the code in the Julia REPL it may take several minutes to run as Julia needs to compile all the necessary code. As long as you do not close the REPL, the second time you run the code will be much quicker!
+## 5. Run an example
+
+Each example in these docs is a Julia script in the [`examples` folder](https://github.com/sintefmath/Mocca.jl/tree/main/examples)
+on GitHub. Download one into your project folder and run it from the Julia
+prompt:
+
+```julia
+include("getting_started.jl")
+```
+
+or open it in VS Code and run it a block at a time with Shift+Enter.
+
+Next: [Getting started](@ref) reads a process from Mocca's library, runs it
+to cyclic steady state, measures it and exports the results to a spreadsheet.

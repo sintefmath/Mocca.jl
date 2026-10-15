@@ -1,10 +1,9 @@
 @testset "Jutul Integration Tests" begin
     # Test that Mocca systems work with Jutul framework
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
-    # Create a simple mesh
     ncells = 10
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
+    system = model.system
 
     domain = model.data_domain
     mesh = domain.representation
@@ -18,11 +17,11 @@
     @test haskey(domain, :permeability)
     @test haskey(domain, :dx)
 
-    # Column-entity data
-    @test haskey(domain, :diffusion_coefficient, Mocca.Column())
-    @test haskey(domain, :thermal_conductivity, Mocca.Column())
-    @test haskey(domain, :r_in, Mocca.Column())
-    @test haskey(domain, :r_out, Mocca.Column())
+    # Unit-entity data
+    @test haskey(domain, :diffusion_coefficient, Mocca.Unit())
+    @test haskey(domain, :thermal_conductivity, Mocca.Unit())
+    @test haskey(domain, :r_in, Mocca.Unit())
+    @test haskey(domain, :r_out, Mocca.Unit())
 
     # Test model creation
     model2 = Jutul.SimulationModel(domain, system)
@@ -38,10 +37,8 @@ end
 
 @testset "Model State Setup" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
-    # Create a simple mesh
     ncells = 3
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
 
     domain = model.data_domain
 
@@ -68,7 +65,7 @@ end
     @test haskey(parameters, :SolidVolume)
     @test haskey(parameters, :FluidVolume)
 
-    # Column-entity parameters should be present
+    # Unit-entity parameters should be present
     @test haskey(parameters, :AdsorbentDensity)
     @test haskey(parameters, :FluidViscosity)
     @test haskey(parameters, :WallCrossSectionArea)
@@ -76,9 +73,8 @@ end
 
 @testset "Domain Properties" begin
     constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
     ncells = 4
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
+    model = haghpanah_bed(constants; ncells = ncells)
 
     domain = model.data_domain
     mesh = domain.representation
@@ -90,11 +86,11 @@ end
     @test all(domain[:porosity] .== constants.Φ)
     @test all(domain[:permeability] .== perm)
 
-    # Column-entity checks
-    @test first(domain[:diffusion_coefficient, Mocca.Column()]) == disp
-    @test first(domain[:thermal_conductivity, Mocca.Column()]) == constants.K_z
-    @test first(domain[:r_in, Mocca.Column()]) == constants.r_in
-    @test first(domain[:r_out, Mocca.Column()]) == constants.r_out
+    # Unit-entity checks
+    @test first(domain[:diffusion_coefficient, Mocca.Unit()]) == disp
+    @test first(domain[:thermal_conductivity, Mocca.Unit()]) == constants.K_z
+    @test first(domain[:r_in, Mocca.Unit()]) == constants.r_in
+    @test first(domain[:r_out, Mocca.Unit()]) == constants.r_out
 
     # Test dx calculation
     expected_dx = constants.L / ncells

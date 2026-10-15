@@ -1,0 +1,41 @@
+{
+  "format": "mocca-adsorbent",
+  "version": 1,
+  "name": "silica gel",
+  "reference": "Krishnamurthy et al., Ind. Eng. Chem. Res. 53 (2014) 14462, doi:10.1021/ie5024723: isotherm of Table 1, case 1; properties of Table S2. The particle size is not given there and is that of Haghpanah et al. (2013). Capacities per m³ of adsorbent.",
+  "density": 1220.0,
+  "heat_capacity": 1070.0,
+  "particle_diameter": 0.002,
+  "particle_porosity": 0.35,
+  "tortuosity": 3.0,
+  "adsorbed_heat_capacity": {
+    "H2O": 1030.0,
+    "CO2": 1030.0,
+    "N2": 1030.0
+  },
+  "isotherm": {
+    "type": "dual_site_langmuir",
+    "reference_temperature": 298.15,
+    "basis": "volume",
+    "components": {
+      "CO2": {
+        "qsb": 2692.3,
+        "b0": 3.2e-7,
+        "dUb": -27120.0
+      },
+      "N2": {
+        "qsb": 918.9,
+        "b0": 1.2e-5,
+        "dUb": -12120.0
+      },
+      "H2O": {
+        "qsb": 718.13,
+        "b0": 5.6e-13,
+        "dUb": -89200.0,
+        "qsd": 52632.6,
+        "d0": 7.74e-8,
+        "dUd": -39900.0
+      }
+    }
+  }
+}

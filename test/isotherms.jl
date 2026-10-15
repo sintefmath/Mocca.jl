@@ -4,7 +4,8 @@ using StaticArrays
 
 @testset "Isotherm Tests" begin
     constants = HaghpanahConstants{Float64}()
-    isotherm = DualSiteLangmuir(constants)
+    isotherm = DualSiteLangmuir(qsb = constants.qsbi, b0 = constants.b0, ΔUb = constants.ΔUbi,
+        qsd = constants.qsdi, d0 = constants.d0, ΔUd = constants.ΔUdi, T0 = constants.T0)
 
     @testset "compute_equilibrium" begin
         T = 298.15
@@ -34,6 +35,17 @@ using StaticArrays
 
         # State-independent: different C, T give the same result
         @test compute_enthalpy(isotherm, @SVector([200.0, 100.0]), 350.0) === ΔH
+
+        # Each component's enthalpy is the capacity-weighted mean of its own
+        # site energies, also for components after the first
+        wet = Mocca.isotherm(Mocca.load_adsorbent("silica_gel_krishnamurthy_2014"), Mocca.krishnamurthy_2014_gas())
+        ΔH_wet = compute_enthalpy(wet, @SVector([1.0, 1.0, 1.0]), 298.15)
+        RT = Mocca.GAS_CONSTANT * 298.15
+        for i in 1:3
+            expected = (wet.qsb[i] * (wet.ΔUb[i] - RT) + wet.qsd[i] * (wet.ΔUd[i] - RT)) / (wet.qsb[i] + wet.qsd[i])
+            @test ΔH_wet[i] ≈ expected
+        end
+        @test -90e3 < ΔH_wet[3] < -40e3
     end
 
     @testset "Edge cases" begin
