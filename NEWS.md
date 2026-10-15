@@ -9,6 +9,15 @@
   performance and the mass balance, a stream table per cycle and per stage,
   the streams and bed ends through time, and profiles along each bed at the
   end of each stage.
+- **Progress of the cyclic steady state.** `cyclic_steady_state` prints each
+  cycle as it runs: the cycle count, the change over the cycle against the
+  tolerance, a bar of how far it has come, and an estimate of the cycles and
+  time left, for each phase (Anderson acceleration, then Newton's method, or
+  the mass balance). In a terminal the line is rewritten in place. It is on by
+  default in an interactive session and set with `progress`, which the
+  solvers `simulate_to_cyclic_steady_state`, `newton_cyclic_steady_state` and
+  `simulate_until_mass_balance` also take. Newton's method no longer prints
+  its iterations at `info_level ≥ 0`.
 
 ### Changed
 

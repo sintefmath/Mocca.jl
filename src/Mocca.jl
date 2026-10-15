@@ -14,7 +14,7 @@ export setup_flowsheet_state, setup_flowsheet_parameters
 export Stage, setup_schedule
 export cycle_window, stream_totals, purity, recovery, productivity, adsorbent_volume, sorbent_mass
 export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
-export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance
+export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance, CycleProgress
 export StreamObjective, VacuumPumpObjective, CompressorObjective, force_gradients, newton_cyclic_steady_state, cyclic_steady_state_gradient
 export number_of_components, component_names
 export MoccaCase

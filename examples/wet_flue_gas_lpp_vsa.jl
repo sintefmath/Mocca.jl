@@ -71,7 +71,7 @@ process = Mocca.lpp_vsa_process(timestepping = Mocca.TimeStepping(max_dt = 1.0, 
 # The paper judges cyclic steady state by the CO₂ balance: the CO₂ fed and the
 # CO₂ leaving must agree within 0.5% for five consecutive cycles, after at
 # least 50 cycles (its eq. S19).
-result = Mocca.cyclic_steady_state(process; method = :mass_balance, max_cycles = 300)
+result = Mocca.cyclic_steady_state(process; method = :mass_balance, max_cycles = 300, progress = true)
 println("Cycles: $(result.iterations), CO₂ balance met: $(result.converged), last error: $(round(100 * result.history[end], digits = 2))%")
 
 # The criterion only checks CO₂. Water is held far more strongly and loads the

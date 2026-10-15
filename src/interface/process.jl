@@ -278,7 +278,7 @@ end
 
 """
     cyclic_steady_state(p; method = :newton, tol = nothing, max_cycles = 500,
-        warm_start = true, info_level = -1, kwarg...) → ProcessResult
+        warm_start = true, progress = isinteractive(), info_level = -1, kwarg...) → ProcessResult
 
 The cyclic steady state of the process, with the states of its last cycle:
 
@@ -291,42 +291,62 @@ The cyclic steady state of the process, with the states of its last cycle:
   `1e-6`).
 - `:mass_balance`: [`simulate_until_mass_balance`](@ref) on the key component,
   between the feed and light inlet devices and the outlet devices.
+
+With `progress`, on by default in an interactive session such as the REPL,
+each cycle is printed as it finishes: how many have run, how much the state
+still changes over a cycle against `tol`, a bar of how far it has come, and an
+estimate of the cycles and time left. In a terminal the line is rewritten in
+place, so only the end of each phase stays on screen. `progress` can also be
+an `IO` to print to, or a [`CycleProgress`](@ref).
 """
-function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cycles = 500, warm_start = true, info_level = -1, kwarg...)
+function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cycles = 500, warm_start = true,
+        progress = isinteractive(), info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p)
     model, prm = p.model, p.parameters
     has_warm = warm_start && !isnothing(p.warm.state)
     x0 = has_warm ? restart_state(model, p.warm.state) : initial_state(p)
+    pr = cycle_progress(progress; info_level = info_level)
+    name = isempty(p.name) ? "the process" : p.name
     if method == :newton
         tol = something(tol, 1e-9)
+        report_note!(pr, "Cyclic steady state of $name by Newton's method to $(_sci(tol))" * (has_warm ? ", from the last steady state" : ""))
         p.timestepping.first_dt < p.timestepping.max_dt ||
             @warn "Newton's method needs a smooth cycle map; start each stage with short steps (TimeStepping(first_dt = 0.05))" maxlog = 1
         if has_warm
             r = try
                 newton_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_iterations = 40,
-                    jacobian = p.warm.jacobian, info_level = info_level, kwarg...)
+                    jacobian = p.warm.jacobian, progress = pr, info_level = info_level, kwarg...)
             catch e
                 # A start too far from the new steady state can make the
                 # solver fail; anything else is a bug and is passed on
                 _is_solver_failure(e) || rethrow()
-                info_level >= 0 && println("Newton's method from the warm start failed ($(sprint(showerror, e))); starting again from the initial state")
+                report_note!(pr, "  Newton's method from the last steady state failed ($(sprint(showerror, e))); starting again from the initial state")
                 @debug "Warm-started Newton's method failed" exception = (e, catch_backtrace())
                 nothing
             end
             if !isnothing(r) && r.converged
                 p.warm.state, p.warm.jacobian = r.state0, r.jacobian
+                finish_progress!(pr, true)
                 return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, true, r.history, r.cycles, r.jacobian)
             end
+            isnothing(r) || report_note!(pr, "  Starting again from the initial state")
             x0 = initial_state(p)
         end
-        loose = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = 1e-3, max_cycles = max_cycles, info_level = info_level, kwarg...)
-        r = newton_cyclic_steady_state(model, loose.state0, prm, forces, dt; tol = tol, max_iterations = 10, info_level = info_level, kwarg...)
+        loose = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = 1e-3, max_cycles = max_cycles,
+            progress = pr, info_level = info_level, kwarg...)
+        r = newton_cyclic_steady_state(model, loose.state0, prm, forces, dt; tol = tol, max_iterations = 10,
+            progress = pr, info_level = info_level, kwarg...)
+        finish_progress!(pr, r.converged)
         r.converged || @warn "Cyclic steady state not converged by Newton's method" r.history
         p.warm.state, p.warm.jacobian = r.state0, r.jacobian
         return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, vcat(loose.history, r.history),
             loose.cycles + r.cycles, r.jacobian)
     elseif method == :anderson
-        r = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = something(tol, 1e-6), max_cycles = max_cycles, info_level = info_level, kwarg...)
+        tol = something(tol, 1e-6)
+        report_note!(pr, "Cyclic steady state of $name by Anderson acceleration to $(_sci(tol))" * (has_warm ? ", from the last steady state" : ""))
+        r = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_cycles = max_cycles,
+            progress = pr, info_level = info_level, kwarg...)
+        finish_progress!(pr, r.converged)
         r.converged && (p.warm.state = r.state0)
         return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     elseif method == :mass_balance
@@ -334,8 +354,11 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
         inflow = Tuple(vcat(devices_with_role(fs, :feed), devices_with_role(fs, :light_inlet)))
         outflow = Tuple(vcat([devices_with_role(fs, r) for r in OUTLET_ROLES]...))
         kw = isnothing(tol) ? NamedTuple() : (tol = tol,)
+        k = p.options.key_component
+        report_note!(pr, "Cyclic steady state of $name by the $(fs.gas.names[k]) mass balance" * (has_warm ? ", from the last steady state" : ""))
         r = simulate_until_mass_balance(model, x0, prm, forces, dt; inflow = inflow, outflow = outflow,
-            component = p.options.key_component, max_cycles = max_cycles, info_level = info_level, kw..., kwarg...)
+            component = k, max_cycles = max_cycles, progress = pr, info_level = info_level, kw..., kwarg...)
+        finish_progress!(pr, r.converged)
         return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     else
         input_error("cyclic_steady_state", "method", "use :newton, :anderson or :mass_balance, got $method")

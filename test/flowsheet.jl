@@ -231,8 +231,13 @@ end
     # soon as min_cycles is reached, with a tight one it runs to max_cycles
     forces, dt = Mocca.setup_schedule(p.flowsheet, p.model, Mocca.stages(p); num_cycles = 1, max_dt = 2.0, first_dt = 0.1)
     kw = (inflow = (:V_feed, :V_lpp), outflow = (:V_product, :V_vacuum), consecutive = 1, min_cycles = 2)
-    loose = Mocca.simulate_until_mass_balance(p.model, s0, prm, forces, dt; kw..., tol = 1.0, max_cycles = 3)
+    io = IOBuffer()
+    loose = Mocca.simulate_until_mass_balance(p.model, s0, prm, forces, dt; kw..., tol = 1.0, max_cycles = 3, progress = io)
     @test loose.converged && loose.cycles == 2
+    lines = split(String(take!(io)), '\n'; keepempty = false)
+    @test length(lines) == 3
+    @test contains(lines[1], "Mass balance") && contains(lines[1], "1/1 in a row (min 2 cycles)")
+    @test contains(lines[end], "converged  below for 1 cycle in a row")
     tight = Mocca.simulate_until_mass_balance(p.model, s0, prm, forces, dt; kw..., tol = 1e-12, max_cycles = 2)
     @test !tight.converged && tight.cycles == 2 && length(tight.history) == 2
     @test tight.history[2] < tight.history[1]

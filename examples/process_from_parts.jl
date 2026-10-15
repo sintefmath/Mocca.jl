@@ -146,7 +146,7 @@ f_column = Mocca.plot_state(bed_states[end], fs[:Bed])
 # The bed is still far from steady state after five cycles. The performance
 # over the last of them, and at cyclic steady state:
 perf_5 = Mocca.performance(result)
-perf = Mocca.performance(Mocca.cyclic_steady_state(process))
+perf = Mocca.performance(Mocca.cyclic_steady_state(process; progress = true))
 for (label, p) in ("after 5 cycles" => perf_5, "at steady state" => perf)
     println(rpad(label, 18), "purity $(round(100p.purity, digits = 1))%, recovery $(round(100p.recovery, digits = 1))%")
 end

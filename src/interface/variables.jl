@@ -231,7 +231,8 @@ function _design_jacobian(p::Process, vars)
 end
 
 """
-    performance_gradient(p; variables = all, steady_state = nothing, rtol = 1e-7) → NamedTuple
+    performance_gradient(p; variables = all, steady_state = nothing, rtol = 1e-7,
+        progress = isinteractive()) → NamedTuple
 
 The [`performance`](@ref) of the process at cyclic steady state and its
 gradient with respect to the design `variables` (names; see
@@ -241,14 +242,15 @@ productivity follow from cycle sums by the quotient rule.
 
 Returns `metrics`, the performance; `gradients`, a NamedTuple per measure of
 NamedTuples per variable, such as `g.gradients.recovery.P_L`; and the
-`steady_state` used. The gas properties of a bed stay as they were when the
+`steady_state` used. `progress` goes to [`cyclic_steady_state`](@ref). The gas properties of a bed stay as they were when the
 process was built, and so does its axial dispersion unless a variable sets its
 `AxialDispersion` parameter.
 """
-function performance_gradient(p::Process; variables = variable_names(p), steady_state = nothing, rtol = 1e-7, info_level = -1)
+function performance_gradient(p::Process; variables = variable_names(p), steady_state = nothing, rtol = 1e-7,
+        progress = isinteractive(), info_level = -1)
     names = collect(Symbol, variables)
     vars = [variable(p, n) for n in names]
-    ss = isnothing(steady_state) ? cyclic_steady_state(p; info_level = info_level) : steady_state
+    ss = isnothing(steady_state) ? cyclic_steady_state(p; progress = progress, info_level = info_level) : steady_state
     forces, dt = cycle_schedule(p)
     objectives = _performance_objectives(p)
     need_forces = any(v -> any(pl -> !(pl isa ParameterPlace), v.places), vars)
@@ -345,7 +347,7 @@ function optimise!(p::Process; variables = variable_names(p), maximise = nothing
     function f(u)
         x = to_x(u)
         set_variables!(p, names, x)
-        r = performance_gradient(p; variables = names)
+        r = performance_gradient(p; variables = names, progress = false)
         m, g = r.metrics, r.gradients
         grad(k) = [g[k][n] for n in names]
         v = sgn * m[objective] / sc(objective)
