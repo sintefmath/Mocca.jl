@@ -4,7 +4,8 @@
 This example goes through a whole study of a process: read it from Mocca's
 library, change its operating settings, run it to cyclic steady state,
 measure its performance, look at the results, export them to a spreadsheet,
-and save the process to a file to edit and share.
+save the process to a file to edit and share, and check that the cycle is
+steady.
 
 The process is the four-step vacuum swing adsorption (VSA) cycle of
 [Haghpanah et al. (2013)](https://doi.org/10.1021/ie302658y), which captures
@@ -163,8 +164,14 @@ catch e
     println(sprint(showerror, e))
 end
 
-# `simulate` runs a given number of cycles from the initial state, rather than
-# to steady state. The outlet of the bed over three cycles of the short cycle:
-result_short = Mocca.simulate(short; cycles = 3)
-bed_states = [s[:Bed] for s in result_short.states]
-f_outlet = Mocca.plot_cell(bed_states, short.flowsheet[:Bed], result_short.timesteps, 30)
+# # 8. Check the steady state
+# `simulate` runs a given number of cycles from a given state, rather than to
+# steady state. Started from the start of the steady cycle, `result.state0`,
+# the bed comes back to the same state at the end of every cycle. The largest
+# relative change of any variable over three cycles:
+result_cycles = Mocca.simulate(process; cycles = 3, state0 = result.state0)
+Mocca.cycle_change(process.model, result.state0, result_cycles.states[end])
+
+# The top of the bed, where the nitrogen product leaves, over the three cycles:
+bed_states = [s[:Bed] for s in result_cycles.states]
+f_outlet = Mocca.plot_cell(bed_states, bed, result_cycles.timesteps, 30)
