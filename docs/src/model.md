@@ -19,21 +19,6 @@ come from.
 ```@raw html
 <figure class="mocca-schematic">
 <svg viewBox="0 0 680 420" role="img" aria-label="Schematic of a packed column: gas between particles, adsorbent particles, the column wall, heat transfer to the wall and the surroundings, and the ports at each end">
-<style>
-.cs-line{stroke:var(--vp-c-text-1);stroke-width:1.4;fill:none}
-.cs-thin{stroke:var(--vp-c-text-2);stroke-width:1;fill:none}
-.cs-wall{fill:url(#cs-hatch);stroke:var(--vp-c-text-1);stroke-width:1.4}
-.cs-bed{fill:var(--vp-c-bg-soft)}
-.cs-part{fill:var(--mc-crema);stroke:var(--vp-c-text-2);stroke-width:.7}
-.cs-pore{fill:var(--vp-c-text-2);opacity:.5}
-.cs-text{fill:var(--vp-c-text-2);font:13px var(--vp-font-family-base)}
-.cs-head{fill:var(--vp-c-text-1);font:600 13px var(--vp-font-family-base)}
-.cs-sym{fill:var(--vp-c-text-1);font:italic 13px var(--vp-font-family-base)}
-.cs-sub{font-size:10px}
-.cs-arrowhead{fill:var(--vp-c-text-1)}
-.cs-heat{stroke:var(--mc-co2);stroke-width:1.6;fill:none}
-.cs-heathead{fill:var(--mc-co2)}
-</style>
 <defs>
 <pattern id="cs-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--vp-c-text-2);stroke-width:1.2;opacity:.55"/></pattern>
 <marker id="cs-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="cs-arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>

@@ -17,17 +17,6 @@ Mocca's library, through one steady cycle.
 ```@raw html
 <figure class="mocca-schematic">
 <svg viewBox="0 0 660 330" role="img" aria-label="The four steps of the VSA cycle: pressurisation with feed, adsorption with feed in and nitrogen-rich product out, blowdown through the top, and evacuation through the bottom">
-<style>
-.cy-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
-.cy-load{fill:var(--mc-co2);opacity:.35}
-.cy-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
-.cy-head{fill:var(--vp-c-text-1)}
-.cy-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
-.cy-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
-.cy-sym{font-style:italic}
-.cy-sub{font-size:10px}
-.cy-num{fill:var(--vp-c-text-2);font:600 12px var(--vp-font-family-mono)}
-</style>
 <defs><marker id="cy-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="cy-head" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="cy-bed" x="40" y="70" width="40" height="160" rx="6"/>
 <rect class="cy-load" x="41" y="195" width="38" height="34"/>

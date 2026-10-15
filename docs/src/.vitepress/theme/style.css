@@ -295,6 +295,36 @@ mjx-container svg path {
 .mocca-schematic svg { display: block; width: 100%; max-width: 680px; height: auto; margin: 0 auto; }
 .mocca-schematic figcaption { margin-top: 8px; font-size: 14px; line-height: 1.55; color: var(--vp-c-text-2); }
 
+/* Parts of the schematics. They live here, not in the SVGs: Vue drops <style>
+   tags inside page content when it renders a page on navigation. */
+.cs-line{stroke:var(--vp-c-text-1);stroke-width:1.4;fill:none}
+.cs-thin{stroke:var(--vp-c-text-2);stroke-width:1;fill:none}
+.cs-wall{fill:url(#cs-hatch);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.cs-bed{fill:var(--vp-c-bg-soft)}
+.cs-part{fill:var(--mc-crema);stroke:var(--vp-c-text-2);stroke-width:.7}
+.cs-pore{fill:var(--vp-c-text-2);opacity:.5}
+.cs-text{fill:var(--vp-c-text-2);font:13px var(--vp-font-family-base)}
+.cs-head{fill:var(--vp-c-text-1);font:600 13px var(--vp-font-family-base)}
+.cs-sym{fill:var(--vp-c-text-1);font:italic 13px var(--vp-font-family-base)}
+.cs-sub{font-size:10px}
+.cs-arrowhead{fill:var(--vp-c-text-1)}
+.cs-heat{stroke:var(--mc-co2);stroke-width:1.6;fill:none}
+.cs-heathead{fill:var(--mc-co2)}
+.cy-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.cy-load{fill:var(--mc-co2);opacity:.35}
+.cy-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
+.cy-head{fill:var(--vp-c-text-1)}
+.cy-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
+.cy-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
+.cy-sym{font-style:italic}
+.cy-sub{font-size:10px}
+.cy-num{fill:var(--vp-c-text-2);font:600 12px var(--vp-font-family-mono)}
+.sk-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.sk-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
+.sk-head{fill:var(--vp-c-text-1)}
+.sk-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
+.sk-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
+
 /* Julia's Markdown aligns table columns right unless told otherwise; read
    tables from the left, as the Documenter HTML theme did */
 .vp-doc table th, .vp-doc table td { text-align: left !important; }

@@ -12,58 +12,51 @@ pressure starts where the step before left the bed, unless given `from`.
 ```@raw html
 <figure class="mocca-schematic">
 <svg viewBox="0 0 640 500" role="img" aria-label="The step types and the ends of the bed each one opens">
-<style>
-.st-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
-.st-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
-.st-head{fill:var(--vp-c-text-1)}
-.st-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
-.st-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
-</style>
-<defs><marker id="st-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="st-head" d="M0,0 L10,5 L0,10 z"/></marker></defs>
-<text class="st-name" x="10" y="22">Pressurise</text>
+<defs><marker id="sk-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="sk-head" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<text class="sk-name" x="10" y="22">Pressurise</text>
 <rect x="10" y="30" width="130" height="5" rx="1" style="fill:var(--mc-step-pressurise)"/>
-<rect class="st-bed" x="40" y="85" width="32" height="110" rx="5"/>
-<line class="st-line" x1="56.0" y1="235" x2="56.0" y2="199" marker-end="url(#st-ah)"/>
-<text class="st-text" x="68.0" y="221">feed</text>
-<text class="st-name" x="170" y="22">Pressurise, LPP</text>
+<rect class="sk-bed" x="40" y="85" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="56.0" y1="235" x2="56.0" y2="199" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="68.0" y="221">feed</text>
+<text class="sk-name" x="170" y="22">Pressurise, LPP</text>
 <rect x="170" y="30" width="130" height="5" rx="1" style="fill:var(--mc-step-lpp)"/>
-<rect class="st-bed" x="200" y="85" width="32" height="110" rx="5"/>
-<line class="st-line" x1="216.0" y1="45" x2="216.0" y2="81" marker-end="url(#st-ah)"/>
-<text class="st-text" x="228.0" y="67">light product</text>
-<text class="st-name" x="330" y="22">Adsorb</text>
+<rect class="sk-bed" x="200" y="85" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="216.0" y1="45" x2="216.0" y2="81" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="228.0" y="67">light product</text>
+<text class="sk-name" x="330" y="22">Adsorb</text>
 <rect x="330" y="30" width="130" height="5" rx="1" style="fill:var(--mc-step-adsorb)"/>
-<rect class="st-bed" x="360" y="85" width="32" height="110" rx="5"/>
-<line class="st-line" x1="376.0" y1="81" x2="376.0" y2="45" marker-end="url(#st-ah)"/>
-<text class="st-text" x="388.0" y="67">product</text>
-<line class="st-line" x1="376.0" y1="235" x2="376.0" y2="199" marker-end="url(#st-ah)"/>
-<text class="st-text" x="388.0" y="221">feed</text>
-<text class="st-name" x="490" y="22">Blowdown</text>
+<rect class="sk-bed" x="360" y="85" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="376.0" y1="81" x2="376.0" y2="45" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="388.0" y="67">product</text>
+<line class="sk-line" x1="376.0" y1="235" x2="376.0" y2="199" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="388.0" y="221">feed</text>
+<text class="sk-name" x="490" y="22">Blowdown</text>
 <rect x="490" y="30" width="130" height="5" rx="1" style="fill:var(--mc-step-blowdown)"/>
-<rect class="st-bed" x="520" y="85" width="32" height="110" rx="5"/>
-<line class="st-line" x1="536.0" y1="81" x2="536.0" y2="45" marker-end="url(#st-ah)"/>
-<text class="st-text" x="548.0" y="67">product line</text>
-<text class="st-name" x="10" y="272">Evacuate</text>
+<rect class="sk-bed" x="520" y="85" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="536.0" y1="81" x2="536.0" y2="45" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="548.0" y="67">product line</text>
+<text class="sk-name" x="10" y="272">Evacuate</text>
 <rect x="10" y="280" width="130" height="5" rx="1" style="fill:var(--mc-step-evacuate)"/>
-<rect class="st-bed" x="40" y="335" width="32" height="110" rx="5"/>
-<line class="st-line" x1="56.0" y1="449" x2="56.0" y2="485" marker-end="url(#st-ah)"/>
-<text class="st-text" x="68.0" y="471">extract</text>
-<text class="st-name" x="170" y="272">Purge</text>
+<rect class="sk-bed" x="40" y="335" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="56.0" y1="449" x2="56.0" y2="485" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="68.0" y="471">extract</text>
+<text class="sk-name" x="170" y="272">Purge</text>
 <rect x="170" y="280" width="130" height="5" rx="1" style="fill:var(--mc-step-lpp)"/>
-<rect class="st-bed" x="200" y="335" width="32" height="110" rx="5"/>
-<line class="st-line" x1="216.0" y1="295" x2="216.0" y2="331" marker-end="url(#st-ah)"/>
-<text class="st-text" x="228.0" y="317">light product</text>
-<line class="st-line" x1="216.0" y1="449" x2="216.0" y2="485" marker-end="url(#st-ah)"/>
-<text class="st-text" x="228.0" y="471">extract</text>
-<text class="st-name" x="330" y="272">Equalise</text>
+<rect class="sk-bed" x="200" y="335" width="32" height="110" rx="5"/>
+<line class="sk-line" x1="216.0" y1="295" x2="216.0" y2="331" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="228.0" y="317">light product</text>
+<line class="sk-line" x1="216.0" y1="449" x2="216.0" y2="485" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="228.0" y="471">extract</text>
+<text class="sk-name" x="330" y="272">Equalise</text>
 <rect x="330" y="280" width="130" height="5" rx="1" style="fill:var(--mc-step-equalise)"/>
-<rect class="st-bed" x="348" y="335" width="32" height="110" rx="5"/>
-<rect class="st-bed" x="412" y="335" width="32" height="110" rx="5"/>
-<path class="st-line" d="M364.0 331 V309 H428.0 V327" marker-end="url(#st-ah)"/>
-<text class="st-text" x="396.0" y="301" text-anchor="middle">link, high to low</text>
-<text class="st-name" x="490" y="272">Idle</text>
+<rect class="sk-bed" x="348" y="335" width="32" height="110" rx="5"/>
+<rect class="sk-bed" x="412" y="335" width="32" height="110" rx="5"/>
+<path class="sk-line" d="M364.0 331 V309 H428.0 V327" marker-end="url(#sk-ah)"/>
+<text class="sk-text" x="396.0" y="301" text-anchor="middle">link, high to low</text>
+<text class="sk-name" x="490" y="272">Idle</text>
 <rect x="490" y="280" width="130" height="5" rx="1" style="fill:var(--mc-step-equalise)"/>
-<rect class="st-bed" x="520" y="335" width="32" height="110" rx="5"/>
-<text class="st-text" x="548.0" y="317">all closed</text>
+<rect class="sk-bed" x="520" y="335" width="32" height="110" rx="5"/>
+<text class="sk-text" x="548.0" y="317">all closed</text>
 </svg>
 <figcaption>The step types, with the ends of the bed each one opens by default. The bottom of each bed is its feed end.</figcaption>
 </figure>
