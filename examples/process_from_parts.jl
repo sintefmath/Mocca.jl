@@ -135,7 +135,11 @@ process
 
 # # 7. Simulate
 # `simulate` runs the cycle a given number of times from the initial state.
-# The outlet at the top of the bed over the first five cycles:
+# The outlet at the top of the bed over the first five cycles. The pressure
+# swings between the feed pressure and the evacuation pressure in every cycle,
+# and the top of the bed cools by about 5 K each time it is depressurised. The
+# gas there stays pure nitrogen: the CO₂ front never reaches the top of this
+# bed.
 result = Mocca.simulate(process; cycles = 5)
 bed_states = [s[:Bed] for s in result.states]
 f_outlet = Mocca.plot_cell(bed_states, fs[:Bed], result.timesteps, 50)

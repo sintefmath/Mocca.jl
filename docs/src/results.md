@@ -140,6 +140,28 @@ result = cyclic_steady_state(process)
 write_results("results/base_case", result)
 ```
 
+```@setup results
+using Mocca, Mocca.Units, CairoMakie, Markdown
+process = Mocca.read_process("haghpanah_2013_four_stage_vsa")
+result = Mocca.cyclic_steady_state(process; progress = false)
+bed = process.flowsheet[:Bed]
+bed_states = [s[:Bed] for s in result.states]
+stages = Mocca.stages(process)
+Mocca.write_results(joinpath(tempdir(), "mocca_docs_results"), result; sigdigits = 4)
+```
+
+For the four-step VSA of Mocca's library, some of the columns of the stream
+table `streams.csv`:
+
+```@eval
+using Markdown
+# the stream table written by the setup block above
+rows = split.(readlines(joinpath(tempdir(), "mocca_docs_results", "streams.csv")), ',')
+cols = indexin(["Device", "CO2 [mol%]", "N2 [mol%]", "Mean flow [kg/h]", "Total [mol/cycle]"], rows[1])
+line(r) = "| " * join(r[cols], " | ") * " |"
+Markdown.parse(join([line(rows[1]); "|" * repeat(" --- |", length(cols)); line.(rows[2:end])], "\n"))
+```
+
 | File | Contents |
 |---|---|
 | `summary.csv` | Feed, stage durations, purity, recovery, productivity, specific energy, the mass balance of each component over the cycle, and the beds |
@@ -193,6 +215,71 @@ save("bed_top.png", f)
 | [`plot_profiles`](@ref) | Mole fractions and loadings along the bed at several times, such as the end of each step |
 | [`plot_flowsheet_streams`](@ref) | Flow and composition through each device, with the steps shaded |
 | [`plot_cell_comparison`](@ref), [`plot_state_comparison`](@ref) | Several simulations of the same bed overlaid |
+
+The figures below are for the steady cycle of the four-step VSA of Mocca's
+library, read with `process = read_process("haghpanah_2013_four_stage_vsa")`
+and run with `result = cyclic_steady_state(process)`.
+
+### One cell through time
+
+[`plot_cell`](@ref) shows every variable of one cell through the cycle. At the
+top of the bed (cell 30 of 30), the light product end:
+
+```@example results
+Mocca.plot_cell(bed_states, bed, result.timesteps, 30)
+```
+
+### Along the bed at one time
+
+[`plot_state`](@ref) shows every variable along the bed, here at the end of the
+cycle, after evacuation:
+
+```@example results
+Mocca.plot_state(bed_states[end], bed)
+```
+
+### Profiles at the end of each step
+
+[`plot_profiles`](@ref) shows mole fractions and loadings along the bed at
+several times, here the end of each step of the cycle:
+
+```@example results
+step_ends = cumsum([st.duration for st in stages])
+Mocca.plot_profiles(result.states, result.timesteps, bed, step_ends;
+    labels = [st.name for st in stages], unit = :Bed)
+```
+
+### Streams through the devices
+
+[`plot_flowsheet_streams`](@ref) shows the flow through every device and the
+mole fraction of the key component in it, with the steps shaded. Flow is
+positive from a device's inlet to its outlet:
+
+```@example results
+Mocca.plot_flowsheet_streams(result.states, process.model, result.timesteps; stages = stages)
+```
+
+### Comparing simulations
+
+[`plot_cell_comparison`](@ref) and [`plot_state_comparison`](@ref) overlay
+several simulations of the same bed. Here the evacuation pressure is lowered
+from 0.1 to 0.05 bar, and the feed end of the bed (cell 1) compared through
+the cycle:
+
+```@example results
+low = Mocca.read_process("haghpanah_2013_four_stage_vsa")
+low[:P_L] = 0.05bar
+result_low = Mocca.cyclic_steady_state(low; progress = false)
+runs = ["P_L = 0.1 bar" => (bed_states, result.timesteps),
+        "P_L = 0.05 bar" => ([s[:Bed] for s in result_low.states], result_low.timesteps)]
+Mocca.plot_cell_comparison(runs, bed, 1)
+```
+
+and along the bed at the end of the cycle:
+
+```@example results
+Mocca.plot_state_comparison([label => first(r)[end] for (label, r) in runs], bed)
+```
 
 ```@docs
 ProcessResult

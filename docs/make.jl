@@ -63,10 +63,13 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
             "Home" => "index.md",
             "Getting started" => [
                 "Installation" => "installation.md",
+                "How a VSA cycle works" => "vsa_cycle.md",
                 "Getting started" => last(first(examples_markdown)),
             ],
             "Manual" => [
                 "Model equations" => "model.md",
+                "Cycle steps" => "cycle_steps.md",
+                "Adsorbents" => "adsorbents.md",
                 "Results and plots" => "results.md",
             ],
             "Examples" => examples_markdown[2:end],

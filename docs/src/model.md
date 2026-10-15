@@ -16,6 +16,269 @@ All quantities are in SI units. The symbols are listed in the
 [nomenclature](#Nomenclature) at the end of this page, with the inputs they
 come from.
 
+```@raw html
+<figure class="mocca-schematic">
+<svg viewBox="0 0 680 420" role="img" aria-label="Schematic of a packed column: gas between particles, adsorbent particles, the column wall, heat transfer to the wall and the surroundings, and the ports at each end">
+<style>
+.cs-line{stroke:var(--vp-c-text-1);stroke-width:1.4;fill:none}
+.cs-thin{stroke:var(--vp-c-text-2);stroke-width:1;fill:none}
+.cs-wall{fill:url(#cs-hatch);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.cs-bed{fill:var(--vp-c-bg-soft)}
+.cs-part{fill:var(--mc-crema);stroke:var(--vp-c-text-2);stroke-width:.7}
+.cs-pore{fill:var(--vp-c-text-2);opacity:.5}
+.cs-text{fill:var(--vp-c-text-2);font:13px var(--vp-font-family-base)}
+.cs-head{fill:var(--vp-c-text-1);font:600 13px var(--vp-font-family-base)}
+.cs-sym{fill:var(--vp-c-text-1);font:italic 13px var(--vp-font-family-base)}
+.cs-sub{font-size:10px}
+.cs-arrowhead{fill:var(--vp-c-text-1)}
+.cs-heat{stroke:var(--mc-co2);stroke-width:1.6;fill:none}
+.cs-heathead{fill:var(--mc-co2)}
+</style>
+<defs>
+<pattern id="cs-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--vp-c-text-2);stroke-width:1.2;opacity:.55"/></pattern>
+<marker id="cs-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="cs-arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="cs-hh" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="cs-heathead" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<rect class="cs-wall" x="160" y="50" width="100" height="320" rx="6"/>
+<rect class="cs-bed" x="172" y="50" width="76" height="320"/>
+<circle class="cs-part" cx="180" cy="61" r="4.8"/>
+<circle class="cs-part" cx="192" cy="61" r="4.8"/>
+<circle class="cs-part" cx="204" cy="61" r="4.8"/>
+<circle class="cs-part" cx="216" cy="61" r="4.8"/>
+<circle class="cs-part" cx="228" cy="61" r="4.8"/>
+<circle class="cs-part" cx="240" cy="61" r="4.8"/>
+<circle class="cs-part" cx="186" cy="71.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="71.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="71.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="71.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="71.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="82.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="92.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="92.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="92.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="92.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="92.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="103.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="113.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="113.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="113.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="113.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="113.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="124.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="134.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="134.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="134.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="134.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="134.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="145.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="155.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="155.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="155.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="155.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="155.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="166.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="176.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="176.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="176.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="176.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="176.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="187.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="197.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="197.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="197.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="197.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="197.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="208.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="218.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="218.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="218.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="218.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="218.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="229.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="239.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="239.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="239.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="239.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="239.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="250.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="260.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="260.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="260.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="260.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="260.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="271.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="281.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="281.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="281.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="281.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="281.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="292.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="302.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="302.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="302.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="302.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="302.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="313.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="323.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="323.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="323.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="323.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="323.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="334.0" r="4.8"/>
+<circle class="cs-part" cx="186" cy="344.5" r="4.8"/>
+<circle class="cs-part" cx="198" cy="344.5" r="4.8"/>
+<circle class="cs-part" cx="210" cy="344.5" r="4.8"/>
+<circle class="cs-part" cx="222" cy="344.5" r="4.8"/>
+<circle class="cs-part" cx="234" cy="344.5" r="4.8"/>
+<circle class="cs-part" cx="180" cy="355.0" r="4.8"/>
+<circle class="cs-part" cx="192" cy="355.0" r="4.8"/>
+<circle class="cs-part" cx="204" cy="355.0" r="4.8"/>
+<circle class="cs-part" cx="216" cy="355.0" r="4.8"/>
+<circle class="cs-part" cx="228" cy="355.0" r="4.8"/>
+<circle class="cs-part" cx="240" cy="355.0" r="4.8"/>
+<line class="cs-line" x1="160" y1="50" x2="260" y2="50"/><line class="cs-line" x1="160" y1="370" x2="260" y2="370"/>
+<line class="cs-line" x1="122" y1="370" x2="122" y2="58" marker-end="url(#cs-ah)"/>
+<text class="cs-sym" x="112" y="374" text-anchor="end">0</text><text class="cs-sym" x="112" y="64" text-anchor="end">L</text><text class="cs-sym" x="130" y="58">z</text>
+<line class="cs-line" x1="210" y1="412" x2="210" y2="378" marker-start="url(#cs-ah)" marker-end="url(#cs-ah)"/>
+<text class="cs-text" x="222" y="404">bottom port, <tspan class="cs-sym">z</tspan> = 0</text>
+<line class="cs-line" x1="210" y1="42" x2="210" y2="8" marker-start="url(#cs-ah)" marker-end="url(#cs-ah)"/>
+<text class="cs-text" x="222" y="22">top port, <tspan class="cs-sym">z</tspan> = <tspan class="cs-sym">L</tspan></text>
+<line class="cs-thin" x1="243" y1="96" x2="296" y2="96"/><circle cx="243" cy="96" r="2" class="cs-pore"/>
+<text class="cs-head" x="302" y="92">Gas between the particles</text>
+<text class="cs-text" x="302" y="110"><tspan class="cs-sym">P</tspan>, <tspan class="cs-sym">T</tspan>, <tspan class="cs-sym">y<tspan class="cs-sub" dy="3">i</tspan><tspan dy="-3">&#8203;</tspan></tspan>, velocity <tspan class="cs-sym">u</tspan> · bed porosity <tspan class="cs-sym">ε</tspan></text>
+<line class="cs-thin" x1="240" y1="176" x2="402" y2="176"/>
+<circle cx="460" cy="176" r="58" style="fill:var(--vp-c-bg);stroke:var(--vp-c-text-1);stroke-width:1.2"/>
+<circle class="cs-part" cx="440" cy="152" r="20"/>
+<circle class="cs-pore" cx="440.7" cy="161.0" r="1.6"/>
+<circle class="cs-pore" cx="433.4" cy="159.0" r="1.6"/>
+<circle class="cs-pore" cx="437.4" cy="149.4" r="1.6"/>
+<circle class="cs-pore" cx="452.2" cy="153.0" r="1.6"/>
+<circle class="cs-pore" cx="439.7" cy="157.6" r="1.6"/>
+<circle class="cs-pore" cx="448.2" cy="151.8" r="1.6"/>
+<circle class="cs-pore" cx="444.3" cy="144.9" r="1.6"/>
+<circle class="cs-pore" cx="437.0" cy="148.4" r="1.6"/>
+<circle class="cs-pore" cx="431.7" cy="142.6" r="1.6"/>
+<circle class="cs-part" cx="484" cy="160" r="20"/>
+<circle class="cs-pore" cx="473.0" cy="158.4" r="1.6"/>
+<circle class="cs-pore" cx="482.2" cy="156.7" r="1.6"/>
+<circle class="cs-pore" cx="484.5" cy="150.5" r="1.6"/>
+<circle class="cs-pore" cx="482.9" cy="163.2" r="1.6"/>
+<circle class="cs-pore" cx="489.4" cy="153.9" r="1.6"/>
+<circle class="cs-pore" cx="481.5" cy="147.6" r="1.6"/>
+<circle class="cs-pore" cx="481.1" cy="147.2" r="1.6"/>
+<circle class="cs-pore" cx="474.7" cy="167.2" r="1.6"/>
+<circle class="cs-pore" cx="471.5" cy="164.5" r="1.6"/>
+<circle class="cs-part" cx="446" cy="200" r="20"/>
+<circle class="cs-pore" cx="448.9" cy="197.2" r="1.6"/>
+<circle class="cs-pore" cx="449.5" cy="204.1" r="1.6"/>
+<circle class="cs-pore" cx="453.6" cy="198.3" r="1.6"/>
+<circle class="cs-pore" cx="441.6" cy="195.5" r="1.6"/>
+<circle class="cs-pore" cx="438.8" cy="199.7" r="1.6"/>
+<circle class="cs-pore" cx="440.4" cy="207.6" r="1.6"/>
+<circle class="cs-pore" cx="434.8" cy="193.5" r="1.6"/>
+<circle class="cs-pore" cx="440.5" cy="188.0" r="1.6"/>
+<circle class="cs-pore" cx="454.6" cy="189.1" r="1.6"/>
+<circle class="cs-part" cx="490" cy="206" r="20"/>
+<circle class="cs-pore" cx="487.7" cy="201.8" r="1.6"/>
+<circle class="cs-pore" cx="498.7" cy="195.5" r="1.6"/>
+<circle class="cs-pore" cx="497.6" cy="200.8" r="1.6"/>
+<circle class="cs-pore" cx="488.8" cy="200.8" r="1.6"/>
+<circle class="cs-pore" cx="494.6" cy="197.9" r="1.6"/>
+<circle class="cs-pore" cx="489.2" cy="209.6" r="1.6"/>
+<circle class="cs-pore" cx="498.4" cy="195.0" r="1.6"/>
+<circle class="cs-pore" cx="500.0" cy="212.2" r="1.6"/>
+<circle class="cs-pore" cx="486.1" cy="208.5" r="1.6"/>
+<text class="cs-sym" x="462" y="186">ε</text>
+<text class="cs-head" x="530" y="140">Adsorbent particle</text>
+<text class="cs-text" x="530" y="158">diameter <tspan class="cs-sym">d<tspan class="cs-sub" dy="3">p</tspan><tspan dy="-3">&#8203;</tspan></tspan></text>
+<text class="cs-text" x="530" y="175">porosity <tspan class="cs-sym">ε<tspan class="cs-sub" dy="3">p</tspan><tspan dy="-3">&#8203;</tspan></tspan></text>
+<text class="cs-text" x="530" y="192">tortuosity <tspan class="cs-sym">τ</tspan></text>
+<text class="cs-text" x="530" y="209">loading <tspan class="cs-sym">q<tspan class="cs-sub" dy="3">i</tspan><tspan dy="-3">&#8203;</tspan></tspan> → <tspan class="cs-sym">q<tspan class="cs-sub" dy="3">i</tspan><tspan dy="-3">&#8203;</tspan></tspan>*</text>
+<line class="cs-thin" x1="256" y1="252" x2="296" y2="252"/>
+<text class="cs-head" x="302" y="248">Column wall</text>
+<text class="cs-text" x="302" y="266">temperature <tspan class="cs-sym">T<tspan class="cs-sub" dy="3">w</tspan><tspan dy="-3">&#8203;</tspan></tspan> · <tspan class="cs-sym">ρ<tspan class="cs-sub" dy="3">w</tspan><tspan dy="-3">&#8203;</tspan></tspan>, <tspan class="cs-sym">c<tspan class="cs-sub" dy="3">pw</tspan><tspan dy="-3">&#8203;</tspan></tspan>, <tspan class="cs-sym">K<tspan class="cs-sub" dy="3">w</tspan><tspan dy="-3">&#8203;</tspan></tspan></text>
+<line class="cs-heat" x1="228" y1="306" x2="257" y2="306" marker-end="url(#cs-hh)"/>
+<line class="cs-heat" x1="262" y1="306" x2="292" y2="306" marker-end="url(#cs-hh)"/>
+<text class="cs-text" x="302" y="302"><tspan class="cs-sym">h<tspan class="cs-sub" dy="3">in</tspan><tspan dy="-3">&#8203;</tspan></tspan>: bed to wall</text>
+<text class="cs-text" x="302" y="320"><tspan class="cs-sym">h<tspan class="cs-sub" dy="3">out</tspan><tspan dy="-3">&#8203;</tspan></tspan>: wall to surroundings at <tspan class="cs-sym">T<tspan class="cs-sub" dy="3">a</tspan><tspan dy="-3">&#8203;</tspan></tspan></text>
+<circle cx="600" cy="330" r="38" style="fill:url(#cs-hatch);stroke:var(--vp-c-text-1);stroke-width:1.2"/>
+<circle class="cs-bed" cx="600" cy="330" r="31" style="stroke:var(--vp-c-text-1);stroke-width:1.2"/>
+<line class="cs-line" x1="600" y1="330" x2="631" y2="330" marker-end="url(#cs-ah)"/>
+<line class="cs-line" x1="600" y1="330" x2="573" y2="357" marker-end="url(#cs-ah)"/>
+<text class="cs-sym" x="604" y="324">r<tspan class="cs-sub" dy="3">in</tspan><tspan dy="-3">&#8203;</tspan></text>
+<text class="cs-sym" x="556" y="370" text-anchor="end">r<tspan class="cs-sub" dy="3">out</tspan><tspan dy="-3">&#8203;</tspan></text>
+<text class="cs-text" x="600" y="282" text-anchor="middle">cross-section</text>
+</svg>
+<figcaption>A fixed bed. Gas flows through the voids between the particles in either direction, entering or leaving through the ports at each end. The particles take up CO₂ towards the equilibrium loading of the isotherm, and heat passes from the bed to the wall and from the wall to the surroundings. Symbols as in the <a href="#Nomenclature">nomenclature</a>.</figcaption>
+</figure>
+
+```
+
 ## Fixed bed
 
 ### Component mass balance
@@ -89,6 +352,29 @@ which Mocca multiplies by the adsorbent density. The single-site
 [`langmuir`](@ref) isotherm has ``q_{sd,i} = 0``. Check an isotherm against its
 source with [`equilibrium_loading`](@ref) and [`isotherm_table`](@ref), which
 report mol/kg.
+
+The pure-component isotherms of zeolite 13X from Haghpanah et al. (2013), at
+three temperatures. CO₂ is held far more strongly than N₂, and both less at
+higher temperature, so the heat released by adsorption, which warms the bed,
+lowers what it can hold:
+
+```@example model
+using Mocca, CairoMakie # hide
+gas = Mocca.haghpanah_2013_gas() # hide
+ads = Mocca.load_adsorbent("zeolite_13x_haghpanah_2013") # hide
+p = range(0, 1e5, length = 101) # hide
+T = [298.15, 323.15, 348.15] # hide
+fig = Figure(size = (760, 300)) # hide
+axes = [Axis(fig[1, j], title = name, xlabel = "partial pressure [bar]", ylabel = j == 1 ? "loading [mol/kg]" : "") for (j, name) in enumerate(["CO2", "N2"])] # hide
+for (ax, name) in zip(axes, ["CO2", "N2"]) # hide
+    q = Mocca.isotherm_table(ads, gas, name; pressures = p, temperatures = T) # hide
+    for k in eachindex(T) # hide
+        lines!(ax, p ./ 1e5, q[:, k], label = "$(round(Int, T[k] - 273.15)) °C") # hide
+    end # hide
+end # hide
+axislegend(axes[1], position = :rb) # hide
+fig # hide
+```
 
 The heat of adsorption of each component is constant, the average of its two
 site energies weighted by their capacities at the reference temperature
@@ -184,7 +470,21 @@ P(t) = P_{end} + \left(P_{start} - P_{end}\right) e^{-\lambda t},
 ```
 
 with ``\lambda`` the `ramp_rate` (default 0.5 s⁻¹) of the step or the
-[`Process`](@ref).
+[`Process`](@ref). A blowdown from 1 to 0.1 bar at three ramp rates; at the
+default rate the pressure on the far side of the valve has made 99% of its
+change after about 10 s:
+
+```@example model
+using CairoMakie # hide
+t = range(0, 30, length = 301) # hide
+fig = Figure(size = (560, 300)) # hide
+ax = Axis(fig[1, 1], xlabel = "time in the step [s]", ylabel = "pressure [bar]") # hide
+for λ in (0.1, 0.5, 2.0) # hide
+    lines!(ax, t, 0.1 .+ (1.0 - 0.1) .* exp.(-λ .* t), label = "λ = $λ s⁻¹") # hide
+end # hide
+axislegend(ax) # hide
+fig # hide
+```
 
 For the four-step VSA cycle this gives the boundary conditions of Haghpanah et
 al. (2013):

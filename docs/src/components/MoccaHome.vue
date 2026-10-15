@@ -428,6 +428,7 @@ perf    = performance(result)</code></pre>
         <div>
           <h3>Learn</h3>
           <a :href="link('/installation')">Install Julia and Mocca</a>
+          <a :href="link('/vsa_cycle')">How a VSA cycle works</a>
           <a :href="link('/examples/getting_started')">Run, change, export and save a process</a>
           <a :href="link('/model')">The equations, and how performance is defined</a>
         </div>
@@ -442,6 +443,8 @@ perf    = performance(result)</code></pre>
           <h3>Look up</h3>
           <a :href="link('/user_interface')">Functions</a>
           <a :href="link('/json_input')">The process file format</a>
+          <a :href="link('/cycle_steps')">The steps of a cycle</a>
+          <a :href="link('/adsorbents')">The library of adsorbents</a>
           <a :href="link('/results')">Numbers, plots and spreadsheets</a>
         </div>
       </div>

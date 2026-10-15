@@ -289,3 +289,12 @@ mjx-container svg path {
     padding-left: 8px !important;
   }
 }
+
+/* Inline SVG schematics in the manual pages */
+.mocca-schematic { margin: 24px 0; }
+.mocca-schematic svg { display: block; width: 100%; max-width: 680px; height: auto; margin: 0 auto; }
+.mocca-schematic figcaption { margin-top: 8px; font-size: 14px; line-height: 1.55; color: var(--vp-c-text-2); }
+
+/* Julia's Markdown aligns table columns right unless told otherwise; read
+   tables from the left, as the Documenter HTML theme did */
+.vp-doc table th, .vp-doc table td { text-align: left !important; }
