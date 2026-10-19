@@ -41,10 +41,10 @@ durations then keeps the number of steps, which is how the stage duration
 gradients of [`force_gradients`](@ref) treat them, so an optimiser that
 changes durations sees the same model that the gradients describe.
 """
-function setup_schedule(fs::Flowsheet, model::Jutul.MultiModel, stages::AbstractVector{Stage};
+function setup_schedule(fs::AbstractFlowsheet, model::Jutul.MultiModel, stages::AbstractVector{Stage};
         num_cycles = 1, max_dt = 1.0, first_dt = max_dt, reference_durations = nothing)
     for st in stages, k in keys(st.settings)
-        haskey(fs.units, k) && _is_device(fs.units[k]) || error("Stage $(st.name) sets $k, which is not a device in the flowsheet")
+        haskey(fs, k) && is_device(fs, k) || error("Stage $(st.name) sets $k, which is not a device in the flowsheet")
     end
     isnothing(reference_durations) || length(reference_durations) == length(stages) ||
         error("Expected one reference duration per stage, got $(length(reference_durations)) for $(length(stages)) stages")
@@ -87,11 +87,11 @@ function _stage_steps(duration, max_dt, first_dt)
     return steps
 end
 
-function _stage_forces(fs::Flowsheet, model::Jutul.MultiModel, st::Stage, t_start)
+function _stage_forces(fs::AbstractFlowsheet, model::Jutul.MultiModel, st::Stage, t_start)
     per_unit = Dict{Symbol, Any}()
-    for name in fs.order
-        unit = fs.units[name]
-        _is_device(unit) || continue
+    for name in unit_names(fs)
+        is_device(fs, name) || continue
+        unit = fs[name]
         s = get(st.settings, name, NamedTuple())
         law = get(s, :law, Closed())
         conds = map(DEVICE_PORTS) do p
@@ -99,7 +99,7 @@ function _stage_forces(fs::Flowsheet, model::Jutul.MultiModel, st::Stage, t_star
                 haskey(s, p) && error("Stage $(st.name) sets a condition on port $p of $name, which is connected to a unit")
                 nothing
             else
-                shift_profile(get(s, p, fs.boundaries[(name, p)]), t_start)
+                shift_profile(get(s, p, boundary_condition(fs, name, p)), t_start)
             end
         end
         per_unit[name] = Jutul.setup_forces(unit; law = law, inlet = conds[1], outlet = conds[2])

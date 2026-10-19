@@ -1,0 +1,45 @@
+{
+  "format": "mocca-adsorbent",
+  "version": 1,
+  "name": "zeolite 13X",
+  "reference": "Krishnamurthy et al., Ind. Eng. Chem. Res. 53 (2014) 14462, doi:10.1021/ie5024723: isotherm of Table 1, case 1; properties of Table S2. The particle size is not given there and is that of Haghpanah et al. (2013). Capacities per m³ of adsorbent.",
+  "density": 1130.0,
+  "heat_capacity": 1070.0,
+  "particle_diameter": 0.002,
+  "particle_porosity": 0.35,
+  "tortuosity": 3.0,
+  "adsorbed_heat_capacity": {
+    "H2O": 1030.0,
+    "CO2": 1030.0,
+    "N2": 1030.0
+  },
+  "sorption_heat": "all",
+  "isotherm": {
+    "type": "dual_site_langmuir",
+    "reference_temperature": 298.15,
+    "basis": "volume",
+    "components": {
+      "CO2": {
+        "qsb": 3489.44,
+        "b0": 8.65e-7,
+        "dUb": -36640.0,
+        "qsd": 2872.35,
+        "d0": 2.63e-8,
+        "dUd": -35700.0
+      },
+      "N2": {
+        "qsb": 6613.55,
+        "b0": 2.5e-6,
+        "dUb": -15820.0
+      },
+      "H2O": {
+        "qsb": 10468.6,
+        "b0": 2.35e-7,
+        "dUb": -55720.0,
+        "qsd": 6434.5,
+        "d0": 7.99e-8,
+        "dUd": -45480.0
+      }
+    }
+  }
+}

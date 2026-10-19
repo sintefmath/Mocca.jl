@@ -101,7 +101,7 @@ function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear
         info_level = info_level, nonlinear_tolerance = nonlinear_tolerance, output_substates = true, kwarg...)
     result = Jutul.simulate!(sim, timesteps; forces = forces, config = cfg)
     states, dt, step_ix = Jutul.expand_to_ministeps(result)
-    (!isempty(dt) && isapprox(sum(dt), sum(timesteps))) || error("The simulation failed at t = $(sum(dt)) s")
+    (!isempty(dt) && isapprox(sum(dt), sum(timesteps))) || throw(SimulationFailure("the simulation stopped at t = $(sum(dt)) s of $(sum(timesteps)) s"))
     step_forces = forces isa AbstractVector ? forces[step_ix] : fill(forces, length(dt))
     return (states, dt, step_forces)
 end

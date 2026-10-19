@@ -67,6 +67,7 @@ function FixedBed(;
 end
 
 function FixedBed(constants::HaghpanahConstants; kwarg...)
+    Base.depwarn("`FixedBed(constants)` is deprecated. Convert the constants with `convert_constants` and build a bed with `add_bed!` from a `Gas`, an `Adsorbent` and a `Column`.", :FixedBed)
     isotherm = DualSiteLangmuir(constants)
     mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
 
@@ -82,6 +83,7 @@ function FixedBed(constants::HaghpanahConstants; kwarg...)
 end
 
 function FixedBed(constants::adsorptionConstants; kwarg...)
+    Base.depwarn("`FixedBed(constants)` is deprecated. Convert the constants with `convert_constants` and build a bed with `add_bed!` from a `Gas`, an `Adsorbent` and a `Column`.", :FixedBed)
     isotherm = DualSiteLangmuir(constants)
     mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
 

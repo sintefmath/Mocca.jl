@@ -27,76 +27,79 @@ a fixed 20 s, and uses pure nitrogen rather than the stored effluent of the
 previous adsorption step.
 =#
 
-import Jutul
 import Mocca
+using Mocca.Units
 
-# # 1. Adsorbent
+# # 1. Gas and adsorbent
 #
-# The extended dual-site Langmuir isotherm on 13X for CO₂, N₂ and H₂O. At the
-# feed conditions water fills the sorbent far more than CO₂ does:
-isotherm = Mocca.wet_flue_gas_isotherm(:zeolite_13x)
-C_feed = Mocca.WET_FLUE_GAS_FEED .* 101325.0 ./ (Mocca.GAS_CONSTANT * 298.15)
-q_feed = Mocca.compute_equilibrium(isotherm, C_feed, 298.15)
-for (name, q) in zip(Mocca.WET_FLUE_GAS_COMPONENTS, q_feed)
-    println(rpad(name, 4), " loading in equilibrium with the feed: ", round(q, digits = 0), " mol/m³")
+# The wet flue gas, and the extended dual-site Langmuir isotherm on 13X for
+# CO₂, N₂ and H₂O from Mocca's library. At the feed conditions water fills the
+# sorbent far more than CO₂ does:
+gas = Mocca.krishnamurthy_2014_gas()
+adsorbent = Mocca.load_adsorbent("zeolite_13x_krishnamurthy_2014")
+q_feed = Mocca.equilibrium_loading(adsorbent, gas; pressure = 1atm, temperature = 298.15,
+    composition = (CO2 = 0.15, N2 = 0.82, H2O = 0.03))
+for (name, q) in zip(gas.names, q_feed)
+    println(rpad(name, 4), " loading in equilibrium with the feed: ", round(q, digits = 2), " mol/kg")
 end
 
-# # 2. Flowsheet
+# # 2. Process
 #
-# `lpp_vsa_flowsheet` builds the bed and four devices, and returns the stages
-# with the operating conditions of section 3.1 of the paper: adsorption 78.4 s,
-# blowdown 37.9 s to 0.08 bar, evacuation 111.6 s to 0.03 bar, and a feed
-# interstitial velocity of 0.45 m/s. The bed has 30 cells, as in the paper.
-fs, stages = Mocca.lpp_vsa_flowsheet()
-model = Mocca.setup_flowsheet_model(fs)
-parameters = Mocca.setup_flowsheet_parameters(fs)
-for st in stages
-    println(rpad(st.name, 12), st.duration, " s: ", join(sort(collect(keys(st.settings))), ", "))
-end
+# `lpp_vsa_process` builds the bed, four devices with their roles, and the
+# cycle with the operating conditions of section 3.1 of the paper: adsorption
+# 78.4 s, blowdown 37.9 s to 0.08 bar, evacuation 111.6 s to 0.03 bar, and a
+# feed interstitial velocity of 0.45 m/s. The bed has 30 cells, as in the
+# paper, and starts evacuated and full of nitrogen. The time steps start at
+# 0.01 s in every stage and double up to 1 s, which carries the solver
+# through the abrupt start of a stage, such as the feed switching on at the
+# start of adsorption.
+process = Mocca.lpp_vsa_process(timestepping = Mocca.TimeStepping(max_dt = 1.0, first_dt = 0.01))
+
+# Its flowsheet and cycle, and the same steps written out:
+#
+# ```julia
+# Mocca.Cycle([
+#     Mocca.Pressurise(20.0; source = :light_product),
+#     Mocca.Adsorb(78.4; velocity = 0.45),
+#     Mocca.Blowdown(37.9; to = 0.08bar),
+#     Mocca.Evacuate(111.6; to = 0.03bar),
+# ])
+# ```
 
 # # 3. Cycling to the paper's steady state
 #
-# The bed starts evacuated and full of nitrogen. The paper judges cyclic steady
-# state by the CO₂ balance: the CO₂ fed and the CO₂ leaving must agree within
-# 0.5% for five consecutive cycles, after at least 50 cycles (its eq. S19).
-# `simulate_until_mass_balance` repeats the cycle until that holds.
-#
-# The time steps start at 0.01 s in every stage and double up to 1 s, which
-# carries the solver through the abrupt start of a stage, such as the feed
-# switching on at the start of adsorption.
-state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.wet_flue_gas_initial_state(fs[:Bed], 0.03e5))
-forces, timesteps = Mocca.setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 1.0, first_dt = 0.01)
-result = Mocca.simulate_until_mass_balance(model, state0, parameters, forces, timesteps;
-    inflow = (:V_feed, :V_lpp), outflow = (:V_product, :V_vacuum), max_cycles = 300)
-println("Cycles: $(result.cycles), CO₂ balance met: $(result.converged), last error: $(round(100 * result.history[end], digits = 2))%")
+# The paper judges cyclic steady state by the CO₂ balance: the CO₂ fed and the
+# CO₂ leaving must agree within 0.5% for five consecutive cycles, after at
+# least 50 cycles (its eq. S19).
+result = Mocca.cyclic_steady_state(process; method = :mass_balance, max_cycles = 300)
+println("Cycles: $(result.iterations), CO₂ balance met: $(result.converged), last error: $(round(100 * result.history[end], digits = 2))%")
 
 # The criterion only checks CO₂. Water is held far more strongly and loads the
 # feed end of the bed over hundreds of cycles, slowly pushing CO₂ further along
 # it, so the CO₂ balance drifts around 1% and may not close within 300 cycles.
-# `Mocca.simulate_to_cyclic_steady_state` instead requires every variable,
-# including the water loading, to settle.
+# `method = :anderson` or `:newton` instead requires every variable, including
+# the water loading, to settle.
 
 # # 4. Process performance
 #
-# The metrics of the paper, from the streams through the devices over the last
-# cycle: purity of the evacuation stream (with and without water), recovery of
-# the CO₂ fed, vacuum pump energy for blowdown and evacuation per tonne of CO₂,
-# and productivity per m³ of adsorbent per day.
+# The performance from the streams through the devices over the last cycle,
+# with the purity of the evacuation stream with and without water. The energy
+# counts the vacuum pumps for blowdown and evacuation, and the feed
+# compressor; the paper counts the pumps only. Productivity is per m³ of
+# adsorbent per day.
+perf = Mocca.performance(result)
 states, ts = result.states, result.timesteps
-M_CO2 = 44.01e-3
-n_feed = Mocca.stream_totals(states, ts, :V_feed)
-n_product = Mocca.stream_totals(states, ts, :V_vacuum)
-energy = Mocca.vacuum_pump_energy(states, ts, :V_product) + Mocca.vacuum_pump_energy(states, ts, :V_vacuum)
-cycle_time = sum(st -> st.duration, stages)
-adsorbent_volume = sum(parameters[:Bed][:SolidVolume])
-performance = (
-    purity_wet = Mocca.purity(n_product),
-    purity_dry = n_product[1] / (n_product[1] + n_product[2]),
-    recovery = Mocca.recovery(n_product, n_feed),
-    energy_kWh_per_t = Mocca.specific_energy_kwh_per_tonne(energy, n_product, M_CO2),
-    productivity_t_per_m3_day = n_product[1] * M_CO2 / 1000 / adsorbent_volume / (cycle_time / 86400),
+M_CO2 = gas.molar_masses[1]
+n = perf.extract
+pumps = Mocca.vacuum_pump_energy(states, ts, :V_product) + Mocca.vacuum_pump_energy(states, ts, :V_vacuum)
+summary = (
+    purity_wet = perf.purity,
+    purity_dry = n[1] / (n[1] + n[2]),
+    recovery = perf.recovery,
+    pump_energy_kWh_per_t = Mocca.specific_energy_kwh_per_tonne(pumps, n, M_CO2),
+    productivity_t_per_m3_day = perf.productivity * M_CO2 / 1000 * 86400,
 )
-for (k, v) in pairs(performance)
+for (k, v) in pairs(summary)
     println(rpad(k, 26), round(v, sigdigits = 3))
 end
 
@@ -111,9 +114,10 @@ end
 #
 # Profiles at the end of each step of the last cycle, as in Figure 2 of the
 # paper.
+stages = Mocca.stages(process)
 step_ends = cumsum([st.duration for st in stages])
-f_profiles = Mocca.plot_profiles(states, ts, fs[:Bed], step_ends;
+f_profiles = Mocca.plot_profiles(states, ts, process.flowsheet[:Bed], step_ends;
     labels = [st.name for st in stages], unit = :Bed, components = [1, 3])
 
 # The streams through the devices over the cycle:
-f_streams = Mocca.plot_flowsheet_streams(states, model, ts; stages = stages)
+f_streams = Mocca.plot_flowsheet_streams(states, process.model, ts; stages = stages)

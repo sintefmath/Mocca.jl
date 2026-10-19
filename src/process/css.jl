@@ -144,12 +144,12 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
     for cycle in 1:max_cycles
         states, ts, ok = run_cycle(x)
         if !ok
-            isnothing(last_end) && error("Simulation of cycle $cycle failed")
+            isnothing(last_end) && throw(SimulationFailure("simulation of cycle $cycle failed"))
             empty!(ΔF); empty!(ΔG)
             f_prev = g_prev = nothing
             x = last_end
             states, ts, ok = run_cycle(x)
-            ok || error("Simulation of cycle $cycle failed, also from the unaccelerated start")
+            ok || throw(SimulationFailure("simulation of cycle $cycle failed, also from the unaccelerated start"))
         end
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
@@ -219,7 +219,7 @@ function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters
         x_start = x
         case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
         states, ts = simulate_process(case; info_level = info_level, output_substates = true, kwarg...)
-        (!isempty(ts) && isapprox(sum(ts), cycle_time)) || error("Simulation of cycle $cycle failed")
+        (!isempty(ts) && isapprox(sum(ts), cycle_time)) || throw(SimulationFailure("simulation of cycle $cycle failed"))
         n_in = sum(d -> stream_totals(states, ts, d)[component], inflow)
         n_out = sum(d -> stream_totals(states, ts, d)[component], outflow)
         push!(history, abs(n_in - n_out) / abs(n_in))

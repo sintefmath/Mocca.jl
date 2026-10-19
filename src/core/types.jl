@@ -5,10 +5,11 @@ Entity holding one set of scalar values per unit operation (bed radius, wall
 properties, fluid viscosity, ...). Every Mocca domain registers it with count 1,
 and the matching Jutul parameters are read at runtime as `state.ParamName[1]`.
 
-`Column` is kept as an alias for backwards compatibility.
+Mocca 0.1.0 called it `Column`; `Column()` with no arguments still gives it,
+with a deprecation warning. `Column` is now the column geometry of the user
+interface.
 """
 struct Unit <: Jutul.JutulEntity end
-const Column = Unit
 
 """
     MoccaSystem <: Jutul.JutulSystem
@@ -71,6 +72,21 @@ function Jutul.discretize_domain(d::Jutul.DataDomain, system::DistributedUnit, :
     Jutul.transfer_entities!(domain, d)
     return domain
 end
+
+"""
+    SimulationFailure(message)
+
+The solver could not complete a simulation: Jutul gave up on a time step
+after cutting it, so the states stop short of the end of the schedule.
+"""
+struct SimulationFailure <: Exception
+    message::String
+end
+Base.showerror(io::IO, e::SimulationFailure) = print(io, "SimulationFailure: ", e.message)
+
+# Numerical failures that mean a solve from a given start did not work, as
+# opposed to errors in the code or the input
+_is_solver_failure(e) = e isa SimulationFailure || e isa LinearAlgebra.SingularException || e isa DomainError
 
 # Mocca problems are small, so a direct sparse solve is used throughout.
 # TODO: This causes problem for adjoint simulation. Is it needed?

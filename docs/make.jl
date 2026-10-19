@@ -16,9 +16,10 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
+        "Quick start: processes from files" => "json_input"
         "Haghpanah DCB" => "dcb_haghpanah_2013_co2_n2"
         "Haghpanah cyclic VSA" => "cyclic_vsa_haghpanah_2013_co2_n2"
-        "Custom setup cyclic VSA" => "custom_setup_cyclic_vsa"
+        "Building a process from its parts" => "custom_setup_cyclic_vsa"
         "Flowsheet cyclic VSA" => "flowsheet_vsa"
         "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
         "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
@@ -48,12 +49,13 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
 
     makedocs(;
         modules = [Mocca],
-        warnonly = [:missing_docs],
+        warnonly = [:missing_docs, :cross_references],
         sitename="Mocca.jl",
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
-            "JSON input" => "json_input.md",
+            "Setting up processes" => "user_interface.md",
+            "Process files" => "json_input.md",
             "Examples" => examples_markdown
         ],
         format=Documenter.HTML(;
