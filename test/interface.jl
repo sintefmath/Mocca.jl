@@ -203,6 +203,98 @@ end
     @test any(e -> occursin("extract", e.message), v)
 end
 
+# Header and rows of a CSV file, with quoted fields
+function read_csv(path; delim = ',')
+    rows = map(readlines(path)) do line
+        fields, buf, quoted = String[], IOBuffer(), false
+        for c in line
+            if c == '"'
+                quoted = !quoted
+            elseif c == delim && !quoted
+                push!(fields, String(take!(buf)))
+            else
+                write(buf, c)
+            end
+        end
+        push!(fields, String(take!(buf)))
+    end
+    return first(rows), rows[2:end]
+end
+
+@testset "Results written to CSV files" begin
+    ncells = 10
+    p = four_stage_vsa_process(ncells = ncells, timestepping = TimeStepping(max_dt = 1.0, first_dt = 0.05))
+    r = simulate(p; cycles = 2)
+    perf = performance(r)
+    dir = mktempdir()
+    paths = write_results(dir, r)
+    @test sort(basename.(paths)) == sort(["summary.csv", "streams.csv", "stage_streams.csv", "stream_history.csv",
+        "bed_history.csv", "bed_profiles.csv", "process.json"])
+    @test read_process(joinpath(dir, "process.json")) isa Process
+    col(header, name) = findfirst(==(name), header)
+    num(x) = parse(Float64, x)
+
+    h, rows = read_csv(joinpath(dir, "summary.csv"))
+    @test h == ["Section", "Quantity", "Value", "Unit"]
+    value(q, unit) = num(only(row[3] for row in rows if row[2] == q && row[4] == unit))
+    @test value("CO2 purity in extract", "mol%") ≈ 100 * perf.purity rtol = 1e-6
+    @test value("CO2 recovery", "%") ≈ 100 * perf.recovery rtol = 1e-6
+    @test value("Specific energy", "kWh/t CO2") ≈ perf.specific_energy rtol = 1e-6
+    @test value("Pressure", "bara") ≈ p.flowsheet.feed.pressure / 1e5
+    # Away from the cyclic steady state, what the beds gain closes the balance
+    @test abs(value("Total imbalance", "% of in")) < 1e-4
+    @test abs(value("CO2 accumulated in beds", "mol/cycle")) > 1e-3
+
+    h, streams = read_csv(joinpath(dir, "streams.csv"))
+    @test [s[col(h, "Device")] for s in streams] == ["V_feed", "V_product", "V_vacuum"]
+    extract = only(s for s in streams if s[col(h, "Role")] == "extract")
+    @test extract[col(h, "From")] == "Bed bottom" && extract[col(h, "To")] == "boundary"
+    @test num(extract[col(h, "CO2 [mol/cycle]")]) ≈ perf.extract[1] rtol = 1e-6
+    @test num(extract[col(h, "CO2 [mol%]")]) ≈ 100 * perf.purity rtol = 1e-6
+
+    # The stages add up to the cycle
+    hs, stage_rows = read_csv(joinpath(dir, "stage_streams.csv"))
+    @test unique(s[col(hs, "Stage")] for s in stage_rows) == [st.name for st in M.stages(p)]
+    for s in streams
+        d = s[col(h, "Device")]
+        @test sum(num(t[col(hs, "N2 [mol/stage]")]) for t in stage_rows if t[col(hs, "Device")] == d) ≈
+            num(s[col(h, "N2 [mol/cycle]")]) rtol = 1e-6
+    end
+
+    nsteps = length(r.timesteps)
+    h, history = read_csv(joinpath(dir, "stream_history.csv"))
+    @test length(history) == 3 * nsteps
+    @test sort(unique(s[col(h, "Cycle")] for s in history)) == ["1", "2"]
+    @test num(history[end][col(h, "Time [s]")]) ≈ 2 * M.cycle_time(p)
+    # Nothing flows through a closed device, so it has no composition
+    closed = [s for s in history if s[col(h, "Stage")] == "evacuation" && s[col(h, "Device")] == "V_feed"]
+    @test all(s -> num(s[col(h, "Flow [mol/s]")]) == 0 && isempty(s[col(h, "CO2 [mol%]")]), closed)
+
+    h, bed = read_csv(joinpath(dir, "bed_history.csv"))
+    @test length(bed) == 2 * nsteps
+    last_top = bed[end]
+    @test last_top[col(h, "End")] == "top"
+    @test num(last_top[col(h, "Pressure [bara]")]) ≈ r.states[end][:Bed][:Pressure][end] / 1e5 rtol = 1e-6
+    @test num(last_top[col(h, "q CO2 [mol/kg]")]) ≈
+        r.states[end][:Bed][:AdsorbedConcentration][1, end] / first(p.parameters[:Bed][:AdsorbentDensity]) rtol = 1e-6
+
+    h, profiles = read_csv(joinpath(dir, "bed_profiles.csv"))
+    @test length(profiles) == (length(M.stages(p)) + 1) * ncells
+    @test profiles[1][col(h, "Snapshot")] == "start of cycle" && profiles[end][col(h, "Snapshot")] == "end of evacuation"
+    @test num(profiles[end][col(h, "Temperature [degC]")]) ≈ r.states[end][:Bed][:Temperature][end] - 273.15 rtol = 1e-6
+
+    # For spreadsheets with a decimal comma
+    dir2 = mktempdir()
+    write_results(dir2, r; delim = ';', decimal = ',')
+    h2, streams2 = read_csv(joinpath(dir2, "streams.csv"); delim = ';')
+    @test h2 == first(read_csv(joinpath(dir, "streams.csv")))
+    @test num(replace(streams2[3][col(h2, "CO2 [mol/cycle]")], ',' => '.')) ≈ perf.extract[1] rtol = 1e-6
+    @test_throws MoccaInputError write_results(dir2, r; delim = ',', decimal = ',')
+    # Net amounts of components that went opposite ways have no composition
+    @test all(isnan, M.Interface._fractions_percent([-0.5, 0.02]))
+    @test M.Interface._fractions_percent([-1.0, -3.0]) ≈ [25.0, 75.0]
+end
+
 @testset "A flowsheet holds a unit network" begin
     gas = M.haghpanah_2013_gas()
     feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)

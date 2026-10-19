@@ -1,10 +1,11 @@
 #=
-# Cyclic VSA as a flowsheet
+# A flowsheet by hand
 
-This example looks inside the four-stage vacuum swing adsorption (VSA) cycle
-of Haghpanah et al. (2013) as a flowsheet of connected units, and then builds
-the same flowsheet by hand from the layer underneath. A fixed bed is connected
-to three flow devices:
+A [`Process`](@ref Mocca.Process) turns its device roles and steps into a
+network of unit models, the device settings of each stage, and a Jutul
+simulation case. This example builds the four-stage VSA cycle of Haghpanah et
+al. (2013) directly from that layer, and checks that it gives the same results
+as the process. A fixed bed is connected to three flow devices:
 
     feed ──V_feed──┐                 ┌──V_product── raffinate
                    bottom  Bed  top
@@ -13,17 +14,16 @@ to three flow devices:
 Each stage of the cycle is a set of device settings (valve open or closed,
 flow controller rate, boundary pressure profile). Nothing inside the bed
 changes between stages, so the same bed model can be wired into larger
-flowsheets, such as several beds sharing equalisation lines.
+flowsheets. This is the layer to work in when adding a kind of unit, device
+law or step (see [Extending Mocca](@ref)).
 =#
 
 import Mocca
 using Mocca.Units
 
 # # 1. The process
-#
-# `four_stage_vsa_process` builds the flowsheet and its cycle of steps; the
-# [cyclic VSA](cyclic_vsa_haghpanah_2013_co2_n2.md) example builds the same
-# from its parts. The run uses steps of 1 s and starts from nitrogen at 1 bar.
+# `four_stage_vsa_process` builds the flowsheet and its cycle of steps. The
+# run uses steps of 1 s and starts from nitrogen at 1 bar.
 ncells = 200
 process = Mocca.four_stage_vsa_process(ncells = ncells, timestepping = Mocca.TimeStepping(max_dt = 1.0, first_dt = 1.0),
     initial_state = Dict(:Bed => (pressure = 1bar,)))
@@ -36,33 +36,12 @@ for st in Mocca.stages(process)
     end
 end
 
-# # 2. Simulate
+#-
 result = Mocca.simulate(process; cycles = 3, info_level = 0)
-
-# # 3. Look at the results
-#
-# Each state holds one entry per unit. The bed states can be plotted with the
-# same functions as a single-column simulation. First the primary variables at
-# the outlet (top) of the bed through time:
-fs = process.flowsheet
-bed = fs[:Bed]
+bed = process.flowsheet[:Bed]
 bed_states = [s[:Bed] for s in result.states]
-f_outlet = Mocca.plot_cell(bed_states, bed, result.timesteps, ncells)
 
-# and along the bed at the end of the simulation:
-f_column = Mocca.plot_state(bed_states[end], bed)
-
-# The devices report the molar flow through them and the composition at their
-# ports, which gives the streams entering and leaving the bed. Flow is positive
-# from a device's inlet to its outlet, so the vacuum line is positive when gas
-# is drawn out of the bed.
-f_streams = Mocca.plot_flowsheet_streams(result.states, process.model, result.timesteps; stages = Mocca.stages(process))
-
-# The stream totals give the CO₂ collected through the vacuum line.
-n_extract = Mocca.stream_totals(result.states, result.timesteps, :V_vacuum)
-println("CO₂ recovered through the vacuum line over three cycles: $(round(n_extract[1], digits = 2)) mol")
-
-# # 4. The same flowsheet by hand
+# # 2. The same flowsheet by hand
 #
 # A [`Flowsheet`](@ref Mocca.Flowsheet) holds a `UnitNetwork`: the units, the
 # connections between their ports and the boundary conditions of device ports
@@ -118,6 +97,13 @@ parameters = Mocca.setup_flowsheet_parameters(net)
 forces, dt = Mocca.setup_schedule(net, model, stages; num_cycles = 3, max_dt = 1.0)
 states, timesteps = Mocca.simulate_process(Mocca.MoccaCase(model, dt, forces; state0 = state0, parameters = parameters);
     info_level = 0, output_substates = true)
+
+# # 3. Compare
+# Both runs take the same time steps, so their states can be compared step by
+# step:
+y_process = [s[:y][1, ncells] for s in bed_states]
+y_hand = [s[:Bed][:y][1, ncells] for s in states]
+println("largest difference in the CO₂ fraction at the outlet: ", maximum(abs, y_process .- y_hand))
 
 runs = [
     "Process" => (bed_states, result.timesteps),

@@ -61,10 +61,10 @@ on GitHub. Download one into your project folder and run it from the Julia
 prompt:
 
 ```julia
-include("json_input.jl")
+include("getting_started.jl")
 ```
 
 or open it in VS Code and run it a block at a time with Shift+Enter.
 
-Next: [Getting started](@ref "Quick start: processes from files") reads a
-process from Mocca's library, runs it to cyclic steady state and measures it.
+Next: [Getting started](@ref) reads a process from Mocca's library, runs it
+to cyclic steady state, measures it and exports the results to a spreadsheet.

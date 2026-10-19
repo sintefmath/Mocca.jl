@@ -2,7 +2,7 @@
 
 # We demonstrate history matching of a Direct Column Breakthrough (DCB) simulation model in Mocca.
 # We leverage the powerful and flexible optimization functionality of Jutul to set up and perform the history matching.
-# For more details about the DCB modelling, see the [Haghpanah DCB](dcb_haghpanah_2013_co2_n2.md) example.
+# For more details about the DCB modelling, see the [breakthrough curve](breakthrough.md) example.
 
 # Import necessary modules
 import Jutul
@@ -10,15 +10,14 @@ import Mocca
 using Mocca.Units
 
 # # The breakthrough
-# CO₂/N₂ fed at a constant interstitial velocity into a column of zeolite 13X
-# full of nitrogen, with no heat transfer to the wall, as in the DCB example
-# but on a coarser grid.
+# CO₂/N₂ fed at a constant interstitial velocity into an adiabatic column of
+# zeolite 13X full of nitrogen, as in the breakthrough example but on a
+# coarser grid.
 gas = Mocca.haghpanah_2013_gas()
 feed = Mocca.Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), temperature = 298.15, pressure = 1bar)
-column = Mocca.Column(length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
-    axial_conductivity = 0.0903, inner_heat_transfer = 0.0, outer_heat_transfer = 0.0)
 fs = Mocca.Flowsheet(gas, feed)
-Mocca.add_bed!(fs, :Bed, Mocca.load_adsorbent("zeolite_13x_haghpanah_2013"), column; ncells = 50)
+Mocca.add_bed!(fs, :Bed, Mocca.load_adsorbent("zeolite_13x_haghpanah_2013"), Mocca.haghpanah_2013_column();
+    ncells = 50, thermal = Mocca.Adiabatic())
 Mocca.add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
 Mocca.add_device!(fs, :V_product, :product; at = (:Bed, :top))
 

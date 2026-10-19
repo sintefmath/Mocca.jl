@@ -16,16 +16,16 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
     ## Build examples
     # <example name> => <example path>
     examples = [
-        "Quick start: processes from files" => "json_input"
-        "Haghpanah DCB" => "dcb_haghpanah_2013_co2_n2"
-        "Haghpanah cyclic VSA" => "cyclic_vsa_haghpanah_2013_co2_n2"
-        "Building a process from its parts" => "custom_setup_cyclic_vsa"
-        "Flowsheet cyclic VSA" => "flowsheet_vsa"
-        "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
+        "Getting started" => "getting_started"
+        "Building a process from its parts" => "process_from_parts"
+        "Breakthrough curve" => "breakthrough"
+        "Two-bed VSA with pressure equalisation" => "two_bed_vsa"
         "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
         "Wet flue gas: dual-adsorbent VSA" => "wet_flue_gas_dual_adsorbent_vsa"
-        "History matching" => "history_matching"
+        "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
         "Optimization" => "optimization"
+        "History matching" => "history_matching"
+        "A flowsheet by hand" => "unit_network"
     ]
 
     examples_markdown = []
