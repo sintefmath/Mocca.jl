@@ -228,7 +228,7 @@ force set, in order of use):
   depends on the time other than through the time step is differentiated as
   if it did not.
 
-Extra keywords go to [`setup_process_simulator`](@ref).
+Extra keywords go to `setup_process_simulator`.
 """
 function force_gradients(model, state0, parameters, forces, timesteps, G; kwarg...)
     states, dt, step_forces = _simulate_steps(model, state0, parameters, forces, timesteps; kwarg...)
@@ -339,7 +339,7 @@ Stops when the [`cycle_change`](@ref) is below `tol`. Returns the same fields
 as `simulate_to_cyclic_steady_state`, with `cycles` counting the iterations,
 plus `jacobian`, the last Jacobian used (as the inverse of `I − ∂Φ/∂x`), and
 `jacobian_builds`, how many were built. Extra keywords go to
-[`setup_process_simulator`](@ref).
+`setup_process_simulator`.
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, info_level = -1, kwarg...)
@@ -449,7 +449,7 @@ Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
   the start of a cycle;
 - `iterations` and `converged` for GMRES.
 
-Extra keywords go to [`setup_process_simulator`](@ref).
+Extra keywords go to `setup_process_simulator`.
 """
 function cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
         targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, info_level = -1, kwarg...)

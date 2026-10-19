@@ -54,9 +54,16 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         pages=[
             "Home" => "index.md",
             "Installation" => "installation.md",
-            "Setting up processes" => "user_interface.md",
-            "Process files" => "json_input.md",
-            "Examples" => examples_markdown
+            "Getting started" => last(first(examples_markdown)),
+            "Model equations" => "model.md",
+            "Results and plots" => "results.md",
+            "Examples" => examples_markdown[2:end],
+            "Reference" => [
+                "Functions" => "user_interface.md",
+                "Process files" => "json_input.md",
+                "Extending Mocca" => "extending.md",
+                "Migrating from 0.1.0" => "migration.md",
+            ],
         ],
         format=Documenter.HTML(;
             edit_link="main",

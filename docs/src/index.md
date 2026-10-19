@@ -2,17 +2,73 @@
 CurrentModule = Mocca
 ```
 
-
 # Mocca
 
-[Mocca.jl](https://github.com/sintefmath/Mocca.jl) provides a [Julia](https://julialang.org/) based framework for the simulating pressure / temperature swing adsorption processes for CO2 capture.
+Mocca simulates cyclic adsorption processes for CO₂ capture, such as pressure
+and vacuum swing adsorption (PSA/VSA). It finds the cyclic steady state of a
+process, measures its purity, recovery, energy use and productivity, and
+computes how these change with every operating setting, for optimisation. It is
+written in [Julia](https://julialang.org/) and built on the
+[Jutul](https://github.com/sintefmath/Jutul.jl) simulator.
 
-A process is described in layers — a gas and its feed, adsorbents and columns, a flowsheet of beds and devices, and a cycle of steps — each of which can be edited, saved to a file and reused on its own; see [Setting up processes](@ref) and [Process files](@ref). Mocca finds the cyclic steady state of a process, measures its performance, and computes the gradients of its performance with respect to its operating settings and parameters by adjoints, for optimisation.
+## Quick start
 
-Mocca's library has the 4-stage vacuum swing adsorption process for CO2 capture of Haghpanah et al. (2013), from a two-component flue gas on zeolite 13X with a dual-site Langmuir isotherm, and the wet flue gas processes of Krishnamurthy et al. (2014). See [Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) and [Haghpanah Cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl). For an example of setting up a simulation through defining your own parameters and potentially custom models in a script, see [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl). Additionally, we have made examples demonstrating capabilities for doing [Optimization](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [History matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl) in Mocca.jl.
+Read the four-step VSA process of
+[Haghpanah et al. (2013)](https://doi.org/10.1021/ie302658y) from Mocca's
+library, lower its evacuation pressure, run it to cyclic steady state and
+measure it:
 
-In the future we hope to implement examples of other systems and isotherms e.g. temperature swing adsorption for Direct Air Capture (DAC).
+```julia
+using Mocca
+using Mocca.Units
 
-
-```@index
+process = read_process("haghpanah_2013_four_stage_vsa")
+process[:P_L] = 0.05bar                  # evacuation pressure
+result = cyclic_steady_state(process)
+perf = performance(result)
 ```
+
+```julia-repl
+julia> perf.purity, perf.recovery, perf.specific_energy
+(0.7900223577190472, 0.7088768107066176, 149.85070321200155)
+```
+
+That is 79.0% CO₂ purity, 70.9% recovery and 150 kWh per tonne of CO₂. The
+first run in a session takes a few minutes while Julia compiles; after that,
+changing a setting and finding the new steady state takes seconds.
+
+## What Mocca models
+
+- **Beds**: one-dimensional, axially dispersed plug flow through a packed
+  column, with Darcy's law for the pressure drop, a linear driving force for
+  mass transfer, and an energy balance including the column wall (or an
+  adiabatic or isothermal bed). See [Model equations](@ref).
+- **Isotherms**: multicomponent dual-site and single-site Langmuir, with a
+  library of published adsorbents (zeolite 13X, silica gel).
+- **Flowsheets**: any number of beds connected to the feed, the products and
+  each other through valves and flow controllers.
+- **Cycles**: pressurisation (with feed or light product), adsorption,
+  blowdown, evacuation, purge, pressure equalisation and idle steps, run in
+  sequence or side by side in several beds.
+- **Design**: gradients of the performance at cyclic steady state with
+  respect to step durations, pressures, flow rates and model parameters, and
+  gradient-based optimisation.
+- **Ready-made processes**: the four-step VSA of Haghpanah et al. (2013), a
+  two-bed VSA with pressure equalisation, and the wet flue gas processes of
+  [Krishnamurthy et al. (2014)](https://doi.org/10.1021/ie5024723).
+
+Not yet included: temperature swing (heated or cooled steps), the inertial
+(Ergun) term of the pressure drop, and other isotherm models (new ones can be
+added with [`register_isotherm!`](@ref)).
+
+## Where next
+
+| To | Read |
+|---|---|
+| Install Julia and Mocca | [Installation](@ref) |
+| Run, change and save a process step by step | [Getting started](@ref "Quick start: processes from files") |
+| See the equations solved and how performance is defined | [Model equations](@ref) |
+| Get numbers and plots out of a simulation | [Results and plots](@ref) |
+| Set up your own gas, adsorbent, column and cycle | [Building a process from its parts](@ref) |
+| Optimise a process | [Optimization of a cyclic process](@ref) |
+| Look up a function, or the process file format | [Reference](@ref), [Process files](@ref) |
