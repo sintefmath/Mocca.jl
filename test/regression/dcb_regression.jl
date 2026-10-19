@@ -65,16 +65,18 @@ end
     states, model, timesteps_out = run_dcb_simulation()
     m = dcb_metrics(states, model, timesteps_out)
 
+    # Updated when the inlet boundary conditions were made to conserve each
+    # component (the pressurisation sign and upwinding were fixed with it)
     ref = (
-        y_outlet_CO2 = 0.1486736097381964,
-        y_outlet_N2 = 0.851326390261803,
-        T_outlet = 301.6723625454626,
-        T_inlet = 298.1499948649097,
-        T_max = 301.6723625454626,
-        P_outlet = 100004.81147504161,
-        P_inlet = 101884.19452854067,
-        total_CO2_adsorbed = 774447.598037862,
-        breakthrough_time = 484.5518204728325,
+        y_outlet_CO2 = 0.14865412194754166,
+        y_outlet_N2 = 0.8513458780524578,
+        T_outlet = 301.7255919033596,
+        T_inlet = 298.14999477838853,
+        T_max = 301.7255919033596,
+        P_outlet = 100004.81221738287,
+        P_inlet = 101884.22639525759,
+        total_CO2_adsorbed = 774399.9320169437,
+        breakthrough_time = 486.85078101997647,
     )
 
     @test isapprox(m.y_outlet_CO2, ref.y_outlet_CO2, rtol=1e-3)

@@ -3,7 +3,19 @@ __precompile__(true)
 module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
-export AdsorptionSystem, AdsorptionModel, Column
+export MoccaSystem, MoccaModel, DistributedUnit, SorbentBed, FlowChannel, LumpedUnit, FlowElement
+export Unit, Column
+export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
+export AbstractThermalModel, WithWall, Adiabatic, Isothermal
+export AbstractSourceTerm
+export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, VolumetricFlow
+export PortCondition, ExponentialRamp, port_conductance
+export Flowsheet, add_unit!, connect!, set_boundary!, setup_flowsheet_model
+export setup_flowsheet_state, setup_flowsheet_parameters
+export Stage, setup_schedule, four_stage_vsa_flowsheet, two_bed_vsa_flowsheet
+export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass
+export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
+export restart_state, cycle_change, simulate_to_cyclic_steady_state
 export number_of_components, component_names
 export MoccaCase
 
@@ -17,7 +29,7 @@ export simulate_process
 export mocca_domain
 export column_mesh
 
-export plot_state, plot_cell
+export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
@@ -40,19 +52,48 @@ if !isdir(moccaResultsDir)
 end
 
 
-include("init/constants.jl")
-include("isotherms/isotherms.jl")
-include("mass_transfer/mass_transfer.jl")
-include("systems/systems.jl")
-include("init/init_adsorption_column.jl")
-include("variables/variables.jl")
-include("equations/equations.jl")
-include("forces/forces.jl")
+# Core: system hierarchy, entities, shared interfaces
+include("core/types.jl")
+include("core/variables.jl")
+include("core/conservation.jl")
+include("core/thermal.jl")
 
-include("select_variable.jl")
-include("convergence.jl")
+# Input structs
+include("io/constants.jl")
+
+# L0: physics functions dispatched on physics objects
+include("physics/isotherms/isotherms.jl")
+include("physics/mass_transfer/mass_transfer.jl")
+
+# L2: unit operations
+include("units/fixed_bed/system.jl")
+include("units/fixed_bed/setup.jl")
+
+# L1: reusable blocks of variables, fluxes and source terms
+include("blocks/geometry.jl")
+include("blocks/unit_parameters.jl")
+include("blocks/gas.jl")
+include("blocks/sorbent.jl")
+include("blocks/energy.jl")
+include("blocks/wall.jl")
+
+include("units/fixed_bed/legacy_bcs/forces.jl")
+include("units/fixed_bed/select.jl")
+include("units/equipment/device.jl")
+
+# L3/L4: coupling units into flowsheets
+include("coupling/ports.jl")
+include("flowsheet/flowsheet.jl")
+
+# L5: process operation
+include("process/schedule.jl")
+include("process/vsa.jl")
+include("process/metrics.jl")
+include("process/css.jl")
+
+include("core/convergence.jl")
 include("utils.jl")
 include("plot.jl")
-include("input_output/input_output.jl")
+include("io/input_output.jl")
 include("../models/models.jl")
 end
