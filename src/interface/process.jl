@@ -276,17 +276,51 @@ function Jutul.simulate(p::Process; cycles = 1, state0 = nothing, info_level = -
     return ProcessResult(p, collect(Any, states), ts, n, last0, nothing, Float64[], 0, nothing)
 end
 
+# Newton's method starts after this many plain cycles. Each time it does not
+# converge, Anderson acceleration goes on to the next of these cycle changes,
+# and Newton's method tries again.
+const DEFAULT_HANDOVER = 3
+const FALLBACK_HANDOVERS = (1e-1, 1e-3)
+
+# Beds with more cells than this start from the steady state on half as many
+const DEFAULT_COARSE_CELLS = 40
+
 """
     cyclic_steady_state(p; method = :newton, tol = nothing, max_cycles = 500,
-        warm_start = true, progress = isinteractive(), info_level = -1, kwarg...) → ProcessResult
+        warm_start = true, handover = 3, krylov = :auto, coarse_cells = 40,
+        progress = isinteractive(), info_level = -1, kwarg...) → ProcessResult
 
 The cyclic steady state of the process, with the states of its last cycle:
 
-- `:newton` (default): Anderson acceleration to a loose steady state, then
-  Newton's method on the cycle map (see [`newton_cyclic_steady_state`](@ref))
-  to `tol` (default `1e-9`). With `warm_start`, it starts from the last
+- `:newton` (default): `handover` plain cycles (3), each from the end of the
+  last, then Newton's method on the cycle map (see
+  [`newton_cyclic_steady_state`](@ref)) to `tol` (default `1e-9`). The plain
+  cycles let the fastest modes die out, and Newton's method controls its
+  steps, so it needs no closer start. A `handover` below 1 is a cycle change
+  instead: Anderson acceleration until the change is below it. If Newton's
+  method fails or does not converge, Anderson acceleration goes on to a
+  change of `1e-1`, and then if need be `1e-3`, and Newton's method tries
+  again from each. With `warm_start`, it starts from the last
   steady state found for this process, and its Jacobian, which is much faster
-  when the settings have changed a little.
+  when the settings have changed a little. With `krylov = true`, each Newton
+  step is solved by GMRES instead of from the full Jacobian, which pays off
+  for fine grids, where the variables far outnumber the slow modes of the
+  cycle; `false` always builds the full Jacobian. The default, `:auto`,
+  decides on each grid: GMRES when the beds have more than 800 variables
+  (a bed of about 130 cells with two components, 100 with three), the full
+  Jacobian below; `krylov = n` sets that number of variables to `n`.
+
+  On a fine grid, with a bed of more than `coarse_cells` cells, the steady
+  state is found first on beds of half as many cells (and so on, down to
+  `coarse_cells` or fewer), each interpolated onto the next finer grid as the
+  start of Newton's method there, which then needs only a few iterations; a
+  coarser grid is converged to `1e-6` only. Starting fine grids cold is slow,
+  and on some processes (such as the wet LPP VSA from about 80 cells)
+  Newton's method does not converge from a few plain cycles. The coarser
+  grids only give the start: the steady state is that of `p`. If Newton's
+  method does not converge from the coarser grid's steady state, `p` is
+  started from its initial state as above. Pass `coarse_cells = nothing` to
+  start from the initial state on any grid.
 - `:anderson`: [`simulate_to_cyclic_steady_state`](@ref) to `tol` (default
   `1e-6`).
 - `:mass_balance`: [`simulate_until_mass_balance`](@ref) on the key component,
@@ -300,7 +334,8 @@ place, so only the end of each phase stays on screen. `progress` can also be
 an `IO` to print to, or a [`CycleProgress`](@ref).
 """
 function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cycles = 500, warm_start = true,
-        progress = isinteractive(), info_level = -1, kwarg...)
+        handover = DEFAULT_HANDOVER, krylov = :auto, coarse_cells = DEFAULT_COARSE_CELLS, progress = isinteractive(),
+        info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p)
     model, prm = p.model, p.parameters
     has_warm = warm_start && !isnothing(p.warm.state)
@@ -309,44 +344,27 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
     name = isempty(p.name) ? "the process" : p.name
     if method == :newton
         tol = something(tol, 1e-9)
-        # Anderson acceleration to a loose steady state, for Newton's method
-        loose_tol = 1e-3
-        phases = [("Anderson", loose_tol, "cycle"), ("Newton", tol, "iteration")]
+        (handover isa Integer ? handover >= 0 : 0 < handover < 1) ||
+            input_error("cyclic_steady_state", "handover", "give a number of cycles, or a cycle change below 1, got $handover")
+        (krylov isa Integer || krylov === :auto) ||
+            input_error("cyclic_steady_state", "krylov", "use true, false, :auto or a number of variables, got $(repr(krylov))")
+        grids = has_warm ? Process[] : _coarse_grids(p, coarse_cells)
+        start = "$(_handover_text(handover)), then Newton's method"
+        middle = [_cells_text(q) for q in grids[2:end]]
         report_note!(pr, "Cyclic steady state of $name: " * (has_warm ? "Newton's method to $(_sci(tol)) from the last steady state" :
-            "Anderson acceleration to $(_sci(loose_tol)), then Newton's method to $(_sci(tol))"))
+            isempty(grids) ? "$start to $(_sci(tol))" :
+            "$start on $(_cells_text(grids[1])) to $(_sci(max(tol, COARSE_TOL))); from there Newton's method on " *
+            (isempty(middle) ? "" : "$(join(middle, ", ", " and ")) to $(_sci(max(tol, COARSE_TOL))) and on ") *
+            "$(_cells_text(p)) to $(_sci(tol))"))
         p.timestepping.first_dt < p.timestepping.max_dt ||
             @warn "Newton's method needs a smooth cycle map; start each stage with short steps (TimeStepping(first_dt = 0.05))" maxlog = 1
-        if has_warm
-            plan_phases!(pr, phases[2:2])
-            r = try
-                newton_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_iterations = 40,
-                    jacobian = p.warm.jacobian, progress = pr, info_level = info_level, kwarg...)
-            catch e
-                # A start too far from the new steady state can make the
-                # solver fail; anything else is a bug and is passed on
-                _is_solver_failure(e) || rethrow()
-                report_note!(pr, "  Newton's method from the last steady state failed ($(sprint(showerror, e))); starting again from the initial state")
-                @debug "Warm-started Newton's method failed" exception = (e, catch_backtrace())
-                nothing
-            end
-            if !isnothing(r) && r.converged
-                p.warm.state, p.warm.jacobian = r.state0, r.jacobian
-                finish_progress!(pr, true)
-                return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, true, r.history, r.cycles, r.jacobian)
-            end
-            isnothing(r) || report_note!(pr, "  Starting again from the initial state")
-            x0 = initial_state(p)
-        end
-        plan_phases!(pr, phases)
-        loose = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = loose_tol, max_cycles = max_cycles,
-            progress = pr, info_level = info_level, kwarg...)
-        r = newton_cyclic_steady_state(model, loose.state0, prm, forces, dt; tol = tol, max_iterations = 10,
-            progress = pr, info_level = info_level, kwarg...)
+        s = _newton_steady_state(p, pr; tol = tol, warm = has_warm, handover = handover, krylov = krylov,
+            coarse_cells = coarse_cells, max_cycles = max_cycles, info_level = info_level, kwarg...)
+        r = s.result
         finish_progress!(pr, r.converged)
         r.converged || @warn "Cyclic steady state not converged by Newton's method" r.history
         p.warm.state, p.warm.jacobian = r.state0, r.jacobian
-        return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, vcat(loose.history, r.history),
-            loose.cycles + r.cycles, r.jacobian)
+        return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
     elseif method == :anderson
         tol = something(tol, 1e-6)
         report_note!(pr, "Cyclic steady state of $name: Anderson acceleration to $(_sci(tol))" * (has_warm ? " from the last steady state" : ""))
@@ -369,6 +387,212 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
     else
         input_error("cyclic_steady_state", "method", "use :newton, :anderson or :mass_balance, got $method")
     end
+end
+
+# Cycle change to which a coarser grid is converged when it only gives the
+# start for a finer one: its interpolation onto the finer grid is far rougher
+const COARSE_TOL = 1e-6
+
+# Newton's method for the cyclic steady state of `p`, as cyclic_steady_state
+# runs it: from the last steady state if `warm`; otherwise, if the beds have
+# more than `coarse_cells` cells, from the steady state on half as many,
+# interpolated (found the same way, so possibly from coarser grids still);
+# otherwise, or if that fails, from the initial state, after `handover`
+# plain cycles or Anderson acceleration, with Anderson acceleration to
+# tighter hand-overs as the fallback. Returns the result of the last Newton
+# solve, the change of every cycle or iteration and the cycles simulated.
+function _newton_steady_state(p::Process, pr; tol, warm = false, handover = DEFAULT_HANDOVER, krylov = :auto,
+        coarse_cells = DEFAULT_COARSE_CELLS, max_cycles = 500, info_level = -1, in_sequence = false, kwarg...)
+    forces, dt = cycle_schedule(p)
+    model, prm = p.model, p.parameters
+    history = Float64[]
+    cycles = 0
+    if warm
+        plan_phases!(pr, [("Newton", tol, "iteration")])
+        r = try
+            newton_cyclic_steady_state(model, restart_state(model, p.warm.state), prm, forces, dt; tol = tol, max_iterations = 40,
+                jacobian = p.warm.jacobian, krylov = krylov, progress = pr, info_level = info_level, kwarg...)
+        catch e
+            # A start too far from the new steady state can make the
+            # solver fail; anything else is a bug and is passed on
+            _is_solver_failure(e) || rethrow()
+            report_note!(pr, "  Newton's method from the last steady state failed ($(sprint(showerror, e)))")
+            @debug "Warm-started Newton's method failed" exception = (e, catch_backtrace())
+            nothing
+        end
+        !isnothing(r) && r.converged && return (result = r, history = r.history, cycles = r.cycles)
+        if !isnothing(r)
+            append!(history, r.history)
+            cycles += r.cycles
+        end
+        report_note!(pr, "  Starting again from the initial state")
+    end
+
+    # From a coarser grid
+    q = _coarse_copy(p, coarse_cells)
+    if !isnothing(q)
+        c = _newton_steady_state(q, pr; tol = max(tol, COARSE_TOL), handover = handover, krylov = krylov,
+            coarse_cells = coarse_cells, max_cycles = max_cycles, info_level = info_level, in_sequence = true, kwarg...)
+        append!(history, c.history)
+        cycles += c.cycles
+        if c.result.converged
+            report_note!(pr, "  $(_cells_text(p)): Newton's method from the steady state on $(_cells_text(q))")
+            plan_phases!(pr, [("Newton", tol, "iteration")])
+            r = try
+                newton_cyclic_steady_state(model, _interpolate_state(p, c.result.state0), prm, forces, dt; tol = tol,
+                    max_iterations = 40, krylov = krylov, progress = pr, info_level = info_level, kwarg...)
+            catch e
+                _is_solver_failure(e) || rethrow()
+                @debug "Newton's method from the coarser grid failed" exception = (e, catch_backtrace())
+                nothing
+            end
+            if !isnothing(r)
+                append!(history, r.history)
+                cycles += r.cycles
+                r.converged && return (result = r, history = history, cycles = cycles)
+            end
+        end
+        report_note!(pr, "  Newton's method did not converge from the coarser grid; $(_cells_text(p)) from the initial state")
+    end
+
+    # From the initial state: plain cycles or Anderson acceleration to
+    # `handover`, then Newton's method. If Newton's method fails or does not
+    # converge from there, Anderson acceleration goes on, from whichever start
+    # changed least, to the next tighter hand-over, and Newton's method tries
+    # again.
+    in_sequence && isnothing(q) && report_note!(pr, "  $(_cells_text(p)): $(_handover_text(handover)), then Newton's method")
+    stages = Any[handover; [h for h in FALLBACK_HANDOVERS if handover isa Integer || h < handover]]
+    x = initial_state(p)
+    for (k, h) in enumerate(stages)
+        last = k == length(stages)
+        plan_phases!(pr, [h isa Integer ? ("Cycles", NaN, "cycle") : ("Anderson", h, "cycle"), ("Newton", tol, "iteration")])
+        loose = h isa Integer ? _plain_cycles(model, x, prm, forces, dt, h, pr; info_level = info_level, kwarg...) :
+            simulate_to_cyclic_steady_state(model, x, prm, forces, dt; tol = h, max_cycles = max_cycles,
+                progress = pr, info_level = info_level, kwarg...)
+        append!(history, loose.history)
+        cycles += loose.cycles
+        r = try
+            newton_cyclic_steady_state(model, loose.state0, prm, forces, dt; tol = tol, max_iterations = 30,
+                krylov = krylov, progress = pr, info_level = info_level, kwarg...)
+        catch e
+            (_is_solver_failure(e) && !last) || rethrow()
+            @debug "Newton's method failed" exception = (e, catch_backtrace())
+            nothing
+        end
+        if !isnothing(r)
+            append!(history, r.history)
+            cycles += r.cycles
+        end
+        (last || r.converged) && return (result = r, history = history, cycles = cycles)
+        x = isnothing(r) || isempty(loose.history) || r.history[end] >= loose.history[end] ? loose.state0 : r.state0
+        report_note!(pr, "  Newton's method " * (isnothing(r) ? "failed" : "did not converge") *
+            " from " * _handover_text(h) * "; Anderson acceleration on to $(_sci(stages[k + 1])), then Newton's method again")
+    end
+end
+
+# The same process with half as many cells (rounded up) in every bed, if any
+# bed has more than `coarse_cells`; nothing if not, or if the process cannot
+# be built on fewer cells (a bed added without add_bed!, or a parameter set
+# per cell). Settings made through the constructor, the design variables, the
+# feed or the steps carry over; the coarse grid only gives a start, so a
+# setting that does not changes the time taken, not the steady state.
+function _coarse_copy(p::Process, coarse_cells)
+    (isnothing(coarse_cells) || coarse_cells === false) && return nothing
+    fs = p.flowsheet
+    bs = beds(fs)
+    (isempty(bs) || !all(b -> haskey(fs.specs, b), bs)) && return nothing
+    maximum(b -> fs.specs[b].ncells, bs) > coarse_cells || return nothing
+    coarse = deepcopy(fs)
+    for b in bs
+        spec = coarse.specs[b]
+        spec.ncells = max(cld(spec.ncells, 2), 2)
+        network(coarse).units[b] = fixed_bed_model(coarse.gas, coarse.feed, spec.adsorbent, spec.column; ncells = spec.ncells,
+            thermal = spec.thermal, dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion,
+            permeability = spec.permeability)
+    end
+    o = p.options
+    q = try
+        Process(coarse, p.cycle; name = p.name, timestepping = p.timestepping, key_component = o.key_component,
+            ambient_pressure = o.ambient_pressure, pump_efficiency = o.pump_efficiency, heat_capacity_ratio = o.heat_capacity_ratio,
+            ramp_rate = o.ramp_rate, initial_state = p.initial_conditions, parameters = p.parameter_settings)
+    catch e
+        e isa Union{MoccaInputError, DimensionMismatch} || rethrow()
+        @debug "No coarser copy of the process" exception = (e, catch_backtrace())
+        return nothing
+    end
+    # The same time steps: the same design variables decide whether a
+    # duration stretches the pattern of the steps
+    append!(q.variables, p.variables)
+    q.reference_durations = p.reference_durations
+    return q
+end
+
+# The coarser grids _newton_steady_state goes through, coarsest first
+function _coarse_grids(p::Process, coarse_cells)
+    grids = Process[]
+    q = _coarse_copy(p, coarse_cells)
+    while !isnothing(q)
+        pushfirst!(grids, q)
+        q = _coarse_copy(q, coarse_cells)
+    end
+    return grids
+end
+
+function _cells_text(p::Process)
+    n = [p.flowsheet.specs[b].ncells for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
+    isempty(n) && return "the grid"
+    allequal(n) && return "$(first(n)) cells" * (length(n) > 1 ? " per bed" : "")
+    return join(["$b $(p.flowsheet.specs[b].ncells)" for b in beds(p.flowsheet)], ", ") * " cells"
+end
+
+# The state `x` of the same process on another grid (see _coarse_copy), as a
+# start for `p`: each variable of a unit with holdup interpolated linearly,
+# cell centre to cell centre, along its uniform cells (mole fractions stay
+# normalised, as their weights add up to one); a unit on the same cells is
+# taken as it is
+function _interpolate_state(p::Process, x)
+    out = initial_state(p)
+    for u in holdup_units(p.flowsheet), k in keys(p.model[u].primary_variables)
+        xc, xf = x[u][k], out[u][k]
+        if size(xc) == size(xf)
+            xf .= xc
+            continue
+        end
+        nc, nf = size(xc, ndims(xc)), size(xf, ndims(xf))
+        for i in 1:nf
+            s = (i - 0.5) / nf * nc + 0.5
+            j = clamp(floor(Int, s), 1, nc - 1)
+            w = clamp(s - j, 0.0, 1.0)
+            if xf isa AbstractMatrix
+                xf[:, i] .= (1 - w) .* xc[:, j] .+ w .* xc[:, j + 1]
+            else
+                xf[i] = (1 - w) * xc[j] + w * xc[j + 1]
+            end
+        end
+    end
+    return restart_state(p.model, out)
+end
+
+_handover_text(h::Integer) = "$h plain $(_plural("cycle", h))"
+_handover_text(h) = "Anderson acceleration to $(_sci(h))"
+
+# `n` cycles from `x`, each from the end of the last, to start Newton's method
+# from: the fast modes have died out after a few, and Newton's method does the
+# rest
+function _plain_cycles(model, x, prm, forces, dt, n, pr; info_level = -1, kwarg...)
+    start_phase!(pr, "Cycles"; tol = NaN, estimate = false)
+    history = Float64[]
+    for k in 1:n
+        states, ts = simulate_process(MoccaCase(model, dt, forces; state0 = x, parameters = prm);
+            info_level = info_level, output_substates = true, kwarg...)
+        (!isempty(ts) && isapprox(sum(ts), sum(dt))) || throw(SimulationFailure("simulation of cycle $k failed"))
+        x_end = restart_state(model, states[end])
+        push!(history, cycle_change(model, x, x_end))
+        report_cycle!(pr, k, history[end]; fraction = k / n)
+        x = x_end
+    end
+    finish_phase!(pr, n, true)
+    return (state0 = x, history = history, cycles = n)
 end
 
 # ------------------------------------------------------------------------------

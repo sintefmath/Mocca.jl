@@ -307,113 +307,409 @@ function _holdup_dofs(model::Jutul.MultiModel, map)
 end
 _holdup_dofs(model::Jutul.SimulationModel, map) = collect(1:sum(info -> info.n_x, values(map)))
 
+# Forward (tangent) sensitivities of the cycle simulated in `states`: the
+# products ∂Φ/∂x · V of the cycle map with the columns of V, in Jutul's
+# vectorised order of the primary variables (that of the initial state
+# sensitivities). The change of the start carries through each step n as
+#
+#     ∂Rₙ/∂xₙ dxₙ = −∂Rₙ/∂xₙ₋₁ dxₙ₋₁,
+#
+# with the Jacobians of the steps as simulated: those of a forward simulator,
+# and of one in reverse mode for the dependence on the previous state. Each
+# step is assembled and factorised once, on the first product, and kept, so
+# that a block of columns, and every later product, costs only the solves.
+# Jutul's linear systems are in units of each variable's scale. (Adjoints give
+# products with the transpose instead, one sweep each, which suits a row of
+# ∂Φ/∂x or the transposed system of cyclic_steady_state_gradient, but not
+# GMRES on the Newton system.)
+function _state_tangent(model, x0, parameters, states, dt, forces)
+    fsim = Jutul.Simulator(model; state0 = deepcopy(x0), parameters = deepcopy(parameters), mode = :forward, extra_timing = nothing)
+    bsim = Jutul.Simulator(model; state0 = deepcopy(x0), parameters = deepcopy(parameters), mode = :reverse, extra_timing = nothing)
+    vmap, = Jutul.variable_mapper(model, :primary)
+    unit = ones(length(Jutul.vectorize_variables(model, x0, vmap)))
+    _fill_variable_scale!(unit, model, vmap)
+    packed = Jutul.AdjointPackedResult(states, dt, forces)
+    steps = nothing
+    function assemble()
+        return map(eachindex(dt)) do i
+            info = packed[i].step_info
+            s0 = i == 1 ? x0 : states[i - 1]
+            Jutul.adjoint_reassemble!(fsim, states[i], s0, info[:dt], forces[i], info[:time])
+            Jutul.adjoint_reassemble!(bsim, states[i], s0, info[:dt], forces[i], info[:time])
+            (lu(fsim.storage.LinearizedSystem.jac), copy(bsim.storage.LinearizedSystem.jac))
+        end
+    end
+    function tangent(V)
+        isnothing(steps) && (steps = assemble())
+        D = V ./ unit
+        for (F, B) in steps
+            D = -(F \ (B * D))
+        end
+        return D .* unit
+    end
+    return (tangent, vmap)
+end
+
+_fill_variable_scale!(s, model::Jutul.MultiModel, map) =
+    foreach(k -> _fill_variable_scale!(s, model[k], map[k]), Jutul.submodels_symbols(model))
+function _fill_variable_scale!(s, model::Jutul.SimulationModel, map)
+    for info in values(map)
+        isnothing(info.scale) || (s[info.offset_x .+ (1:info.n_x)] .= info.scale)
+    end
+    return s
+end
+
+# Scale of each of `dofs`, as the cycle change measures it: the largest
+# magnitude of its variable in `x`, per component for mole fractions and
+# loadings, at least the variable's floor
+function _dof_scale(model, x, map, dofs)
+    s = deepcopy(x)
+    for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
+        v = _unit_state(s, k)[p]
+        sc = _variable_scale(m, p, v)
+        v .= v isa AbstractMatrix ? repeat(sc, 1, size(v, 2)) : sc
+    end
+    return Jutul.vectorize_variables(model, s, map)[dofs]
+end
+
 """
     newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-10, max_iterations = 10, progress = false, info_level = -1, kwarg...)
+        tol = 1e-10, max_iterations = 10, krylov = :auto, growth = 100, max_backtracks = 6,
+        keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
 
-Converge a cyclic steady state with Newton's method, from a `state0` near it.
+Converge a cyclic steady state with Newton's method from `state0`, such as the
+end of a few plain cycles.
 The cycle, given by its `forces` and `timesteps`, maps its initial state `x` to
 its final state `Φ(x)`, and each iteration solves
 
     (I − ∂Φ/∂x) δ = Φ(x) − x,   x ← x + δ.
 
-The Jacobian `∂Φ/∂x` is found row by row with adjoints over the cycle, one for
-each primary variable of the units with holdup. That is costly for large
-models, but convergence is quadratic, so a few iterations reach a steady state
-far tighter than [`simulate_to_cyclic_steady_state`](@ref) can, which needs
-many cycles when the slowest mode of the cycle decays slowly. Start it from the
-`state0` of a loosely converged `simulate_to_cyclic_steady_state` (`tol` of
-`1e-3` to `1e-4`), and start each stage with short steps (`first_dt` in
+Products with `∂Φ/∂x` are forward sensitivities over the cycle as simulated:
+a change in the start carried through the linearised steps. Each step is
+assembled and factorised once, so that many products cost little more than
+one. Convergence is quadratic, so a few iterations reach a steady state far
+tighter than [`simulate_to_cyclic_steady_state`](@ref) can, which needs many
+cycles when the slowest mode of the cycle decays slowly. A rough start is
+enough, once a few plain cycles have let the fastest modes die out: the
+control of the steps described below does the rest. Start each stage with short steps (`first_dt` in
 [`setup_schedule`](@ref)) so that the cycle map is smooth; see
 [`cyclic_steady_state_gradient`](@ref).
 
-With `jacobian`, the `jacobian` returned by an earlier call (for example for
+With `krylov = false` the Jacobian `∂Φ/∂x` is built in full, one column for
+each primary variable of the units with holdup, in one sweep over the cycle. With `jacobian`, the `jacobian` returned by an earlier call (for example for
 slightly different settings, as in an optimisation), the iterations start
 from it instead of building one, and improve it with a Broyden update from
 each iteration's step and change in residual (a quasi-Newton method), each
-costing one cycle instead of one adjoint per variable. The Jacobian is
+costing one cycle. The Jacobian is
 rebuilt whenever an iteration reduces the cycle change by less than a factor
 `1/refresh_ratio`.
 
+With `krylov = true` the Jacobian is never built: each iteration solves for
+the step with GMRES (Jacobian-free Newton–Krylov), with one forward
+sensitivity per GMRES iteration, to a relative residual that tightens with
+the cycle change. GMRES needs about as many products as the cycle has modes
+that do not die out within a cycle, so this is cheaper than the full
+Jacobian when there are many more variables than slow modes. The products
+also give an approximation of the Jacobian on the directions GMRES explored,
+which preconditions the later iterations and is returned as `jacobian`; a
+`jacobian` given preconditions the first. At most `max_products` products
+are taken per iteration (by default, the number of variables). With
+`krylov = :auto` (the default), GMRES is used when the units with holdup
+have more than 800 primary variables (a bed of about 130 cells with two
+components, 100 with three), and the full Jacobian otherwise; `krylov = n`
+sets that number of variables to `n` instead.
+
+Far from the steady state the full step can overshoot: the slow modes of the
+cycle make it long. Each step is tried, and taken if the cycle simulates from
+it and the norm of the residual `Φ(x) − x` (in the units of the cycle change)
+is less than `growth` times that of the best iterate so far. A Newton step often raises the residual of a
+few cells before the next one converges, so only steps that make it much
+worse are cut back: a quasi-Newton step first gets a new Jacobian, then the
+step is shortened, from a quadratic fit of the residual along it, or to a
+quarter if the cycle failed to simulate, up to `max_backtracks` times. If no
+step is accepted the next iteration starts from the end of the cycle, as a
+plain cycle would. The cycle simulated for an accepted step is that of the
+next iteration, so a full step costs no extra cycle.
+
+Where the solver has to cut a time step can depend on where the cycle
+starts, and a cut that comes and goes between nearby starts makes the cycle
+map jump by about the time-stepping error, which near the steady state is
+far more than the change left (on the wet LPP VSA, a few steps at the start
+of pressurisation from vacuum). Once the cycle change is below
+`keep_steps_below`, every later cycle therefore takes the steps of that
+iteration's cycle, cuts included (and adds any further cut it needs), so
+that the map is smooth. The steady state found is that of those steps, which
+differ from the steps given only where the solver cut them.
+
 Stops when the [`cycle_change`](@ref) is below `tol`. With `progress`
 (`true`, an `IO` or a [`CycleProgress`](@ref)), each iteration is printed with
-its cycle change, and the building of each Jacobian with its adjoints. Returns the same fields
+its cycle change and its step if shortened, and each Jacobian built, GMRES
+solve or step rejected. Returns the same fields
 as `simulate_to_cyclic_steady_state`, with `cycles` counting the iterations,
-plus `jacobian`, the last Jacobian used (as the inverse of `I − ∂Φ/∂x`), and
-`jacobian_builds`, how many were built. Extra keywords go to
+plus `jacobian`, the last Jacobian used (as the inverse of `I − ∂Φ/∂x`),
+`jacobian_builds`, how many were built, `products`, the number of GMRES
+products, `trials`, the number of steps rejected, and `fallbacks`, the
+iterations that fell back to a plain cycle. Extra keywords go to
 `setup_process_simulator`.
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, progress = false, info_level = -1, kwarg...)
+        tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, krylov = :auto, max_products = nothing,
+        max_backtracks = 6, growth = 100.0, keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
+    krylov = _use_krylov(model, krylov)
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, "Newton"; tol = tol, noun = "iteration", estimate = false)
     x = restart_state(model, state0)
     history = Float64[]
-    states = dt = nothing
     J = isnothing(jacobian) ? nothing : (M = copy(jacobian.M), dofs = jacobian.dofs, map = jacobian.map)
-    builds = 0
+    builds = products = trials = fallbacks = 0
     previous = nothing
+    note() = _jacobian_note(builds, products, jacobian; trials = trials, fallbacks = fallbacks)
+    # The steps of the cycles. Where the solver has to cut a step depends on
+    # where the cycle starts, so near the steady state a cut that comes and
+    # goes between nearby starts makes the cycle map jump, by about the error
+    # of the time stepping, far more than the change left. Once the cycle
+    # change is below `keep_steps_below`, Newton's method keeps the steps of
+    # its cycle, cuts included, for every later cycle (adding any further
+    # cut), so that the map it works with is smooth. Further away, the cuts
+    # differ from those at the steady state, so the steps given are used.
+    sched_forces, sched_dt = forces, timesteps
+    sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+    step = 1.0
+    # Residual Φ(x) − x of the best iterate so far, for the step control
+    best = nothing
     for it in 0:max_iterations
-        states, dt, step_forces = _simulate_steps(model, x, parameters, forces, timesteps; kwarg...)
+        states, dt, step_forces = sim
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
-        report_cycle!(pr, it, history[end])
+        report_cycle!(pr, it, history[end]; note = step < 1 ? (step == 0 ? "plain cycle" : "step $(_sci(step))") : "")
+        if history[end] < keep_steps_below && length(dt) > length(sched_dt)
+            sched_dt, sched_forces = dt, step_forces
+        end
         if history[end] < tol
-            finish_phase!(pr, it, true; note = _jacobian_note(builds, jacobian))
+            finish_phase!(pr, it, true; note = note())
             return (states = states, timesteps = dt, state0 = x, history = history, cycles = it, converged = true,
-                jacobian = J, jacobian_builds = builds)
+                jacobian = J, jacobian_builds = builds, products = products, trials = trials, fallbacks = fallbacks)
         end
         it == max_iterations && break
-        stalled = it > 0 && history[end] > refresh_ratio * history[end - 1]
-        if isnothing(J) || stalled
-            J = _cycle_jacobian(model, x, parameters, states, dt, step_forces; progress = pr)
-            builds += 1
-            previous = nothing
+        fresh = false
+        function direction()
+            if krylov
+                tangent, vmap = _state_tangent(model, x, parameters, states, dt, step_forces)
+                dofs = isnothing(J) ? _holdup_dofs(model, vmap) : J.dofs
+                z0 = Jutul.vectorize_variables(model, x, vmap)
+                r = Jutul.vectorize_variables(model, x_end, vmap)[dofs] .- z0[dofs]
+                # Relative residual of the linear solve: enough that the next
+                # change is about the square of this one, or a tenth of `tol`
+                c = history[end]
+                rtol = clamp(max(c, 0.1 * tol / c), 1e-12, 1e-2)
+                itmax = something(max_products, length(dofs))
+                δ, M, n_products = _krylov_step(tangent, length(z0), isnothing(J) ? nothing : J.M, dofs, r,
+                    _dof_scale(model, x, vmap, dofs), rtol, itmax, pr)
+                products += n_products
+                J = (M = M, dofs = dofs, map = vmap)
+                fresh = true
+                return δ
+            end
+            stalled = it > 0 && history[end] > refresh_ratio * history[end - 1]
+            if isnothing(J) || stalled || fresh === :rebuild
+                J = _cycle_jacobian(model, x, parameters, states, dt, step_forces; progress = pr)
+                builds += 1
+                previous = nothing
+                fresh = true
+            end
+            z0 = Jutul.vectorize_variables(model, x, J.map)
+            r = Jutul.vectorize_variables(model, x_end, J.map)[J.dofs] .- z0[J.dofs]
+            if !isnothing(previous)
+                # Good Broyden update of M ≈ (I − ∂Φ/∂x)⁻¹ from the last step s and
+                # the change y in the residual Φ(x) − x, for which M y ≈ −s
+                s_k = z0[J.dofs] .- previous.z
+                y_k = r .- previous.r
+                sM = J.M' * s_k
+                denom = dot(sM, y_k)
+                abs(denom) > eps() * norm(sM) * norm(y_k) && (J.M .-= (s_k .+ J.M * y_k) * sM' ./ denom)
+            end
+            previous = (z = z0[J.dofs], r = r)
+            return J.M * r
         end
+        δ = direction()
         z0 = Jutul.vectorize_variables(model, x, J.map)
         z1 = Jutul.vectorize_variables(model, x_end, J.map)
+        # The residual measured in the units of the cycle change; the Newton
+        # step reduces its norm at a unit rate
+        scale = _dof_scale(model, x, J.map, J.dofs)
         r = z1[J.dofs] .- z0[J.dofs]
-        if !isnothing(previous)
-            # Good Broyden update of M ≈ (I − ∂Φ/∂x)⁻¹ from the last step s and
-            # the change y in the residual Φ(x) − x, for which M y ≈ −s
-            s_k = z0[J.dofs] .- previous.z
-            y_k = r .- previous.r
-            sM = J.M' * s_k
-            denom = dot(sM, y_k)
-            abs(denom) > eps() * norm(sM) * norm(y_k) && (J.M .-= (s_k .+ J.M * y_k) * sM' ./ denom)
+        merit0 = norm(r ./ scale)
+        # Steps are measured against the best iterate so far, in this one's
+        # scale, so that growth cannot compound from one step to the next
+        merit_best = isnothing(best) ? Inf : norm(best ./ scale)
+        merit0 <= merit_best && (best = r)
+        reference = min(merit0, merit_best)
+        function trial(t)
+            # The devices start from the end of the cycle
+            z = copy(z1)
+            z[J.dofs] .= z0[J.dofs] .+ t .* δ
+            xt = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
+            simt = try
+                _simulate_steps(model, xt, parameters, sched_forces, sched_dt; kwarg...)
+            catch e
+                Framework._is_solver_failure(e) || rethrow()
+                return (x = xt, sim = nothing, merit = Inf, change = Inf)
+            end
+            zt = Jutul.vectorize_variables(model, xt, J.map)
+            xe = restart_state(model, simt[1][end])
+            ze = Jutul.vectorize_variables(model, xe, J.map)
+            return (x = xt, sim = simt, merit = norm((ze[J.dofs] .- zt[J.dofs]) ./ scale), change = cycle_change(model, xt, xe))
         end
-        previous = (z = z0[J.dofs], r = r)
-        # The devices start from the end of the cycle
-        z = copy(z1)
-        z[J.dofs] .= z0[J.dofs] .+ J.M * r
-        x = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
+        # Line search: take the full step if it reduces the residual enough
+        # (Armijo), or reaches `tol`. Otherwise a quasi-Newton step first gets
+        # a new Jacobian, then the step is cut, from a quadratic fit of the
+        # residual along it, or to a quarter if the cycle failed to simulate
+        t = 1.0
+        accepted = nothing
+        for k in 0:max_backtracks
+            a = trial(t)
+            @debug "Newton step" it t ratio = a.merit / merit0 change = a.change
+            if isfinite(a.merit) && (a.change < tol || a.merit <= growth * reference)
+                accepted = a
+                break
+            end
+            trials += 1
+            count_cycle!(pr)
+            why = isfinite(a.merit) ? "residual $(_sci(a.merit / merit0))× the last" : "the cycle failed to simulate"
+            if !krylov && !fresh
+                report_status!(pr, "step rejected ($why), rebuilding the Jacobian"; persist = true)
+                fresh = :rebuild
+                δ = direction()
+                continue
+            end
+            k == max_backtracks && break
+            t_next = isfinite(a.merit) ? t^2 * merit0^2 / (a.merit^2 - merit0^2 + 2t * merit0^2) : t / 4
+            report_status!(pr, "step $(_sci(t)) rejected ($why)"; persist = true)
+            t = clamp(t_next, t / 10, t / 2)
+        end
+        if isnothing(accepted)
+            # Every step tried failed: start the next iteration from the end of
+            # this cycle, as a plain cycle would
+            fallbacks += 1
+            report_status!(pr, "no step accepted; continuing from the end of the cycle"; persist = true)
+            x = x_end
+            sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+            step = 0.0
+            previous = nothing
+        else
+            x, sim, step = accepted.x, accepted.sim, t
+        end
     end
-    finish_phase!(pr, max_iterations, false; note = _jacobian_note(builds, jacobian))
-    return (states = states, timesteps = dt, state0 = x, history = history, cycles = max_iterations, converged = false,
-        jacobian = J, jacobian_builds = builds)
+    finish_phase!(pr, max_iterations, false; note = note())
+    return (states = sim[1], timesteps = sim[2], state0 = x, history = history, cycles = max_iterations, converged = false,
+        jacobian = J, jacobian_builds = builds, products = products, trials = trials, fallbacks = fallbacks)
 end
 
-function _jacobian_note(builds, given)
-    builds == 0 && return isnothing(given) ? "" : "Jacobian reused"
-    return "$builds $(builds == 1 ? "Jacobian" : "Jacobians") built" * (isnothing(given) ? "" : " (the one given went stale)")
+function _jacobian_note(builds, products, given; trials = 0, fallbacks = 0)
+    if products > 0
+        note = "$products GMRES $(_plural("product", products))"
+    elseif builds == 0
+        note = isnothing(given) ? "" : "Jacobian reused"
+    else
+        note = "$builds $(builds == 1 ? "Jacobian" : "Jacobians") built" * (isnothing(given) ? "" : " (the one given went stale)")
+    end
+    trials > 0 && (note *= ", $trials $(_plural("step", trials)) rejected")
+    fallbacks > 0 && (note *= ", $fallbacks plain $(_plural("cycle", fallbacks))")
+    return note
 end
+
+# Holdup variables above which `krylov = :auto` solves Newton's steps by
+# GMRES. GMRES needs about as many products as the cycle has slow modes,
+# which grow far more slowly than the variables, while the full Jacobian
+# costs a column per variable. Below this the two cost about the same per
+# iteration, and which needs fewer iterations varies from grid to grid; the
+# exact steps of the full Jacobian won on the wet LPP VSA at 80 cells (640
+# variables) and GMRES on every grid from 960 variables, in cold solves of
+# the four-stage and wet LPP VSAs on 30 to 320 cells
+const KRYLOV_VARIABLES = 800
+
+# Whether Newton's method on `model` solves its steps by GMRES: `krylov` if
+# true or false; with `:auto`, or a number of variables, whether the units
+# with holdup have more primary variables than that (KRYLOV_VARIABLES)
+function _use_krylov(model, krylov)
+    krylov isa Bool && return krylov
+    n = krylov === :auto ? KRYLOV_VARIABLES : krylov
+    n isa Integer || throw(ArgumentError("krylov must be true, false, :auto or a number of variables, got $(repr(krylov))"))
+    return _holdup_count(model) > n
+end
+
+_holdup_count(model) = length(_holdup_dofs(model, first(Jutul.variable_mapper(model, :primary))))
 
 # Jacobian ∂Φ/∂x of the cycle with respect to the initial state of the units
-# with holdup, row by row from adjoints, returned as M = (I − ∂Φ/∂x)⁻¹
+# with holdup, a column per variable from one sweep of forward sensitivities,
+# returned as M = (I − ∂Φ/∂x)⁻¹
 function _cycle_jacobian(model, x, parameters, states, dt, forces; progress = nothing)
-    sensitivity, map, = _state_adjoint(model, x, parameters, states, dt, forces)
+    tangent, map = _state_tangent(model, x, parameters, states, dt, forces)
     dofs = _holdup_dofs(model, map)
     n = length(dofs)
-    A = zeros(n, n)
-    w = zeros(length(Jutul.vectorize_variables(model, x, map)))
-    report_status!(progress, "building the Jacobian from $n adjoints"; persist = true)
-    for (r, i) in enumerate(dofs)
-        report_status!(progress, "building the Jacobian: adjoint $r of $n")
-        w .= 0
-        w[i] = 1
-        A[r, :] .= sensitivity(_CycleObjective(nothing, copy(w), map))[dofs]
+    report_status!(progress, "building the Jacobian from $n forward sensitivities over $(length(dt)) steps"; persist = true)
+    E = zeros(length(Jutul.vectorize_variables(model, x, map)), n)
+    for (c, i) in enumerate(dofs)
+        E[i, c] = 1
     end
+    A = tangent(E)[dofs, :]
     return (M = inv(Matrix{Float64}(I, n, n) .- A), dofs = dofs, map = map)
+end
+
+# One Newton step δ from (I − ∂Φ/∂x) δ = r on `dofs`, by GMRES with forward
+# sensitivities, in variables divided by `scale` so that the residual norm
+# weighs them as the cycle change does. `M`, an approximation of
+# (I − ∂Φ/∂x)⁻¹, preconditions it. Returns δ, M updated with the products, and
+# the number of products.
+function _krylov_step(tangent, n_full, M, dofs, r, scale, rtol, itmax, progress)
+    n = length(dofs)
+    w = zeros(n_full)
+    U = Vector{Float64}[]
+    JU = Vector{Float64}[]
+    b = r ./ scale
+    function apply!(y, v)
+        w[dofs] .= v .* scale
+        jv = tangent(w)[dofs] ./ scale
+        push!(U, copy(v))
+        push!(JU, jv)
+        y .= v .- jv
+        return y
+    end
+    function status(solver)
+        ρ = solver.stats.residuals
+        report_status!(progress, "GMRES: product $(length(U)), residual $(_sci(ρ[end] / ρ[1])) → $(_sci(rtol))")
+        return false
+    end
+    op = Jutul.LinearOperators.LinearOperator(Float64, n, n, false, false, apply!)
+    # In scaled variables, M becomes S⁻¹ M S
+    Ms = isnothing(M) ? Matrix{Float64}(I, n, n) : M .* (scale .\ scale')
+    precond = isnothing(M) ? (ldiv = false,) :
+        (N = Jutul.LinearOperators.LinearOperator(Float64, n, n, false, false, (y, v) -> mul!(y, Ms, v)), ldiv = false)
+    δs, stats = Jutul.Krylov.gmres(op, b; rtol = rtol, atol = 0.0, itmax = itmax, memory = itmax, history = true, callback = status, precond...)
+    res = stats.residuals[end] / stats.residuals[1]
+    report_status!(progress, "GMRES: $(length(U)) $(_plural("product", length(U))), residual reduced to $(_sci(res))" *
+        (stats.solved ? "" : " (not converged, $(stats.status))"); persist = true)
+    isempty(U) || _multisecant_update!(Ms, reduce(hcat, U), reduce(hcat, JU))
+    return (δs .* scale, Ms .* (scale ./ scale'), length(U))
+end
+
+# Update M ≈ (I − J)⁻¹ in place so that it maps (I − J) U to U for the columns
+# of U, with JU = J·U, and is unchanged on what is orthogonal to M'U: the
+# multisecant form of the good Broyden update. From M = I it is the inverse of
+# I − J restricted to the span of U, J taken as zero elsewhere.
+function _multisecant_update!(M, U, JU)
+    # An orthonormal basis of the directions, and J on it
+    F = svd(U)
+    keep = F.S .> 1e-10 * F.S[1]
+    T = F.V[:, keep] ./ F.S[keep]'
+    Q, JQ = U * T, JU * T
+    Z = Q .- JQ
+    MZ = M * Z
+    QM = Q' * M
+    C = QM * Z
+    cond(C) < 1e12 || return M
+    M .+= (Q .- MZ) * (C \ QM)
+    return M
 end
 
 """

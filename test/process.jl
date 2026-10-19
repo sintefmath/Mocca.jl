@@ -185,6 +185,19 @@ end
     @test length(lines) == 3 && all(contains("Anderson"), lines)
     @test !contains(out, "\e") && !any(startswith("  Newton"), lines)
     @test contains(lines[end], "done, on to Newton")
+
+    # A phase without a target, such as a set number of plain cycles, shows
+    # its change and a bar of the cycles done
+    io = IOBuffer()
+    pr = Mocca.CycleProgress(io; live = false)
+    O.plan_phases!(pr, [("Cycles", NaN, "cycle"), ("Newton", 1e-9, "iteration")])
+    O.start_phase!(pr, "Cycles"; tol = NaN, estimate = false)
+    O.report_cycle!(pr, 1, 0.3; fraction = 1 / 3)
+    O.finish_phase!(pr, 3, true)
+    lines = split(String(take!(io)), '\n'; keepempty = false)
+    @test contains(lines[1], "change 3.0e-01 ") && contains(lines[1], " 33%") && !contains(lines[1], "→")
+    @test contains(lines[end], "3 cycles") && contains(lines[end], "done, on to Newton")
+    @test !any(contains("NaN"), lines)
     @test isnothing(O.cycle_progress(false))
 end
 

@@ -12,9 +12,10 @@
 - **Progress of the cyclic steady state.** `cyclic_steady_state` prints each
   cycle as it runs: the cycle count, the change over the cycle against the
   tolerance, a bar of how far it has come, and an estimate of the cycles and
-  time left. Each phase has its own line and bar: Anderson acceleration to
-  `1e-3` and then Newton's method to the tolerance, or the mass balance. In a
-  terminal the lines are drawn together and rewritten in place. It is on by
+  time left. Each phase has its own line and bar: the plain cycles and then
+  Newton's method, with each Jacobian or GMRES solve as it goes and each grid
+  of a grid sequence, or the mass balance. In a terminal the lines are drawn
+  together and rewritten in place. It is on by
   default in an interactive session and set with `progress`, which the
   solvers `simulate_to_cyclic_steady_state`, `newton_cyclic_steady_state` and
   `simulate_until_mass_balance` also take. Newton's method no longer prints
@@ -22,6 +23,42 @@
 
 ### Changed
 
+- **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
+  (with the default `method = :newton`) now starts Newton's method after
+  `handover = 3` plain cycles, instead of after Anderson acceleration to a
+  cycle change of `1e-3`, which was most of the time of a cold solve.
+  `newton_cyclic_steady_state` controls its steps: a step from which the
+  cycle fails to simulate, or that makes the change more than `growth` (100)
+  times larger, is cut back, up to `max_backtracks` (6) times. If Newton's
+  method fails or does not converge, Anderson acceleration goes on to `1e-1`
+  and then `1e-3`, and Newton's method tries again from each. `handover = 1e-3`
+  gives the earlier behaviour. Cold solves to `1e-9` on 10 cells: the
+  four-stage VSA in 4 s instead of 26 s, the wet flue gas LPP VSA in 30 s
+  instead of 437 s, and the wet flue gas dual-adsorbent VSA in 37 s, where it
+  failed before.
+- **Cycle Jacobian from forward sensitivities.** Newton's method builds the
+  Jacobian of the cycle in one forward sweep over the cycle, every column at
+  once, instead of one adjoint per variable of the beds. A Jacobian takes
+  about as long as a cycle: Newton's method on the four-stage VSA takes 1.3 s
+  instead of 26 s on 10 cells, and 3.3 s instead of 120 s on 30 cells.
+- **GMRES on fine grids (`krylov`).** `newton_cyclic_steady_state` and
+  `cyclic_steady_state` can solve each Newton step by GMRES, one forward
+  sensitivity per product, without building the Jacobian. The default,
+  `krylov = :auto`, does so on grids whose beds have more than 800 variables
+  (a bed of about 130 cells with two components) and builds the full
+  Jacobian below; `krylov = true` or `false` fixes the choice, and
+  `krylov = n` moves the threshold to `n` variables.
+- **Grid sequencing.** On a bed of more than `coarse_cells = 40` cells,
+  `cyclic_steady_state` first finds the steady state on beds of half as many
+  cells, down to 40 or fewer, and starts each finer grid from the coarser
+  one's steady state, interpolated. The wet flue gas LPP VSA on 160 cells now
+  converges cold in about 3 minutes, where Newton's method stalled for over
+  50 minutes before. `coarse_cells = nothing` starts every grid from its
+  initial state.
+- **Kept time steps near the steady state.** Once the cycle change is below
+  `keep_steps_below` (`1e-3`), Newton's method keeps the time steps of its
+  cycle, including any the solver cut, for every later cycle, so that the
+  cycle map it works with is smooth.
 - **Submodules.** The source is split into one submodule per layer
   (`Mocca.Framework`, `Mocca.Physics`, `Mocca.Balances`, `Mocca.Devices`,
   `Mocca.FixedBeds`, `Mocca.Networks`, `Mocca.Operation`, `Mocca.Interface`),

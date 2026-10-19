@@ -68,6 +68,7 @@ report_cycle!(::Nothing, args...; kwarg...) = nothing
 report_status!(::Nothing, args...; kwarg...) = nothing
 finish_phase!(::Nothing, args...; kwarg...) = nothing
 report_note!(::Nothing, args...) = nothing
+count_cycle!(::Nothing) = nothing
 finish_progress!(::Nothing, args...) = nothing
 
 """
@@ -90,7 +91,8 @@ end
     start_phase!(pr, name; tol, noun = "cycle", measure = "change", estimate = true)
 
 Start a phase `name` that runs until its `measure` is below `tol`, counting
-in `noun`s, with an estimate of the number left if `estimate`. It takes the
+in `noun`s, with an estimate of the number left if `estimate`. A phase with
+`tol = NaN` has no target, such as a set number of cycles. It takes the
 next line of the plan if that is `name`, and otherwise plans it on its own.
 """
 function start_phase!(pr::CycleProgress, name; tol, noun = "cycle", measure = "change", estimate = true)
@@ -120,7 +122,8 @@ function report_cycle!(pr::CycleProgress, n, value; left = nothing, fraction = n
     pr.cycles += 1
     left = isnothing(left) && pr.estimate ? _cycles_to_reach(pr.values, pr.tol) : left
     frac = something(fraction, _log_fraction(pr.values, pr.tol))
-    parts = [_phase_columns(pr, pr.current, "$(pr.noun) $(lpad(n, 3))", "$(pr.measure) $(_sci(value)) → $(_sci(pr.tol))", frac)]
+    target = isnan(pr.tol) ? "" : " → $(_sci(pr.tol))"
+    parts = [_phase_columns(pr, pr.current, "$(pr.noun) $(lpad(n, 3))", "$(pr.measure) $(_sci(value))" * target, frac)]
     isempty(note) || push!(parts, note)
     if !isnothing(left) && left > 0
         # The last few cycles, as the first ones include compilation
@@ -154,6 +157,14 @@ function report_status!(pr::CycleProgress, message; persist = false)
 end
 
 """
+    count_cycle!(pr)
+
+Count a cycle simulated that is not reported on its own, such as a Newton
+step tried and rejected, in the total at the end.
+"""
+count_cycle!(pr::CycleProgress) = (pr.cycles += 1; pr)
+
+"""
     finish_phase!(pr, n, converged; note = "")
 
 End the current phase after `n` cycles (or iterations): its line says whether
@@ -166,7 +177,7 @@ function finish_phase!(pr::CycleProgress, n, converged; note = "")
     outcome = isnothing(next) ? (converged ? "converged" : "not converged") :
         (converged ? "done, on to $next" : "stopped, on to $next")
     parts = [_phase_columns(pr, k, "$(lpad(n, 3)) $(_plural(pr.noun, n))",
-            "$(pr.measure) $(_sci(value)) $(value < pr.tol ? "<" : "≥") $(_sci(pr.tol))",
+            "$(pr.measure) $(_sci(value))" * (isnan(pr.tol) ? "" : " $(value < pr.tol ? "<" : "≥") $(_sci(pr.tol))"),
             converged ? 1.0 : _log_fraction(pr.values, pr.tol)),
         outcome]
     isempty(note) || push!(parts, note)
@@ -223,7 +234,7 @@ end
 function _waiting_line(pr, k)
     name, tol, noun = pr.plan[k]
     after = k > 1 ? "waiting for $(pr.plan[k - 1][1])" : "starting"
-    return _phase_columns(pr, k, "", "to $(_sci(tol))", 0.0) * "  " * after
+    return _phase_columns(pr, k, "", isnan(tol) ? "" : "to $(_sci(tol))", 0.0) * "  " * after
 end
 
 _plural(noun, n) = n == 1 ? noun : noun * "s"
