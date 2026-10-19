@@ -17,7 +17,7 @@ layer is a plain object that can be edited, saved and reused on its own:
 | Process | [`Process`](@ref): [`simulate`](@ref), [`cyclic_steady_state`](@ref), [`performance`](@ref) |
 | Design | [`add_variable!`](@ref), [`performance_gradient`](@ref), [`optimise!`](@ref) |
 | Files | [`read_process`](@ref), [`write_process`](@ref), [`load_adsorbent`](@ref); see [Process files](@ref) |
-| Results | [`ProcessResult`](@ref), plots; see [Results and plots](@ref) |
+| Results | [`ProcessResult`](@ref), [`write_results`](@ref), plots; see [Results and plots](@ref) |
 
 The [Building a process from its parts](@ref) example uses each layer in turn.
 To add your own kinds of step or unit, see [Extending Mocca](@ref).

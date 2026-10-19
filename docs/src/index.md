@@ -66,9 +66,10 @@ added with [`register_isotherm!`](@ref)).
 | To | Read |
 |---|---|
 | Install Julia and Mocca | [Installation](@ref) |
-| Run, change and save a process step by step | [Getting started](@ref "Quick start: processes from files") |
+| Run, change, export and save a process step by step | [Getting started](@ref) |
 | See the equations solved and how performance is defined | [Model equations](@ref) |
-| Get numbers and plots out of a simulation | [Results and plots](@ref) |
+| Get numbers, plots and spreadsheets out of a simulation | [Results and plots](@ref) |
 | Set up your own gas, adsorbent, column and cycle | [Building a process from its parts](@ref) |
+| Connect several beds | [Two-bed VSA with pressure equalisation](@ref) |
 | Optimise a process | [Optimization of a cyclic process](@ref) |
 | Look up a function, or the process file format | [Reference](@ref), [Process files](@ref) |

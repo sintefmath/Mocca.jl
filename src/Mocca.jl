@@ -44,7 +44,7 @@ export AbstractStep, StepContext, step_settings, end_pressure, register_step!
 export Pressurise, Adsorb, Blowdown, Evacuate, Purge, Equalise, Idle, Concurrent, Cycle, TimeStepping
 export Process, simulate, cyclic_steady_state, performance, initial_state
 export StepPlace, FeedPlace, ParameterPlace, add_variable!, performance_gradient, optimise!, reset_step_pattern!
-export read_process, write_process, load_adsorbent, save_adsorbent, library_adsorbents, library_processes
+export read_process, write_process, write_results, load_adsorbent, save_adsorbent, library_adsorbents, library_processes
 export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorbent_vsa_process, convert_constants
 
 export haghpanah_DCB_input, haghpanah_cyclic_input

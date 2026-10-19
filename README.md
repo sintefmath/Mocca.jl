@@ -9,7 +9,7 @@
 
 To learn more about using Mocca please see the [documentation](https://sintefmath.github.io/Mocca.jl/dev/).
 
-Mocca comes with the four-step VSA process of Haghpanah et al. (2013) on zeolite 13X, a two-bed VSA with pressure equalisation, and the wet flue gas processes of Krishnamurthy et al. (2014), and any number of beds can be connected through valves and flow controllers. The examples include a [breakthrough curve](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl), a [cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/cyclic_vsa_haghpanah_2013_co2_n2.jl), a [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl), [gradients at cyclic steady state](https://github.com/sintefmath/Mocca.jl/blob/main/examples/flowsheet_vsa_gradients.jl), [optimisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [history matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl).
+Mocca comes with the four-step VSA process of Haghpanah et al. (2013) on zeolite 13X, a two-bed VSA with pressure equalisation, and the wet flue gas processes of Krishnamurthy et al. (2014), and any number of beds can be connected through valves and flow controllers. The examples include [getting started](https://github.com/sintefmath/Mocca.jl/blob/main/examples/getting_started.jl) (run a process to cyclic steady state and export the results to a spreadsheet), a [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/process_from_parts.jl), a [breakthrough curve](https://github.com/sintefmath/Mocca.jl/blob/main/examples/breakthrough.jl), a [two-bed VSA with pressure equalisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/two_bed_vsa.jl), the [wet flue gas](https://github.com/sintefmath/Mocca.jl/blob/main/examples/wet_flue_gas_dual_adsorbent_vsa.jl) processes, [gradients at cyclic steady state](https://github.com/sintefmath/Mocca.jl/blob/main/examples/flowsheet_vsa_gradients.jl), [optimisation](https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl) and [history matching](https://github.com/sintefmath/Mocca.jl/blob/main/examples/history_matching.jl).
 
 Temperature swing processes, for example for Direct Air Capture (DAC), are not yet included.
 
@@ -30,7 +30,7 @@ The version in Julia's package registry (0.1.0) has the earlier interface, so in
 # Quick start example
 Run the following code to read the four-step vacuum swing adsorption (VSA)
 process of Haghpanah et al. (2013) from Mocca's library, find its cyclic
-steady state, and measure its performance:
+steady state, measure its performance and export the results:
 
 ```julia
 using Mocca
@@ -40,6 +40,7 @@ process = read_process("haghpanah_2013_four_stage_vsa")
 process[:P_L] = 0.05bar              # a design variable: the evacuation pressure
 result = cyclic_steady_state(process)
 performance(result)                  # purity, recovery, specific energy, productivity
+write_results("base_case", result)   # CSV files for a spreadsheet
 ```
 
 A process is described in layers, each of which can be edited and saved on
@@ -48,10 +49,10 @@ component (`dual_site_langmuir`) and a `Column`; a `Flowsheet` of beds
 (`add_bed!`) and devices with roles (`add_device!`); and a `Cycle` of steps
 (`Pressurise`, `Adsorb`, `Blowdown`, `Evacuate`, `Purge`, `Equalise`, `Idle`,
 or your own). Units are SI; `Mocca.Units` has conversions such as `bar` and
-`kJ_per_mol`. See the [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl)
+`kJ_per_mol`. See the [process built from its parts](https://github.com/sintefmath/Mocca.jl/blob/main/examples/process_from_parts.jl)
 example for a process built from its parts, and the
-[JSON input](https://github.com/sintefmath/Mocca.jl/blob/main/examples/json_input.jl)
-example for the file format.
+[getting started](https://github.com/sintefmath/Mocca.jl/blob/main/examples/getting_started.jl)
+example for exporting results to CSV files and for the process file format.
 
 # Acknowledgements
 
