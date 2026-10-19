@@ -207,7 +207,7 @@ total `pressure` [Pa], `temperature` [K] and gas `composition` (see
 [`composition`](@ref)). Use it to check isotherm data and units.
 """
 function equilibrium_loading(adsorbent::Adsorbent, gas::Gas; pressure, temperature, composition)
-    y = Mocca.composition(gas, composition)
+    y = Interface.composition(gas, composition)
     c = y .* pressure ./ (GAS_CONSTANT * temperature)
     q = compute_equilibrium(isotherm(adsorbent, gas), c, temperature)
     return collect(q) ./ adsorbent.density

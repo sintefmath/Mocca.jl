@@ -7,7 +7,7 @@ const MU = Mocca
 
 # A unit that is not a bed: an isothermal gas tank, a distributed unit with
 # the gas block and nothing else. It only implements what the unit interface
-# asks for (core/unit_interface.jl), so a process holding it checks that the
+# asks for (framework/unit_interface.jl), so a process holding it checks that the
 # flowsheet and process layers do not assume every unit is a bed. `TS` says
 # whether it has the TimeScale parameter the flowsheet requires.
 struct _GasTank{TS} <: MU.DistributedUnit

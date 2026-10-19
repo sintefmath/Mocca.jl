@@ -1,5 +1,3 @@
-__precompile__(true)
-
 module Mocca
 
 export ConstantsStruct, HaghpanahConstants, InfoStruct
@@ -49,81 +47,26 @@ export StepPlace, FeedPlace, ParameterPlace, add_variable!, performance_gradient
 export read_process, write_process, load_adsorbent, save_adsorbent, library_adsorbents, library_processes
 export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorbent_vsa_process, convert_constants
 
+export haghpanah_DCB_input, haghpanah_cyclic_input
+
 import Jutul
 import Jutul: simulate
-import JSON
-using LinearAlgebra
-using StaticArrays
 
-import Jutul: JutulCase
+# Each module only uses the modules above it. A module that adds a method to a
+# function of another writes the function's full name, Framework.ports(...).
+include("Units.jl")
+include("framework/Framework.jl")
+include("physics/Physics.jl")
+include("balances/Balances.jl")
+include("devices/Devices.jl")
+include("fixedbeds/FixedBeds.jl")
+include("networks/Networks.jl")
+include("operation/Operation.jl")
+include("interface/Interface.jl")
+include("legacy/Legacy.jl")
+include("plotting/Plotting.jl")
 
-const MoccaCase = JutulCase # Convenience alias for simulation cases
+using .Framework, .Physics, .Balances, .Devices, .FixedBeds, .Networks, .Operation
+using .Interface, .Legacy, .Plotting
 
-const GAS_CONSTANT = 8.3144598 # J/(mol·K)
-
-const moccaResultsDir = joinpath(@__DIR__, "..", "results")
-
-if !isdir(moccaResultsDir)
-    mkpath(moccaResultsDir)
-end
-
-
-# Core: system hierarchy, entities, shared interfaces
-include("core/types.jl")
-include("core/variables.jl")
-include("core/conservation.jl")
-include("core/thermal.jl")
-include("core/unit_interface.jl")
-
-# Input structs
-include("io/constants.jl")
-
-# L0: physics functions dispatched on physics objects
-include("physics/isotherms/isotherms.jl")
-include("physics/mass_transfer/mass_transfer.jl")
-
-# L2: unit operations
-include("units/fixed_bed/system.jl")
-include("units/fixed_bed/setup.jl")
-
-# L1: reusable blocks of variables, fluxes and source terms
-include("blocks/geometry.jl")
-include("blocks/unit_parameters.jl")
-include("blocks/gas.jl")
-include("blocks/sorbent.jl")
-include("blocks/energy.jl")
-include("blocks/wall.jl")
-
-include("units/fixed_bed/select.jl")
-include("units/equipment/device.jl")
-
-# L3/L4: coupling units into flowsheets
-include("coupling/ports.jl")
-include("flowsheet/flowsheet.jl")
-
-# L5: process operation
-include("process/schedule.jl")
-include("process/metrics.jl")
-include("process/css.jl")
-include("process/gradients.jl")
-
-# User interface: components, materials, flowsheets with roles, step
-# templates, processes, design variables and files
-include("interface/errors.jl")
-include("interface/units.jl")
-include("interface/gas.jl")
-include("interface/materials.jl")
-include("interface/builder.jl")
-include("interface/steps.jl")
-include("interface/process.jl")
-include("interface/variables.jl")
-include("interface/files.jl")
-include("interface/validation.jl")
-include("interface/presets.jl")
-
-include("core/convergence.jl")
-include("utils.jl")
-include("plot.jl")
-include("io/input_output.jl")
-include("../models/models.jl")
 end
