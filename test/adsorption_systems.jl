@@ -1,7 +1,7 @@
 @testset "AdsorptionSystem Construction" begin
     constants = Mocca.HaghpanahConstants{Float64}()
 
-    system = Mocca.AdsorptionSystem(constants)
+    system = haghpanah_bed(constants; ncells = 3).system
 
     @test system isa Mocca.AdsorptionSystem
     @test Mocca.number_of_components(system) == 2
@@ -14,8 +14,7 @@
 end
 
 @testset "AdsorptionSystem Properties" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
+    system = haghpanah_bed(ncells = 3).system
 
     @test Mocca.component_names(system) == ["CO2", "N2"]
 end

@@ -4,7 +4,8 @@ using StaticArrays
 
 @testset "Isotherm Tests" begin
     constants = HaghpanahConstants{Float64}()
-    isotherm = DualSiteLangmuir(constants)
+    isotherm = DualSiteLangmuir(qsb = constants.qsbi, b0 = constants.b0, ΔUb = constants.ΔUbi,
+        qsd = constants.qsdi, d0 = constants.d0, ΔUd = constants.ΔUdi, T0 = constants.T0)
 
     @testset "compute_equilibrium" begin
         T = 298.15
@@ -37,7 +38,7 @@ using StaticArrays
 
         # Each component's enthalpy is the capacity-weighted mean of its own
         # site energies, also for components after the first
-        wet = Mocca.wet_flue_gas_isotherm(:silica_gel)
+        wet = Mocca.isotherm(Mocca.load_adsorbent("silica_gel_krishnamurthy_2014"), Mocca.krishnamurthy_2014_gas())
         ΔH_wet = compute_enthalpy(wet, @SVector([1.0, 1.0, 1.0]), 298.15)
         RT = Mocca.GAS_CONSTANT * 298.15
         for i in 1:3

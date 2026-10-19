@@ -11,16 +11,6 @@ function force_difference(fa, ma, fb, mb)
     return maximum(maximum(abs.(first(Jutul.vectorize_forces(a, ma)) .- first(Jutul.vectorize_forces(b, mb))); init = 0.0) for (a, b) in zip(fa, fb))
 end
 
-# Largest relative difference of the bed states at the end of two simulations
-function state_difference(sa, sb, beds)
-    d = 0.0
-    for u in beds, k in (:Pressure, :y, :AdsorbedConcentration, :Temperature)
-        a, b = sa[end][u][k], sb[end][u][k]
-        d = max(d, maximum(abs.(a .- b) ./ max.(abs.(a), 1e-12)))
-    end
-    return d
-end
-
 # A step type defined outside Mocca: open the feed valve and hold the bed at
 # the feed pressure
 Base.@kwdef mutable struct HoldAtFeed <: Mocca.AbstractStep
@@ -94,49 +84,21 @@ end
     @test M.isotherm(b, gas).ΔH == iso.ΔH && b.adsorbed_heat_capacity == a.adsorbed_heat_capacity && b.sorption_heat == :first_component
 end
 
-@testset "Ready-made processes reproduce the earlier builders" begin
+@testset "The old constants convert to the same bed" begin
     c = M.HaghpanahConstants{Float64}()
-    ts = TimeStepping(max_dt = 1.0, first_dt = 1.0)
-    function check(fs, stages, state0, p; cycles = 1)
-        model = M.setup_flowsheet_model(fs)
-        prm = M.setup_flowsheet_parameters(fs)
-        @test M.unit_names(fs) == M.unit_names(p.flowsheet)
-        @test all(prm[u][k] == p.parameters[u][k] for u in M.unit_names(fs) for k in keys(prm[u]))
-        f, dt = M.setup_schedule(fs, model, stages; num_cycles = cycles, max_dt = p.timestepping.max_dt, first_dt = p.timestepping.first_dt)
-        fp, dtp = M.cycle_schedule(p; cycles = cycles)
-        @test dt == dtp
-        @test force_difference(f, model, fp, p.model) == 0
-        s0 = M.initial_state(p)
-        @test all(state0[u][k] == s0[u][k] for u in M.beds(fs) for k in keys(state0[u]))
-        states, = M.simulate_process(M.MoccaCase(model, dt, f; state0 = state0, parameters = prm); output_substates = true, info_level = -1)
-        r = simulate(p; cycles = cycles)
-        @test state_difference(states, r.states, M.beds(fs)) == 0
-    end
-    fs, st = @test_deprecated M.four_stage_vsa_flowsheet(c; ncells = 10)
-    bed0 = M.setup_process_state(fs[:Bed]; Pressure = c.p_low, Temperature = c.T0, WallTemperature = c.T_a, y = [1e-10, 1 - 1e-10])
-    check(fs, st, M.setup_flowsheet_state(fs; Bed = bed0), four_stage_vsa_process(ncells = 10, timestepping = ts); cycles = 2)
-
-    fs, st = M.two_bed_vsa_flowsheet(c; ncells = 10)
-    bed0 = M.setup_process_state(fs[:A]; Pressure = c.p_low, Temperature = c.T0, WallTemperature = c.T_a, y = [1e-10, 1 - 1e-10])
-    check(fs, st, M.setup_flowsheet_state(fs; A = bed0, B = deepcopy(bed0)), two_bed_vsa_process(ncells = 10, timestepping = TimeStepping(first_dt = 0.05)))
-
-    ts = TimeStepping(max_dt = 1.0, first_dt = 0.01)
-    fs, st = M.lpp_vsa_flowsheet(ncells = 10)
-    check(fs, st, M.setup_flowsheet_state(fs; Bed = M.wet_flue_gas_initial_state(fs[:Bed], 0.03e5)), lpp_vsa_process(ncells = 10, timestepping = ts))
-
-    fs, st = M.dual_adsorbent_vsa_flowsheet(ncells = 10)
-    s0 = M.setup_flowsheet_state(fs; SilicaGel = M.wet_flue_gas_initial_state(fs[:SilicaGel], 0.30e5),
-        Zeolite = M.wet_flue_gas_initial_state(fs[:Zeolite], 0.03e5))
-    check(fs, st, s0, dual_adsorbent_vsa_process(ncells = 10, timestepping = ts))
-
-    # The old constants convert to the same bed
     k = convert_constants(c)
     fs = Flowsheet(k.gas, k.feed)
     add_bed!(fs, :Bed, k.adsorbent, k.column; ncells = 10, dispersion_velocity = k.dispersion_velocity)
-    old = M.setup_process_model(FixedBed(c), c; ncells = 10)
-    @test fs[:Bed].system.isotherm.ΔH == old.system.isotherm.ΔH
-    @test all(fs[:Bed].data_domain[n] == old.data_domain[n] for n in keys(old.data_domain))
-    @test M.Column() == M.Unit()
+    bed = fs[:Bed]
+    iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
+    @test bed.system.isotherm.qsb == iso.qsb && bed.system.isotherm.ΔH == iso.ΔH
+    @test !M.sorption_heat_all_components(bed.system)
+    d = bed.data_domain
+    @test all(d[:porosity] .== c.Φ) && all(d[:permeability] .== M.compute_permeability(c.Φ, c.d_p))
+    @test first(d[:diffusion_coefficient, M.Unit()]) == M.compute_dispersion(c.D_m, c.V0_inter, c.d_p)
+    @test first(d[:r_in, M.Unit()]) == c.r_in && first(d[:r_out, M.Unit()]) == c.r_out
+    @test first(d[:adsorbent_density, M.Unit()]) == c.ρ_s && first(d[:wall_heat_capacity, M.Unit()]) == c.C_pw
+    @test k.velocity ≈ c.v_feed / c.Φ && k.p_low == c.p_low
 end
 
 @testset "Steps, roles and cycles" begin

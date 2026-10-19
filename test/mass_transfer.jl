@@ -1,6 +1,5 @@
 @testset "Mass Transfer Rate" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
+    system = haghpanah_bed(ncells = 3).system
 
     temperature = 298.15
     concentration = [0.1, 0.9]

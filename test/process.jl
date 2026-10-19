@@ -4,15 +4,11 @@ using Jutul
 import Jutul.DictOptimization: DictParameters, free_optimization_parameter!, parameters_gradient
 
 @testset "Cycle metrics" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 20)
-    mm = Mocca.setup_flowsheet_model(fs)
-    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
-    state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
-    prm = Mocca.setup_flowsheet_parameters(fs)
-    forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 2, max_dt = 1.0)
-    states, ts = Mocca.simulate_process(Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = prm);
-        info_level = -1, output_substates = true)
+    constants = haghpanah_constants()
+    proc = haghpanah_vsa(constants; ncells = 20)
+    fs, prm = proc.flowsheet, proc.parameters
+    result = simulate(proc; cycles = 2)
+    states, ts = result.states, result.timesteps
 
     w2 = Mocca.cycle_window(ts, 100.0, 2)
     @test sum(ts[w2]) ≈ 100.0
@@ -45,81 +41,36 @@ import Jutul.DictOptimization: DictParameters, free_optimization_parameter!, par
     @test Mocca.vacuum_pump_energy(states, ts, :V_feed; window = w2, discharge_pressure = 1.0) == 0
 end
 
-@testset "Legacy stage time steps" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    bed = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 5)
-    bcs = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption", "blowdown", "evacuation"])
-    stage_times = [15.0, 15.0, 30.0, 40.0]
-    # 15 s is not a multiple of max_dt = 2, so those stages need a shorter step
-    forces, dt = Mocca.setup_forces(bed, stage_times, bcs; num_cycles = 2, max_dt = 2.0)
-    @test length(forces) == length(dt)
-    @test sum(dt) ≈ 2 * sum(stage_times)
-    @test maximum(dt) <= 2.0
-    # Each stage keeps its own duration, and its pressure ramp starts when the
-    # stage does in simulated time
-    t = 0.0
-    k = 1
-    for cycle in 1:2, (i, τ) in enumerate(stage_times)
-        bc = forces[k].bc
-        @test bc isa typeof(bcs[i])
-        hasfield(typeof(bc), :stage_start) && @test bc.stage_start ≈ t
-        t_stage = 0.0
-        while k <= length(forces) && forces[k].bc === bc
-            t_stage += dt[k]
-            k += 1
-        end
-        @test t_stage ≈ τ
-        t += τ
-    end
-    @test k == length(forces) + 1
-end
-
 @testset "Cyclic steady state" begin
-    constants = Mocca.HaghpanahConstants{Float64}()
-    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
+    p = haghpanah_vsa(; ncells = 10, max_dt = 5.0)
+    model, prm = p.model, p.parameters
+    state0 = Mocca.initial_state(p)
+    forces, dt = Mocca.cycle_schedule(p)
 
-    # Legacy single-bed boundary conditions
-    bed = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 10)
-    state0 = Mocca.setup_process_state(bed; init...)
-    prm = Mocca.setup_process_parameters(bed)
-    bcs = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption", "blowdown", "evacuation"])
-    forces, dt = Mocca.setup_forces(bed, [15.0, 15.0, 30.0, 40.0], bcs; num_cycles = 1, max_dt = 5.0)
-
-    res = Mocca.simulate_to_cyclic_steady_state(bed, state0, prm, forces, dt; tol = 1e-3, max_cycles = 200)
+    res = Mocca.simulate_to_cyclic_steady_state(model, state0, prm, forces, dt; tol = 1e-3, max_cycles = 200)
     @test res.converged
     @test res.history[end] < 1e-3
     @test sum(res.timesteps) ≈ 100.0
-    @test Mocca.cycle_change(bed, res.state0, Mocca.restart_state(bed, res.states[end])) ≈ res.history[end]
+    @test Mocca.cycle_change(model, res.state0, Mocca.restart_state(model, res.states[end])) ≈ res.history[end]
 
     # Successive substitution is much slower to get there
-    plain = Mocca.simulate_to_cyclic_steady_state(bed, state0, prm, forces, dt; tol = 1e-3, max_cycles = res.cycles, acceleration = :none)
+    plain = Mocca.simulate_to_cyclic_steady_state(model, state0, prm, forces, dt; tol = 1e-3, max_cycles = res.cycles, acceleration = :none)
     @test !plain.converged
     @test plain.history[end] > res.history[end]
 
-    # The same driver runs a flowsheet; at steady state the cycle's feed and
-    # products balance
-    fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 10)
-    mm = Mocca.setup_flowsheet_model(fs)
-    fs_state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
-    fs_prm = Mocca.setup_flowsheet_parameters(fs)
-    fs_forces, fs_dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 1, max_dt = 5.0)
-    fres = Mocca.simulate_to_cyclic_steady_state(mm, fs_state0, fs_prm, fs_forces, fs_dt; tol = 1e-3, max_cycles = 200)
-    @test fres.converged
-    n_feed = Mocca.stream_totals(fres.states, fres.timesteps, :V_feed)
-    n_out = Mocca.stream_totals(fres.states, fres.timesteps, :V_product) .+ Mocca.stream_totals(fres.states, fres.timesteps, :V_vacuum)
+    # At steady state the cycle's feed and products balance
+    n_feed = Mocca.stream_totals(res.states, res.timesteps, :V_feed)
+    n_out = Mocca.stream_totals(res.states, res.timesteps, :V_product) .+ Mocca.stream_totals(res.states, res.timesteps, :V_vacuum)
     @test isapprox(sum(n_feed), sum(n_out), rtol = 1e-2)
 end
 
 @testset "Flowsheet adjoint gradients" begin
     # Gradients of a product stream with respect to bed parameters, through the
     # devices and cross terms, match central finite differences
-    constants = Mocca.HaghpanahConstants{Float64}()
-    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
-    fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 8, stage_durations = [5.0, 5.0, 5.0, 5.0])
-    mm = Mocca.setup_flowsheet_model(fs)
-    state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
-    prm = Mocca.setup_flowsheet_parameters(fs)
-    forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 1, max_dt = 1.0)
+    p = haghpanah_vsa(; ncells = 8, durations = (5.0, 5.0, 5.0, 5.0))
+    mm, prm = p.model, p.parameters
+    state0 = Mocca.initial_state(p)
+    forces, dt = Mocca.cycle_schedule(p)
     G(model, state, dt, step_info, forces) = dt * state[:V_vacuum][:MolarFlow][1] * state[:V_vacuum][:InletComposition][1, 1]
     function run(p)
         case = Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = p)
@@ -144,52 +95,24 @@ end
     end
 end
 
-@testset "Legacy bed adjoint gradients" begin
-    # Single bed with the original boundary conditions. Those apply unit
-    # parameters through forces, which the parameter adjoint cannot
-    # differentiate, so only cell and face parameters are targeted.
-    constants = Mocca.HaghpanahConstants{Float64}()
-    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
-    bed = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 8)
-    state0 = Mocca.setup_process_state(bed; init...)
-    prm = Mocca.setup_process_parameters(bed)
-    bcs = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption", "blowdown", "evacuation"])
-    forces, dt = Mocca.setup_forces(bed, [5.0, 5.0, 5.0, 5.0], bcs; num_cycles = 1, max_dt = 1.0)
-    G(model, state, dt, step_info, forces) = dt * state[:AdsorbedConcentration][1, 4] / 1e3
-    function run(p)
-        case = Mocca.MoccaCase(bed, dt, forces; state0 = state0, parameters = p)
-        sim, cfg = Mocca.setup_process_simulator(bed, state0, p; info_level = -1, nonlinear_tolerance = 1e-8, output_substates = true)
-        result = Jutul.simulate!(sim, dt; forces = forces, config = cfg)
-        states, ts = Jutul.expand_to_ministeps(result)
-        return (case, result, sum(G(bed, s, h, nothing, nothing) for (s, h) in zip(states, ts)))
-    end
-    targets = [:SolidVolume, :FluidVolume, :Transmissibilities]
-    case, result, obj = run(prm)
-    grad = Jutul.solve_adjoint_sensitivities(case, result, G; targets = targets, info_level = -1)
-    for p in targets
-        h = 1e-4 .* abs.(prm[p])
-        pp = deepcopy(prm); pp[p] .+= h
-        pm = deepcopy(prm); pm[p] .-= h
-        dG_fd = (run(pp)[3] - run(pm)[3]) / 2
-        @test isapprox(sum(grad[p] .* h), dG_fd, rtol = 1e-5)
-    end
-end
-
 @testset "Column length as an optimisation variable" begin
-    # Changing the column length changes the cell volumes, so the gradient runs
-    # through SolidVolume and FluidVolume. The valves get a fixed conductance so
-    # that only parameters depend on the length, as deps = :parameters requires.
-    c_ref = Mocca.HaghpanahConstants{Float64}()
-    fs_ref, = Mocca.four_stage_vsa_flowsheet(c_ref; ncells = 8)
-    C0 = Mocca.port_conductance(fs_ref[:Bed], 1)
+    # Changing the column length scales the cell lengths, so the gradient runs
+    # through the volumes, areas and transmissibilities of the cells, including
+    # SolidVolume and FluidVolume. The valves keep a fixed conductance so that
+    # only parameters depend on the length, as deps = :parameters requires.
+    p = haghpanah_vsa(; ncells = 8, durations = (5.0, 5.0, 5.0, 5.0))
+    mm, base, state0 = p.model, p.parameters, Mocca.initial_state(p)
+    forces, dt = Mocca.cycle_schedule(p)
+    with_length(L) = ((:SolidVolume, :FluidVolume, :CellDx, :WallAreaIn, :WallAreaOut) => L,
+        (:Transmissibilities, :DispersionTransmissibilities, :ThermalConductivities) => 1 / L)
     function setup_case(prm, step_info = missing)
-        constants = Mocca.HaghpanahConstants{typeof(prm["L"])}(L = prm["L"])
-        fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = 8, stage_durations = [5.0, 5.0, 5.0, 5.0], conductance = C0)
-        mm = Mocca.setup_flowsheet_model(fs)
-        bed0 = Mocca.setup_process_state(fs[:Bed]; Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
-        state0 = Mocca.setup_flowsheet_state(fs; Bed = bed0)
-        forces, dt = Mocca.setup_schedule(fs, mm, stages; num_cycles = 1, max_dt = 1.0)
-        return Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = Mocca.setup_flowsheet_parameters(fs))
+        L = prm["L"]
+        bed = Dict{Symbol, Any}(k => v for (k, v) in base[:Bed])
+        for (names, factor) in with_length(L), k in names
+            bed[k] = base[:Bed][k] .* factor
+        end
+        parameters = merge(base, Dict(:Bed => bed))
+        return Mocca.MoccaCase(mm, dt, forces; state0 = state0, parameters = parameters)
     end
     G(model, state, dt, step_info, forces) = dt * state[:V_vacuum][:MolarFlow][1] * state[:V_vacuum][:InletComposition][1, 1]
     function objective_at(L)

@@ -1,8 +1,16 @@
 using Mocca
 using JSON
 
+"""
+    parse_input(path_or_dict; typeT = Float64) → (constants, info)
+
+Read an input file of Mocca 0.1.0 (or its parsed `Dict`) into a constants
+struct and the run settings. It is kept to move such inputs over:
+[`convert_constants`](@ref) turns the constants into a gas, feed, adsorbent
+and column for a [`Flowsheet`](@ref). New processes are files read with
+[`read_process`](@ref).
+"""
 function parse_input(input_dict::Dict{String, Any}; typeT=Float64)
-    Base.depwarn("`parse_input` and its JSON format are deprecated; read a process file with `read_process`.", :parse_input)
     # Parse input directly from julia dictionary
     is_detailed_input(input_dict) ?
             (constants,info) = parse_input_from_detailed_dict(input_dict, typeT) :
@@ -11,7 +19,6 @@ function parse_input(input_dict::Dict{String, Any}; typeT=Float64)
 end
 
 function parse_input(filepath::String; typeT=Float64)
-    Base.depwarn("`parse_input` and its JSON format are deprecated; read a process file with `read_process`.", :parse_input)
     # Parse JSON file to julia dictionary and then create structs
     input_dict = JSON.parse(open(filepath))
 

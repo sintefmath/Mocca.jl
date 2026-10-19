@@ -3,37 +3,13 @@ using Mocca
 using Jutul
 using Statistics: mean
 
+# The four-stage VSA of the Mocca 0.1.0 constants, from a bed full of nitrogen
+# at 1 bar, as a Process; returns the bed states
 function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
-    constants = Mocca.HaghpanahConstants{Float64}()
-    system = Mocca.AdsorptionSystem(constants)
-    model = Mocca.setup_process_model(system, constants; ncells = ncells)
-
-    bar = si_unit(:bar)
-    state0 = Mocca.setup_process_state(model;
-        Pressure = 1 * bar,
-        Temperature = 298.15,
-        WallTemperature = constants.T_a,
-        y = [1e-10, 1.0 - 1e-10]
-    )
-
-    parameters = Mocca.setup_process_parameters(model)
-
-    stage_times = [15.0, 15.0, 30.0, 40.0]
-    stage_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
-    bcs = Mocca.setup_boundary_conditions(constants, stage_names)
-
-    sim_forces, timesteps = Mocca.setup_forces(model, stage_times, bcs;
-        num_cycles = num_cycles, max_dt = max_dt)
-
-    case = Mocca.MoccaCase(model, timesteps, sim_forces;
-        state0 = state0, parameters = parameters)
-
-    states, timesteps_out = Mocca.simulate_process(case;
-        output_substates = true,
-        info_level = -1
-    )
-
-    return states, model, timesteps_out, num_cycles, stage_times
+    p = haghpanah_vsa(; ncells = ncells, max_dt = max_dt, initial_pressure = 1e5)
+    r = simulate(p; cycles = num_cycles)
+    stage_times = [st.duration for st in Mocca.stages(p)]
+    return unit_states(r.states), p.flowsheet[:Bed], r.timesteps, num_cycles, stage_times
 end
 
 function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
@@ -70,16 +46,18 @@ end
     states, model, timesteps_out, num_cycles, stage_times = run_cyclic_simulation()
     m = cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
 
-    # Updated when the inlet boundary conditions were made to conserve each
-    # component (the pressurisation sign and upwinding were fixed with it)
+    # From the Process (flowsheet) form of the cycle. The legacy boundary
+    # conditions, whose references these replace, agreed to within 4e-4 in
+    # every quantity, apart from the trace of CO2 left at the top of the bed
+    # (5.05e-8 there, 7.00e-8 here)
     ref = (
-        y_CO2_final = 5.050399237268643e-8,
-        y_N2_final = 0.9999999494960096,
-        T_final = 295.7676320550928,
-        P_final = 9998.23183106564,
-        total_CO2_adsorbed_final = 50768.684624407666,
-        avg_T_last_cycle = 348.29982214738715,
-        avg_P_last_cycle = 40068.99824321924,
+        y_CO2_final = 7.00076017689521e-8,
+        y_N2_final = 0.9999999299923981,
+        T_final = 295.76747069213474,
+        P_final = 9998.232940271764,
+        total_CO2_adsorbed_final = 50790.2436361158,
+        avg_T_last_cycle = 348.2936828984303,
+        avg_P_last_cycle = 40068.949813652536,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

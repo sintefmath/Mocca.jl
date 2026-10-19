@@ -67,10 +67,29 @@ end
         P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
 
 Two beds, A and B, running the four-stage VSA cycle half a cycle apart, with
-a pressure equalisation valve joining their tops; see
-`two_bed_vsa_flowsheet` (deprecated) for the cycle table. After equalising, a
-bed is taken to be midway between the high and low pressures, where its
-pressurisation starts; evacuation ramps from `P_I`.
+a pressure equalisation valve joining their tops:
+
+    feed ──V_feed_A──┐              ┌──V_product_A── raffinate
+                     bottom  A  top ┤
+    extract ─V_vacuum_A┘            V_eq
+    feed ──V_feed_B──┐              │
+                     bottom  B  top ┤
+    extract ─V_vacuum_B┘            └──V_product_B── raffinate
+
+After a bed finishes adsorption it equalises with the other, evacuated bed,
+which saves feed gas and compression work:
+
+| Stage | Bed A                  | Bed B                  |
+|-------|------------------------|------------------------|
+| 1     | pressurisation (feed)  | evacuation             |
+| 2     | adsorption             | evacuation             |
+| 3     | equalisation (gives)   | equalisation (takes)   |
+| 4     | evacuation             | pressurisation (feed)  |
+| 5     | evacuation             | adsorption             |
+| 6     | equalisation (takes)   | equalisation (gives)   |
+
+After equalising, a bed is taken to be midway between the high and low
+pressures, where its pressurisation starts; evacuation ramps from `P_I`.
 """
 function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0, equalisation_time = 10.0,
         equalisation_conductance = 1e-6, P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
@@ -124,6 +143,9 @@ The column of Table S2 of Krishnamurthy et al. (2014).
 krishnamurthy_2014_column(; length = 1.0) = Column(; length = length, radius = 0.15, outer_radius = 0.16, porosity = 0.37,
     axial_conductivity = 0.09, wall = Wall(density = 7800.0, heat_capacity = 500.0, conductivity = 16.0),
     inner_heat_transfer = 8.6, outer_heat_transfer = 2.5, ambient_temperature = 298.15)
+
+"Feed composition of the wet flue gas: 15% CO2, 82% N2 and 3% H2O."
+const WET_FLUE_GAS_FEED = [0.15, 0.82, 0.03]
 
 _wet_feed(gas, P) = Feed(gas; composition = WET_FLUE_GAS_FEED, temperature = 298.15, pressure = P, light_product = (N2 = 1.0,))
 

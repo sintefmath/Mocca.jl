@@ -49,14 +49,6 @@ function DualSiteLangmuir(; qsb, b0, ΔUb, qsd, d0, ΔUd, T0 = 298.15)
         ΔH)
 end
 
-function DualSiteLangmuir(constants::ConstantsStruct)
-    Base.depwarn("`DualSiteLangmuir(constants)` is deprecated; give the isotherm by component with `dual_site_langmuir`, or convert the constants with `convert_constants`.", :DualSiteLangmuir)
-    DualSiteLangmuir(
-        qsb = constants.qsbi, b0 = constants.b0, ΔUb = constants.ΔUbi,
-        qsd = constants.qsdi, d0 = constants.d0, ΔUd = constants.ΔUdi,
-        T0 = constants.T0)
-end
-
 function compute_equilibrium(iso::DualSiteLangmuir{N}, concentration, temperature) where N
     # Temperature-dependent affinity constants
     b = SVector{N}(ntuple(i -> iso.b0[i] * exp(-iso.ΔUb[i] / (GAS_CONSTANT * temperature)), N))
