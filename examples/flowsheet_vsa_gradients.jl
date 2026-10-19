@@ -92,6 +92,11 @@ for n in (:v_feed, :t_ads)
 end
 
 # # 4. Relative sensitivities
+# Each bar is an elasticity: the percentage change of a measure for a 1%
+# increase of a setting, from the gradients above. The evacuation pressure
+# `P_L` matters most: 1% lower raises recovery by almost 2% and productivity
+# by about as much, and lowers the energy per tonne by about 0.5%. Purity
+# responds most to the blowdown pressure `P_I`.
 fig = Figure(size = (1100, 340))
 for (j, m) in enumerate(keys(metrics))
     ax = Axis(fig[1, j], title = String(m), xticks = (1:length(names), String.(names)),

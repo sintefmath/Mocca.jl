@@ -37,3 +37,7 @@ results/
 
 # Mac specific files
 *.DS_Store
+
+# Node packages for the VitePress docs
+docs/node_modules/
+docs/package-lock.json

@@ -113,11 +113,18 @@ end
 # # 5. Bed profiles
 #
 # Profiles at the end of each step of the last cycle, as in Figure 2 of the
-# paper.
+# paper. Water is held in the first third of the bed, at the feed end, and
+# hardly moves through the cycle: the vacuum does not remove it. CO₂ is held
+# just beyond the water front, and at the end of evacuation the gas in most of
+# the bed is over 80% CO₂.
 stages = Mocca.stages(process)
 step_ends = cumsum([st.duration for st in stages])
 f_profiles = Mocca.plot_profiles(states, ts, process.flowsheet[:Bed], step_ends;
     labels = [st.name for st in stages], unit = :Bed, components = [1, 3])
 
-# The streams through the devices over the cycle:
+# The streams through the devices over the cycle. Through adsorption the feed
+# and product flows are steady and the product carries about 2% CO₂. Blowdown
+# sends gas with up to 30% CO₂ out of the top, CO₂ that the extract loses. The
+# vacuum line then draws a slow stream of 80 to 85% CO₂ through the long
+# evacuation:
 f_streams = Mocca.plot_flowsheet_streams(states, process.model, ts; stages = stages)

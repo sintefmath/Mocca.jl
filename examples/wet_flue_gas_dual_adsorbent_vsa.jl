@@ -142,6 +142,11 @@ x_ends = cumsum([20.0, 46.20, 56.30, 101.20])
 step_names = ["pressurisation", "adsorption", "blowdown", "evacuation"]
 f_silica_gel = Mocca.plot_profiles(states, ts, fs[:SilicaGel], sg_ends;
     labels = step_names, unit = :SilicaGel, components = [1, 3])
+
+# The 13X bed. The silica gel keeps it almost free of water: the gas entering
+# it holds less than 0.02% water, and only the first tenth of the bed takes up
+# any. So the 13X holds CO₂ along its whole length, and at the end of
+# evacuation the gas near its feed end is almost pure CO₂.
 f_zeolite = Mocca.plot_profiles(states, ts, fs[:Zeolite], x_ends;
     labels = step_names, unit = :Zeolite, components = [1, 3])
 

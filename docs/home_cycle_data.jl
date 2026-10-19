@@ -1,0 +1,52 @@
+# Writes the steady cycle of the four-step VSA of Haghpanah et al. (2013) to
+# docs/src/assets/home_cycle.json, for the animation on the home page. The
+# file is committed, so the docs build does not run this. Run it from the
+# repository root after a change to the model or the library process:
+#
+#     julia --project=. docs/home_cycle_data.jl
+
+using Mocca
+using Mocca.Units
+using Printf
+
+process = Mocca.read_process("haghpanah_2013_four_stage_vsa")
+process[:P_L] = 0.05bar
+result = Mocca.cyclic_steady_state(process)
+result.converged || error("the cyclic steady state did not converge")
+perf = Mocca.performance(result)
+
+bed = process.flowsheet[:Bed]
+z = bed.data_domain[:cell_centroids][1, :]
+z = z ./ maximum(z)
+t = cumsum(result.timesteps)
+t_cycle = t[end]
+
+# Frames at even times through the cycle, each the state at the end of the
+# first time step that reaches it; the page interpolates between them
+nframes = 160
+frames = unique([findfirst(>=(t_cycle * (k - 0.5) / nframes), t) for k in 1:nframes])
+bed_states = [result.states[k][:Bed] for k in frames]
+q = [s[:AdsorbedConcentration][1, :] for s in bed_states]
+q_max = maximum(maximum.(q))
+
+num(x) = @sprintf("%.4g", x)
+vec_json(v) = "[" * join(num.(v), ",") * "]"
+
+stages = Mocca.stages(process)
+open(joinpath(@__DIR__, "src", "assets", "home_cycle.json"), "w") do io
+    println(io, "{")
+    println(io, "  \"process\": \"haghpanah_2013_four_stage_vsa\",")
+    println(io, "  \"P_L_bar\": ", num(process[:P_L] / bar), ",")
+    println(io, "  \"purity\": ", num(perf.purity), ",")
+    println(io, "  \"recovery\": ", num(perf.recovery), ",")
+    println(io, "  \"specific_energy_kwh_per_t\": ", num(perf.specific_energy), ",")
+    println(io, "  \"cycle_time_s\": ", num(t_cycle), ",")
+    println(io, "  \"stages\": [", join(["{\"name\": \"$(st.name)\", \"duration\": $(num(st.duration))}" for st in stages], ", "), "],")
+    println(io, "  \"z\": ", vec_json(z), ",")
+    println(io, "  \"t\": ", vec_json(t[frames]), ",")
+    println(io, "  \"pressure_bottom_bar\": ", vec_json([s[:Pressure][1] / bar for s in bed_states]), ",")
+    println(io, "  \"loading\": [", join([vec_json(qk ./ q_max) for qk in q], ",\n    "), "],")
+    println(io, "  \"y_co2\": [", join([vec_json(s[:y][1, :]) for s in bed_states], ",\n    "), "]")
+    println(io, "}")
+end
+println("purity $(perf.purity), recovery $(perf.recovery), cycle $(t_cycle) s, $(length(stages)) stages")
