@@ -30,7 +30,7 @@ end
     constants = Mocca.HaghpanahConstants{Float64}()
     bed = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 5)
     names = Mocca.component_names(bed.system)
-    fs = Mocca.Flowsheet()
+    fs = Mocca.UnitNetwork()
     Mocca.add_unit!(fs, :Bed, bed)
     Mocca.add_unit!(fs, :V1, Mocca.setup_device_model(names))
     Mocca.add_unit!(fs, :V2, Mocca.setup_device_model(names))
@@ -42,7 +42,7 @@ end
     Mocca.connect!(fs, (:V1, :outlet) => (:Bed, :bottom))
     @test_throws ErrorException Mocca.connect!(fs, (:Bed, :top) => (:V1, :outlet))
     Mocca.connect!(fs, (:Bed, :top) => (:V2, :inlet))
-    @test Set(Mocca.boundary_ports(fs)) == Set([(:V1, :inlet), (:V2, :outlet)])
+    @test Set(Mocca.boundary_ports(fs)) == Set([Mocca.PortRef(:V1, :inlet), Mocca.PortRef(:V2, :outlet)])
 
     # Unconnected ports need a boundary condition
     @test_throws ErrorException Mocca.setup_flowsheet_model(fs)
@@ -57,6 +57,45 @@ end
     # A stage cannot set a condition on a connected port
     bad = [Mocca.Stage("bad", 1.0; V1 = (outlet = bc,))]
     @test_throws ErrorException Mocca.setup_schedule(fs, mm, bad)
+end
+
+# A connection type defined outside Mocca, joining two unit ports directly and
+# counting the cross terms it is asked for
+struct _TestTie <: Mocca.AbstractConnection
+    a::Mocca.PortRef
+    b::Mocca.PortRef
+    calls::Base.RefValue{Int}
+end
+Mocca.connection_ports(c::_TestTie) = (c.a, c.b)
+function Mocca.check_connection(net, c::_TestTie)
+    all(r -> haskey(net.units, r.name), (c.a, c.b)) || error("unknown unit")
+    any(x -> x isa _TestTie, net.connections) && error("one tie only")
+end
+Mocca.add_cross_terms!(mm, net, c::_TestTie) = (c.calls[] += 1; mm)
+
+@testset "Connections are an open type" begin
+    constants = Mocca.HaghpanahConstants{Float64}()
+    names = Mocca.component_names(Mocca.FixedBed(constants))
+    net = Mocca.UnitNetwork()
+    for b in (:A, :B)
+        Mocca.add_unit!(net, b, Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 4))
+    end
+    Mocca.add_unit!(net, :V, Mocca.setup_device_model(names))
+    Mocca.connect!(net, (:A, :top) => (:V, :inlet))
+    Mocca.connect!(net, Mocca.StreamConnection(Mocca.PortRef(:B, :bottom), Mocca.PortRef(:V, :outlet)))
+    calls = Ref(0)
+    @test_throws ErrorException Mocca.connect!(net, _TestTie(Mocca.PortRef(:A, :bottom), Mocca.PortRef(:C, :top), calls))
+    Mocca.connect!(net, _TestTie(Mocca.PortRef(:A, :bottom), Mocca.PortRef(:B, :top), calls))
+    @test_throws ErrorException Mocca.connect!(net, _TestTie(Mocca.PortRef(:A, :bottom), Mocca.PortRef(:B, :top), calls))
+    @test length(Mocca.connections(net)) == 3 && length(Mocca.stream_connections(net)) == 2
+    @test Mocca.is_connected(net, :A, :bottom) && Mocca.is_connected(net, :V, :outlet)
+    @test Mocca.attachments(net, :V) == Mocca.stream_connections(net)
+    mm = Mocca.setup_flowsheet_model(net)
+    # Each connection adds its own cross terms: the tie none, each stream
+    # three (port state, mass and energy)
+    @test calls[] == 1
+    @test length(mm.cross_terms) == 2 * 3
+    @test occursin("UnitNetwork with 2 units and 1 device", sprint(show, MIME"text/plain"(), net))
 end
 
 function _vsa_legacy(constants, init; ncells, num_cycles)

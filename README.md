@@ -42,32 +42,30 @@ To get started try the [Custom setup cyclic VSA](https://github.com/sintefmath/M
 
 
 # Quick start example
-Run the following code to quickly setup and run a
-Direct Column breakthrough adsorption simulation using predefined input parameters.
-
-The example uses some utility functions which simplify the simulation setup.
-To see the steps used in more detail, please refer to the
-[Haghpanah DCB](https://github.com/sintefmath/Mocca.jl/blob/main/examples/dcb_haghpanah_2013_co2_n2.jl) example.
+Run the following code to read the four-step vacuum swing adsorption (VSA)
+process of Haghpanah et al. (2013) from Mocca's library, find its cyclic
+steady state, and measure its performance:
 
 ```julia
 using Mocca
+using Mocca.Units
 
-# Import and load input parameters
-json_dir = joinpath(dirname(pathof(Mocca)), "../models/json/")
-filepath = joinpath(json_dir, "dcb_haghpanah_2013_co2_n2_input_simple.json")
-(constants, info ) = Mocca.parse_input(filepath)
-
-# Setup and run simulation
-case, ts_config = Mocca.setup_mocca_case(constants, info)
-states, timesteps = Mocca.simulate_process(case; timestep_selector_cfg = ts_config,
-    output_substates = true, info_level = 0)
-
-# Save results to CSV and plot
-Mocca.export_cell_results(joinpath(Mocca.moccaResultsDir, "dcb_haghpanah_2013_co2_n2_results.csv"),
-    case, states, timesteps; format="csv")
-f = Mocca.plot_outlet(case, states, timesteps)
-display(f)
+process = read_process("haghpanah_2013_four_stage_vsa")
+process[:P_L] = 0.05bar              # a design variable: the evacuation pressure
+result = cyclic_steady_state(process)
+performance(result)                  # purity, recovery, specific energy, productivity
 ```
+
+A process is described in layers, each of which can be edited and saved on
+its own: a `Gas` and its `Feed`; an `Adsorbent` with its isotherm given by
+component (`dual_site_langmuir`) and a `Column`; a `Flowsheet` of beds
+(`add_bed!`) and devices with roles (`add_device!`); and a `Cycle` of steps
+(`Pressurise`, `Adsorb`, `Blowdown`, `Evacuate`, `Purge`, `Equalise`, `Idle`,
+or your own). Units are SI; `Mocca.Units` has conversions such as `bar` and
+`kJ_per_mol`. See the [Custom setup cyclic VSA](https://github.com/sintefmath/Mocca.jl/blob/main/examples/custom_setup_cyclic_vsa.jl)
+example for a process built from its parts, and the
+[JSON input](https://github.com/sintefmath/Mocca.jl/blob/main/examples/json_input.jl)
+example for the file format.
 
 # Acknowledgements
 

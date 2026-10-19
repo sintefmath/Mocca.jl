@@ -1,130 +1,114 @@
 #=
-# Cyclic VSA simulation with explicit parameter setup
+# Building a process from its parts
 
 This example sets up a four-stage vacuum swing adsorption (VSA) process
-by constructing each component explicitly.  It shows how to compose an
-isotherm, mass transfer model, system, domain, and boundary conditions
-from individual physical parameters. This should act as a minimal example
-for users who want to set up a custom simulation.
+from its physical parameters: the gas, an isotherm given component by
+component, an adsorbent, a column, a flowsheet of a bed and devices, and a
+cycle of steps. Each layer can be edited, saved to a file and reused on its
+own. The column separates a CO₂/N₂ mixture on zeolite 13X.
 
-The column separates a CO₂/N₂ mixture on Zeolite 13X.
+Everything is in SI units. `Mocca.Units` has conversions, so that `0.1bar`
+is `1e4` (Pa) and `-36.64kJ_per_mol` is `-36640.0` (J/mol).
 =#
 
-import Jutul
-import Jutul: si_unit
 import Mocca
-using StaticArrays
+using Mocca.Units
 
-# # 1. Define the physics
+# # 1. The gas
+# Components are known by name. Their molar masses, heat capacities and
+# viscosities default to standard values; here the molar mass of N₂ and the
+# heat capacities follow Haghpanah et al. (2013). The mixture viscosity and
+# density default to those of the feed.
+gas = Mocca.Gas(["CO2", "N2"];
+    molar_masses = (N2 = 28e-3,),
+    heat_capacities = (CO2 = 697.5687, N2 = 1096.4),
+    diffusivity = 1.6e-5)
 
-# Dual-site Langmuir isotherm for CO₂/N₂ on Zeolite 13X
-isotherm = Mocca.DualSiteLangmuir(
-    qsb = SVector(3489.44, 6613.551),       # saturation loading, site b  [mol/m³]
-    b0  = SVector(8.65e-7, 2.5e-6),         # pre-exponential factor      [m³/mol]
-    ΔUb = SVector(-36641.21, -15800.0),     # adsorption energy, site b   [J/mol]
-    qsd = SVector(2872.35, 0.0),            # saturation loading, site d  [mol/m³]
-    d0  = SVector(2.63e-8, 0.0),            # pre-exponential factor      [m³/mol]
-    ΔUd = SVector(-35690.66, 0.0),          # adsorption energy, site d   [J/mol]
-)
+# # 2. The isotherm, by component
+# A dual-site Langmuir isotherm. Each component lists its own parameters, so
+# adding or removing a component does not mean editing parallel arrays.
+# Capacities are per m³ of adsorbent here (`basis = :mass` takes mol/kg), and
+# affinities are on a concentration basis [m³/mol].
+isotherm = Mocca.dual_site_langmuir(
+    "CO2" => (qsb = 3489.44, b0 = 8.65e-7, ΔUb = -36.64121kJ_per_mol,
+              qsd = 2872.35, d0 = 2.63e-8, ΔUd = -35.69066kJ_per_mol),
+    "N2"  => (qsb = 6613.551, b0 = 2.5e-6, ΔUb = -15.8kJ_per_mol))
 
-# Particle and transport properties
-D_m = 1.6e-5    # molecular diffusivity [m²/s]
-d_p = 2e-3      # particle diameter     [m]
+# # 3. The adsorbent
+# Its density and heat capacity, and the particle properties that set the
+# macropore diffusion of the linear driving force for mass transfer.
+adsorbent = Mocca.Adsorbent("my zeolite 13X";
+    isotherm = isotherm,
+    density = 1130.0,              # kg/m³
+    heat_capacity = 1070.0,        # J/(kg·K)
+    particle_diameter = 2mm,
+    particle_porosity = 0.35,
+    tortuosity = 3.0,
+    sorption_heat = :all)
 
-mass_transfer = Mocca.LinearDrivingForce(
-    D_m = D_m,
-    τ   = 3.0,       # tortuosity        [-]
-    ϵ_p = 0.35,      # particle porosity [-]
-    d_p = d_p,
-)
+# Check the isotherm before simulating: the loading of each component in
+# equilibrium with the feed, in mol/kg, and the CO₂ isotherm at two
+# temperatures.
+q = Mocca.equilibrium_loading(adsorbent, gas; pressure = 1bar, temperature = 298.15, composition = (CO2 = 0.15, N2 = 0.85))
+println("loading in equilibrium with the feed: CO₂ $(round(q[1], digits = 2)), N₂ $(round(q[2], digits = 3)) mol/kg")
+pressures = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0] .* bar
+table = Mocca.isotherm_table(adsorbent, gas, "CO2"; pressures = pressures, temperatures = [298.15, 348.15])
+for (P, row) in zip(pressures, eachrow(table))
+    println(rpad("$(P / bar) bar", 10), join([rpad("$(round(x, digits = 2)) mol/kg", 14) for x in row]))
+end
 
-# Assemble the adsorption system
-system = Mocca.AdsorptionSystem(
-    isotherm            = isotherm,
-    mass_transfer       = mass_transfer,
-    molecular_masses    = SVector(44.01e-3, 28.0e-3),     # [kg/mol]
-    component_names     = ["CO2", "N2"],
-    heat_capacity_gas      = SVector(697.5687, 1096.4),   # C_pg [J/(kg·K)]
-    heat_capacity_adsorbed = SVector(697.5687, 1096.4),   # C_pa [J/(kg·K)]
-)
+# The adsorbent can be saved and shared, and Mocca's library holds those of
+# published studies:
+path = Mocca.save_adsorbent(joinpath(mktempdir(), "my_13x.json"), adsorbent)
+println(Mocca.library_adsorbents())
 
-# # 2. Build the column domain
+# # 4. The column
+column = Mocca.Column(
+    length = 1.0,                  # m
+    radius = 14.45cm,
+    outer_radius = 16.2cm,         # of the wall
+    porosity = 0.37,               # bed void fraction
+    axial_conductivity = 0.0903,   # W/(m·K)
+    wall = Mocca.Wall(density = 7800.0, heat_capacity = 502.0, conductivity = 16.0),
+    inner_heat_transfer = 8.6,     # W/(m²·K), bed to wall
+    outer_heat_transfer = 2.5,     # W/(m²·K), wall to surroundings
+    ambient_temperature = 298.15)
 
-ncells   = 200
-L        = 1.0       # column length     [m]
-r_in     = 0.1445    # inner radius      [m]
-r_out    = 0.162     # outer wall radius [m]
-porosity = 0.37      # bed porosity      [-]
+# # 5. The flowsheet
+# A bed and three devices. The feed comes in at 1 bar and 25 °C.
+feed = Mocca.Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), temperature = celsius(25), pressure = 1bar)
+fs = Mocca.Flowsheet(gas, feed)
+Mocca.add_bed!(fs, :Bed, adsorbent, column; ncells = 50)
+Mocca.add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+Mocca.add_device!(fs, :V_product, :product; at = (:Bed, :top))
+Mocca.add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
+fs
 
-permeability = Mocca.compute_permeability(porosity, d_p)
-dispersion   = Mocca.compute_dispersion(D_m, 1.0, d_p)
+# # 6. The cycle
+# Steps are written in process terms. Each opens the devices it needs, found
+# by their roles, and keeps the others closed. A ramp starts from the
+# pressure the step before left the bed at, around the cycle.
+cycle = Mocca.Cycle([
+    Mocca.Pressurise(15.0),
+    Mocca.Adsorb(15.0; velocity = 1.0),
+    Mocca.Blowdown(30.0; to = 0.2bar),
+    Mocca.Evacuate(40.0; to = 0.1bar),
+])
 
-mesh = Mocca.column_mesh(ncells, L, r_in)
+# # 7. The process, and a check of the description
+process = Mocca.Process(fs, cycle)
+issues = Mocca.validate(process)
+println(isempty(issues) ? "no problems found" : join(sprint.(showerror, issues), "\n"))
+process
 
-domain = Mocca.mocca_domain(mesh;
-    porosity             = porosity,
-    permeability         = permeability,
-    r_in                 = r_in,
-    r_out                = r_out,
-    diffusion_coefficient = dispersion,
-    thermal_conductivity = 0.0903,     # K_z  [W/(m·K)]
-    adsorbent_density    = 1130.0,     # ρ_s  [kg/m³]
-    adsorbent_heat_capacity = 1070.0,  # C_ps [J/(kg·K)]
-    wall_density         = 7800.0,     # ρ_w  [kg/m³]
-    wall_heat_capacity   = 502.0,      # C_pw [J/(kg·K)]
-    wall_conductivity    = 16.0,       # K_w  [W/(m·K)]
-    fluid_viscosity      = 1.72e-5,    # μ    [Pa·s]
-    fluid_density        = 1.22638310956,  # ρ_g  [kg/m³]
-    inner_htc            = 8.6,        # h_in [W/(m²·K)]
-    outer_htc            = 2.5,        # h_out[W/(m²·K)]
-    ambient_temperature  = 298.15,     # T_a  [K]
-)
+# # 8. Simulate
+result = Mocca.simulate(process; cycles = 3)
 
-# # 3. Create the model, initial state and parameters
+bed_states = [s[:Bed] for s in result.states]
+f_outlet = Mocca.plot_cell(bed_states, fs[:Bed], result.timesteps, 50)
+f_column = Mocca.plot_state(bed_states[end], fs[:Bed])
 
-model = Mocca.setup_process_model(system, domain)
-
-bar = si_unit(:bar)
-state0 = Mocca.setup_process_state(model;
-    Pressure        = 1 * bar,
-    Temperature     = 298.15,
-    WallTemperature = 298.15,
-    y = [1e-10, 1.0 - 1e-10],
-)
-parameters = Mocca.setup_process_parameters(model)
-
-# # 4. Boundary conditions for each stage
-
-y_feed  = SVector(0.15, 0.85)
-T_feed  = 298.15
-p_high  = 1e5
-p_low   = 0.1e5
-p_inter = 0.2e5
-λ       = 0.5
-
-stage_times = [15.0, 15.0, 30.0, 40.0]
-
-bcs = [
-    Mocca.PressurisationBC(y_feed = y_feed, PH = p_high, PL = p_low, λ = λ, T_feed = T_feed),
-    Mocca.AdsorptionBC(y_feed = y_feed, PH = p_high, v_feed = 0.37, T_feed = T_feed),
-    Mocca.BlowdownBC(PH = p_high, PI = p_inter, λ = λ),
-    Mocca.EvacuationBC(PL = p_low, PI = p_inter, λ = λ),
-]
-
-# # 5. Assemble forces and simulate
-
-sim_forces, timesteps = Mocca.setup_forces(model, stage_times, bcs;
-    num_cycles = 3, max_dt = 1.0)
-
-case = Mocca.MoccaCase(model, timesteps, sim_forces;
-    state0 = state0, parameters = parameters)
-
-states, timesteps_out = Mocca.simulate_process(case;
-    output_substates = true,
-    info_level = 0,
-)
-
-# # 6. Visualise
-
-f_outlet = Mocca.plot_cell(states, model, timesteps_out, ncells)
-f_column = Mocca.plot_state(states[end], model)
+# # 9. Save the whole process
+# The process file holds every layer, and reads back as the same process.
+file = Mocca.write_process(joinpath(mktempdir(), "my_vsa.json"), process)
+same = Mocca.read_process(file)

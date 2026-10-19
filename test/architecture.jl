@@ -3,7 +3,9 @@
     system = Mocca.FixedBed(constants)
 
     @test Mocca.AdsorptionSystem === Mocca.FixedBed
-    @test Mocca.Column === Mocca.Unit
+    # Column() for the unit entity still works, deprecated; Column is now a
+    # column geometry
+    @test Mocca.Column() === Mocca.Unit()
     @test system isa Mocca.SorbentBed
     @test system isa Mocca.DistributedUnit
     @test system isa Mocca.MoccaSystem

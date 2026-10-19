@@ -15,22 +15,33 @@ Jutul.minimum_value(::ComponentMasses) = 0.0
 
 struct SpecificHeatCapacityFluid <: Jutul.ScalarVariable end
 
-struct DiffusionTransmissibilities <: Jutul.ScalarVariable end
-Jutul.variable_scale(::DiffusionTransmissibilities) = 1e-10
-Jutul.minimum_value(::DiffusionTransmissibilities) = 0.0
-Jutul.default_value(model, ::DiffusionTransmissibilities) = 1e-3
-Jutul.associated_entity(::DiffusionTransmissibilities) = Jutul.Faces()
+"""
+    AxialDispersion
 
-function Jutul.default_parameter_values(data_domain, model, param::DiffusionTransmissibilities, symb)
-    if haskey(data_domain, :diffusion_coefficient, Unit())
-        D = first(data_domain[:diffusion_coefficient, Unit()])
-        g = Jutul.physical_representation(data_domain)
-        porosity = data_domain[:porosity]
-        T = Jutul.compute_face_trans(g, porosity .* D)
-    else
+Axial dispersion coefficient [m²/s] of the gas in a distributed unit, one value
+for the unit. It is a parameter, so it can be changed per case, set by a
+design variable and differentiated without rebuilding the model.
+"""
+struct AxialDispersion <: Jutul.ScalarVariable end
+Jutul.associated_entity(::AxialDispersion) = Unit()
+Jutul.minimum_value(::AxialDispersion) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, ::AxialDispersion, symb)
+    haskey(data_domain, :diffusion_coefficient, Unit()) ||
         error(":diffusion_coefficient on Unit() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
-    end
-    return T
+    return copy(data_domain[:diffusion_coefficient, Unit()])
+end
+
+# Face transmissibilities [m] of the pore space for dispersion, per unit of
+# AxialDispersion: the dispersive flux through a face is
+# AxialDispersion·DispersionTransmissibilities·c̄·Δy
+struct DispersionTransmissibilities <: Jutul.ScalarVariable end
+Jutul.minimum_value(::DispersionTransmissibilities) = 0.0
+Jutul.associated_entity(::DispersionTransmissibilities) = Jutul.Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::DispersionTransmissibilities, symb)
+    g = Jutul.physical_representation(data_domain)
+    return Jutul.compute_face_trans(g, data_domain[:porosity])
 end
 
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::MoccaModel, Pressure, Temperature, ix)
@@ -108,7 +119,7 @@ end
     y = state.y
     C = (cL + cR)/2.0
 
-    D_l = state.DiffusionTransmissibilities[face]
+    D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
         c_face = Jutul.upwind(upw, F_c, q_darcy)

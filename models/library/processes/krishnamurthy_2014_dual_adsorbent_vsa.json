@@ -1,0 +1,315 @@
+{
+  "format": "mocca-process",
+  "version": 1,
+  "name": "Krishnamurthy et al. (2014), dual-adsorbent VSA, wet flue gas",
+  "gas": {
+    "components": [
+      "CO2",
+      "N2",
+      "H2O"
+    ],
+    "molar_masses": {
+      "CO2": 0.04401,
+      "N2": 0.028,
+      "H2O": 0.018015
+    },
+    "heat_capacities": {
+      "CO2": 1030.0,
+      "N2": 1030.0,
+      "H2O": 1030.0
+    },
+    "viscosity": 1.7e-5,
+    "density": 1.22638310956,
+    "diffusivity": {
+      "CO2": 1.6e-5,
+      "N2": 1.6e-5,
+      "H2O": 2.6e-5
+    }
+  },
+  "feed": {
+    "composition": {
+      "CO2": 0.15,
+      "N2": 0.82,
+      "H2O": 0.03
+    },
+    "temperature": 298.15,
+    "pressure": 101325.0,
+    "light_product": {
+      "CO2": 1.0e-10,
+      "N2": 0.9999999998,
+      "H2O": 1.0e-10
+    }
+  },
+  "adsorbents": {
+    "silica gel": {
+      "format": "mocca-adsorbent",
+      "version": 1,
+      "name": "silica gel",
+      "reference": "Krishnamurthy et al., Ind. Eng. Chem. Res. 53 (2014) 14462, doi:10.1021/ie5024723: isotherm of Table 1, case 1; properties of Table S2. The particle size is not given there and is that of Haghpanah et al. (2013). Capacities per m³ of adsorbent.",
+      "density": 1220.0,
+      "heat_capacity": 1070.0,
+      "particle_diameter": 0.002,
+      "particle_porosity": 0.35,
+      "tortuosity": 3.0,
+      "adsorbed_heat_capacity": {
+        "H2O": 1030.0,
+        "CO2": 1030.0,
+        "N2": 1030.0
+      },
+      "sorption_heat": "all",
+      "isotherm": {
+        "type": "dual_site_langmuir",
+        "reference_temperature": 298.15,
+        "basis": "volume",
+        "components": {
+          "CO2": {
+            "qsb": 2692.3,
+            "b0": 3.2e-7,
+            "dUb": -27120.0
+          },
+          "N2": {
+            "qsb": 918.9,
+            "b0": 1.2e-5,
+            "dUb": -12120.0
+          },
+          "H2O": {
+            "qsb": 718.13,
+            "b0": 5.6e-13,
+            "dUb": -89200.0,
+            "qsd": 52632.6,
+            "d0": 7.74e-8,
+            "dUd": -39900.0
+          }
+        }
+      }
+    },
+    "zeolite 13X": {
+      "format": "mocca-adsorbent",
+      "version": 1,
+      "name": "zeolite 13X",
+      "reference": "Krishnamurthy et al., Ind. Eng. Chem. Res. 53 (2014) 14462, doi:10.1021/ie5024723: isotherm of Table 1, case 1; properties of Table S2. The particle size is not given there and is that of Haghpanah et al. (2013). Capacities per m³ of adsorbent.",
+      "density": 1130.0,
+      "heat_capacity": 1070.0,
+      "particle_diameter": 0.002,
+      "particle_porosity": 0.35,
+      "tortuosity": 3.0,
+      "adsorbed_heat_capacity": {
+        "H2O": 1030.0,
+        "CO2": 1030.0,
+        "N2": 1030.0
+      },
+      "sorption_heat": "all",
+      "isotherm": {
+        "type": "dual_site_langmuir",
+        "reference_temperature": 298.15,
+        "basis": "volume",
+        "components": {
+          "CO2": {
+            "qsb": 3489.44,
+            "b0": 8.65e-7,
+            "dUb": -36640.0,
+            "qsd": 2872.35,
+            "d0": 2.63e-8,
+            "dUd": -35700.0
+          },
+          "N2": {
+            "qsb": 6613.55,
+            "b0": 2.5e-6,
+            "dUb": -15820.0
+          },
+          "H2O": {
+            "qsb": 10468.6,
+            "b0": 2.35e-7,
+            "dUb": -55720.0,
+            "qsd": 6434.5,
+            "d0": 7.99e-8,
+            "dUd": -45480.0
+          }
+        }
+      }
+    }
+  },
+  "columns": {
+    "column_1": {
+      "length": 0.41,
+      "radius": 0.15,
+      "outer_radius": 0.16,
+      "porosity": 0.37,
+      "axial_conductivity": 0.09,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 500.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    },
+    "column_2": {
+      "length": 1.0,
+      "radius": 0.15,
+      "outer_radius": 0.16,
+      "porosity": 0.37,
+      "axial_conductivity": 0.09,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 500.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    }
+  },
+  "units": [
+    {
+      "name": "SilicaGel",
+      "type": "fixed_bed",
+      "adsorbent": "silica gel",
+      "column": "column_1",
+      "ncells": 30,
+      "thermal": "with_wall",
+      "dispersion_velocity": "adsorption"
+    },
+    {
+      "name": "Zeolite",
+      "type": "fixed_bed",
+      "adsorbent": "zeolite 13X",
+      "column": "column_2",
+      "ncells": 30,
+      "thermal": "with_wall",
+      "dispersion_velocity": "adsorption"
+    }
+  ],
+  "devices": [
+    {
+      "name": "V_feed",
+      "role": "feed",
+      "at": [
+        "SilicaGel",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_waste",
+      "role": "waste",
+      "at": [
+        "SilicaGel",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_link",
+      "role": "link",
+      "from": [
+        "SilicaGel",
+        "top"
+      ],
+      "to": [
+        "Zeolite",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_product",
+      "role": "product",
+      "at": [
+        "Zeolite",
+        "top"
+      ]
+    },
+    {
+      "name": "V_lpp",
+      "role": "light_inlet",
+      "at": [
+        "Zeolite",
+        "top"
+      ]
+    },
+    {
+      "name": "V_vacuum",
+      "role": "extract",
+      "at": [
+        "Zeolite",
+        "bottom"
+      ]
+    }
+  ],
+  "cycle": {
+    "sequences": [
+      {
+        "label": "silica gel",
+        "steps": [
+          {
+            "type": "pressurise",
+            "duration": 20.0,
+            "source": "feed",
+            "bed": "SilicaGel"
+          },
+          {
+            "type": "adsorb",
+            "duration": 46.2,
+            "velocity": 0.7,
+            "bed": "SilicaGel"
+          },
+          {
+            "type": "blowdown",
+            "duration": 42.21,
+            "to": 48000.0,
+            "through": "bottom",
+            "bed": "SilicaGel"
+          },
+          {
+            "type": "evacuate",
+            "duration": 46.02,
+            "to": 30000.0,
+            "through": "bottom",
+            "bed": "SilicaGel"
+          }
+        ]
+      },
+      {
+        "label": "13X",
+        "steps": [
+          {
+            "type": "pressurise",
+            "duration": 20.0,
+            "source": "light_product",
+            "bed": "Zeolite"
+          },
+          {
+            "type": "adsorb",
+            "duration": 46.2,
+            "bed": "Zeolite"
+          },
+          {
+            "type": "blowdown",
+            "duration": 56.3,
+            "to": 7000.0,
+            "through": "top",
+            "bed": "Zeolite"
+          },
+          {
+            "type": "evacuate",
+            "duration": 101.2,
+            "to": 3000.0,
+            "through": "bottom",
+            "bed": "Zeolite"
+          }
+        ]
+      }
+    ]
+  },
+  "time_stepping": {
+    "max_dt": 1.0,
+    "first_dt": 0.05,
+    "keep_step_pattern": "auto"
+  },
+  "options": {
+    "key_component": "CO2",
+    "ambient_pressure": 101325.0,
+    "pump_efficiency": 0.72,
+    "heat_capacity_ratio": 1.4,
+    "ramp_rate": 0.5
+  }
+}

@@ -1,6 +1,7 @@
 using Mocca
 
 function setup_mocca_case(constants::ConstantsStruct, info::InfoStruct)
+    Base.depwarn("`setup_mocca_case` is deprecated; read a process file with `read_process` and run it with `simulate` or `cyclic_steady_state`.", :setup_mocca_case)
 
 	if info.system_type == "AdsorptionSystem"
 		system = Mocca.AdsorptionSystem(constants);
