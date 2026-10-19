@@ -78,11 +78,11 @@ end
     s1 = deepcopy(s0)
     s1[:AdsorbedConcentration] .+= 1e-12
     @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-12 / minimum(floors)
-    @test Mocca._variable_scale(bed, :AdsorbedConcentration, s0[:AdsorbedConcentration]) == floors
-    @test minimum(Mocca._stack_scale(bed, s0)) >= min(maximum(floors), 0.5)
+    @test Mocca.Operation._variable_scale(bed, :AdsorbedConcentration, s0[:AdsorbedConcentration]) == floors
+    @test minimum(Mocca.Operation._stack_scale(bed, s0)) >= min(maximum(floors), 0.5)
     # A loaded component keeps its own scale, an empty one gets its floor
     q = [fill(2floors[1], 1, 4); fill(1e-10, 1, 4)]
-    @test Mocca._variable_scale(bed, :AdsorbedConcentration, q) == [2floors[1], floors[2]]
+    @test Mocca.Operation._variable_scale(bed, :AdsorbedConcentration, q) == [2floors[1], floors[2]]
 
     # A trace in the gas is measured against its own level, not against the
     # major component

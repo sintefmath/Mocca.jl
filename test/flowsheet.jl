@@ -166,20 +166,20 @@ end
     r, rq = simulate(p), simulate(q)
     bed = p.flowsheet[:Bed]
     runs = ["v_feed 0.37 m/s" => (unit_states(r.states), r.timesteps), "v_feed 0.3 m/s" => (unit_states(rq.states), rq.timesteps)]
-    @test Mocca.plot_cell_comparison(runs, bed, 10) isa Mocca.Figure
-    @test Mocca.plot_state_comparison(["v_feed 0.37 m/s" => r.states[end][:Bed], "v_feed 0.3 m/s" => rq.states[end][:Bed]], bed) isa Mocca.Figure
-    @test Mocca.plot_flowsheet_streams(r.states, p.model, r.timesteps; stages = Mocca.stages(p)) isa Mocca.Figure
-    @test Mocca.plot_flowsheet_streams(r.states, p.model, r.timesteps) isa Mocca.Figure
+    @test Mocca.plot_cell_comparison(runs, bed, 10) isa Mocca.Plotting.Figure
+    @test Mocca.plot_state_comparison(["v_feed 0.37 m/s" => r.states[end][:Bed], "v_feed 0.3 m/s" => rq.states[end][:Bed]], bed) isa Mocca.Plotting.Figure
+    @test Mocca.plot_flowsheet_streams(r.states, p.model, r.timesteps; stages = Mocca.stages(p)) isa Mocca.Plotting.Figure
+    @test Mocca.plot_flowsheet_streams(r.states, p.model, r.timesteps) isa Mocca.Plotting.Figure
 end
 
 @testset "Stage time steps" begin
     # Without first_dt, equal steps no longer than max_dt, as before
-    @test Mocca._stage_steps(15.0, 2.0, 2.0) ≈ fill(15.0 / 8, 8)
-    s = Mocca._stage_steps(20.0, 1.0, 0.01)
+    @test Mocca.Operation._stage_steps(15.0, 2.0, 2.0) ≈ fill(15.0 / 8, 8)
+    s = Mocca.Operation._stage_steps(20.0, 1.0, 0.01)
     @test sum(s) ≈ 20.0
     @test s[1:3] ≈ [0.01, 0.02, 0.04]
     @test maximum(s) <= 1.0 + 1e-12
-    @test Mocca._stage_steps(0.005, 1.0, 0.01) ≈ [0.005]
+    @test Mocca.Operation._stage_steps(0.005, 1.0, 0.01) ≈ [0.005]
 end
 
 @testset "Parallel stage sequences" begin

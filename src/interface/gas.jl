@@ -105,8 +105,8 @@ Gas(names::Union{AbstractString, Symbol}...; kwarg...) = Gas(collect(names); kwa
 
 _maybe_float(x) = isnothing(x) ? nothing : Float64(x)
 
-component_names(gas::Gas) = gas.names
-number_of_components(gas::Gas) = length(gas.names)
+Framework.component_names(gas::Gas) = gas.names
+Framework.number_of_components(gas::Gas) = length(gas.names)
 
 function component_index(gas::Gas, name)
     i = findfirst(==(String(name)), gas.names)
@@ -199,8 +199,8 @@ mutable struct Feed
 end
 
 function Feed(gas::Gas; composition, temperature = 298.15, pressure = 101325.0, light_product = nothing)
-    y = Mocca.composition(gas, composition; location = "feed")
-    yl = isnothing(light_product) ? light_product_composition(y) : Mocca.composition(gas, light_product; location = "feed light product")
+    y = Interface.composition(gas, composition; location = "feed")
+    yl = isnothing(light_product) ? light_product_composition(y) : Interface.composition(gas, light_product; location = "feed light product")
     temperature > 0 || input_error("feed", "temperature", "must be positive (in K), got $temperature")
     pressure > 0 || input_error("feed", "pressure", "must be positive (in Pa), got $pressure")
     return Feed(y, Float64(temperature), Float64(pressure), yl)

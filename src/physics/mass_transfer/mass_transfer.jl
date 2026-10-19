@@ -15,4 +15,3 @@ Compute mass transfer rate [mol/(m³ adsorbent·s)] for the adsorption process.
 """
 function compute_mass_transfer_rate end
 
-include("ldf.jl")
