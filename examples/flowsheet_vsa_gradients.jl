@@ -57,7 +57,7 @@ process
 # ratios of sums over the cycle (the CO₂ and the gas in the extract, the CO₂
 # fed, the pump and compressor work), and their gradients follow by the
 # quotient rule.
-g = Mocca.performance_gradient(process)
+g = Mocca.performance_gradient(process; progress = true)
 metrics = g.metrics[(:purity, :recovery, :specific_energy, :productivity)]
 for (k, v) in pairs(metrics)
     println(rpad(k, 18), round(v, sigdigits = 4))

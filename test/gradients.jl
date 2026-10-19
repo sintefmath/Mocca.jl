@@ -145,9 +145,15 @@ end
     forces, dt = Mocca.setup_schedule(c.fs, c.mm, c.stages; num_cycles = 1, max_dt = 2.5, first_dt = 0.05)
     loose = Mocca.simulate_to_cyclic_steady_state(c.mm, c.state0, c.prm, forces, dt; tol = 1e-4, max_cycles = 200)
     @test loose.converged
-    css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11)
+    io = IOBuffer()
+    css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11, progress = io)
     @test css.converged
     @test css.cycles <= 5
+    # An iteration from 0, each Jacobian, and the end of the phase
+    lines = split(String(take!(io)), '\n'; keepempty = false)
+    @test count(contains(r"Newton +iteration"), lines) == css.cycles + 1
+    @test count(contains("building the Jacobian from"), lines) == css.jacobian_builds
+    @test contains(lines[end], "converged  $(css.jacobian_builds) Jacobian")
     # The first two steps, from wherever the loose solve stopped, gain at least
     # an order of magnitude in the cycle change; once close, each iteration
     # gains at least another. (The first step alone can raise the change of a

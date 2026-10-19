@@ -309,7 +309,7 @@ _holdup_dofs(model::Jutul.SimulationModel, map) = collect(1:sum(info -> info.n_x
 
 """
     newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-10, max_iterations = 10, info_level = -1, kwarg...)
+        tol = 1e-10, max_iterations = 10, progress = false, info_level = -1, kwarg...)
 
 Converge a cyclic steady state with Newton's method, from a `state0` near it.
 The cycle, given by its `forces` and `timesteps`, maps its initial state `x` to
@@ -335,14 +335,18 @@ costing one cycle instead of one adjoint per variable. The Jacobian is
 rebuilt whenever an iteration reduces the cycle change by less than a factor
 `1/refresh_ratio`.
 
-Stops when the [`cycle_change`](@ref) is below `tol`. Returns the same fields
+Stops when the [`cycle_change`](@ref) is below `tol`. With `progress`
+(`true`, an `IO` or a [`CycleProgress`](@ref)), each iteration is printed with
+its cycle change, and the building of each Jacobian with its adjoints. Returns the same fields
 as `simulate_to_cyclic_steady_state`, with `cycles` counting the iterations,
 plus `jacobian`, the last Jacobian used (as the inverse of `I − ∂Φ/∂x`), and
 `jacobian_builds`, how many were built. Extra keywords go to
 `setup_process_simulator`.
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, info_level = -1, kwarg...)
+        tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, progress = false, info_level = -1, kwarg...)
+    pr = cycle_progress(progress; info_level = info_level)
+    start_phase!(pr, "Newton"; tol = tol, noun = "iteration", estimate = false)
     x = restart_state(model, state0)
     history = Float64[]
     states = dt = nothing
@@ -353,15 +357,16 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
         states, dt, step_forces = _simulate_steps(model, x, parameters, forces, timesteps; kwarg...)
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
-        info_level >= 0 && println("Newton iteration $it: cycle change $(history[end])")
+        report_cycle!(pr, it, history[end])
         if history[end] < tol
+            finish_phase!(pr, it, true; note = _jacobian_note(builds, jacobian))
             return (states = states, timesteps = dt, state0 = x, history = history, cycles = it, converged = true,
                 jacobian = J, jacobian_builds = builds)
         end
         it == max_iterations && break
         stalled = it > 0 && history[end] > refresh_ratio * history[end - 1]
         if isnothing(J) || stalled
-            J = _cycle_jacobian(model, x, parameters, states, dt, step_forces)
+            J = _cycle_jacobian(model, x, parameters, states, dt, step_forces; progress = pr)
             builds += 1
             previous = nothing
         end
@@ -383,19 +388,27 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
         z[J.dofs] .= z0[J.dofs] .+ J.M * r
         x = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
     end
+    finish_phase!(pr, max_iterations, false; note = _jacobian_note(builds, jacobian))
     return (states = states, timesteps = dt, state0 = x, history = history, cycles = max_iterations, converged = false,
         jacobian = J, jacobian_builds = builds)
 end
 
+function _jacobian_note(builds, given)
+    builds == 0 && return isnothing(given) ? "" : "Jacobian reused"
+    return "$builds $(builds == 1 ? "Jacobian" : "Jacobians") built" * (isnothing(given) ? "" : " (the one given went stale)")
+end
+
 # Jacobian ∂Φ/∂x of the cycle with respect to the initial state of the units
 # with holdup, row by row from adjoints, returned as M = (I − ∂Φ/∂x)⁻¹
-function _cycle_jacobian(model, x, parameters, states, dt, forces)
+function _cycle_jacobian(model, x, parameters, states, dt, forces; progress = nothing)
     sensitivity, map, = _state_adjoint(model, x, parameters, states, dt, forces)
     dofs = _holdup_dofs(model, map)
     n = length(dofs)
     A = zeros(n, n)
     w = zeros(length(Jutul.vectorize_variables(model, x, map)))
+    report_status!(progress, "building the Jacobian from $n adjoints"; persist = true)
     for (r, i) in enumerate(dofs)
+        report_status!(progress, "building the Jacobian: adjoint $r of $n")
         w .= 0
         w[i] = 1
         A[r, :] .= sensitivity(_CycleObjective(nothing, copy(w), map))[dofs]

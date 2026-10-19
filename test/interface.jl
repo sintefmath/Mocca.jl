@@ -390,8 +390,14 @@ end
     add_variable!(p, :P_L, ("evacuation", :to); bounds = (0.05bar, 0.3bar))
     add_variable!(p, :t_ads, ("adsorption", :duration); bounds = (10.0, 30.0))
     add_variable!(p, :P_H, (:feed, :pressure); bounds = (1.05bar, 1.5bar))
-    g = performance_gradient(p)
+    io = IOBuffer()
+    g = performance_gradient(p; progress = io)
     @test g.steady_state.converged
+    out = String(take!(io))
+    @test startswith(out, "Cyclic steady state of four-stage VSA: Anderson acceleration to 1.0e-03, then Newton's method to 1.0e-09\n")
+    @test contains(out, "  Anderson ") && contains(out, "  Newton ")
+    @test contains(out, "done, on to Newton") && contains(out, "converged")
+    @test contains(out, "Converged after $(count(contains(r"(cycle|iteration) +\d+  "), split(out, '\n'))) cycles simulated")
     value() = performance(cyclic_steady_state(p; tol = 1e-11))
     for n in (:P_L, :t_ads, :P_H)
         x0 = p[n]

@@ -5,7 +5,12 @@ using Literate
 
 function build_mocca_docs(; build_examples = true, build_notebooks = true)
 
+    # The examples show the progress of their main cyclic steady state when
+    # run as scripts; the pages built from them leave it out
+    hide_progress(content) = replace(content, r"[;,] progress = true(?=\))" => "")
+
     function update_footer(content, pth)
+        content = hide_progress(content)
         return content*"\n\n # ## Example on GitHub\n "*
         "# If you would like to run this example yourself, it can be downloaded from "*
         "[the Mocca.jl GitHub repository](https://github.com/sintefmath/Mocca.jl/blob/main/examples/$pth.jl)."
