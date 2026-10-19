@@ -78,7 +78,6 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     S[:WallHeatCapacity] = WallHeatCapacity()
     S[:WallConductivity] = WallConductivity()
     S[:FluidViscosity] = FluidViscosity()
-    S[:FluidDensity] = FluidDensity()
     S[:InnerHeatTransferCoeff] = InnerHeatTransferCoeff()
     S[:OuterHeatTransferCoeff] = OuterHeatTransferCoeff()
     S[:AmbientTemperature] = AmbientTemperature()

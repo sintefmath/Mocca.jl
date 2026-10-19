@@ -335,7 +335,8 @@ function optimise!(p::Process; variables = variable_names(p), maximise = nothing
         k in free || (p[v.name] = v.lower)
     end
     x0 = clamp.(variable_values(p, names), lo, hi)
-    to_x(u) = (x = copy(x0); x[free] .= lo[free] .+ u .* (hi[free] .- lo[free]); x)
+    # Clamped, as the optimiser can step a round-off outside the unit box
+    to_x(u) = (x = copy(x0); x[free] .= clamp.(lo[free] .+ u .* (hi[free] .- lo[free]), lo[free], hi[free]); x)
     u0 = (x0[free] .- lo[free]) ./ (hi[free] .- lo[free])
     reset_step_pattern!(p)
     sc(k) = Float64(get(scale, k, 1.0))

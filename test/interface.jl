@@ -57,7 +57,7 @@ end
 
 @testset "Isotherms and adsorbents" begin
     c = M.HaghpanahConstants{Float64}()
-    old = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
+    old = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi)
     a = load_adsorbent("zeolite_13x_haghpanah_2013")
     gas = M.haghpanah_2013_gas()
     iso = M.isotherm(a, gas)
@@ -81,7 +81,7 @@ end
     # Writing and reading an adsorbent gives it back
     path = save_adsorbent(joinpath(mktempdir(), "a.json"), a)
     b = load_adsorbent(path)
-    @test M.isotherm(b, gas).ΔH == iso.ΔH && b.adsorbed_heat_capacity == a.adsorbed_heat_capacity && b.sorption_heat == :first_component
+    @test M.isotherm(b, gas).ΔH == iso.ΔH && b.adsorbed_heat_capacity == a.adsorbed_heat_capacity
 end
 
 @testset "The old constants convert to the same bed" begin
@@ -90,9 +90,8 @@ end
     fs = Flowsheet(k.gas, k.feed)
     add_bed!(fs, :Bed, k.adsorbent, k.column; ncells = 10, dispersion_velocity = k.dispersion_velocity)
     bed = fs[:Bed]
-    iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi, T0 = c.T0)
+    iso = DualSiteLangmuir(qsb = c.qsbi, b0 = c.b0, ΔUb = c.ΔUbi, qsd = c.qsdi, d0 = c.d0, ΔUd = c.ΔUdi)
     @test bed.system.isotherm.qsb == iso.qsb && bed.system.isotherm.ΔH == iso.ΔH
-    @test !M.sorption_heat_all_components(bed.system)
     d = bed.data_domain
     @test all(d[:porosity] .== c.Φ) && all(d[:permeability] .== M.compute_permeability(c.Φ, c.d_p))
     @test first(d[:diffusion_coefficient, M.Unit()]) == M.compute_dispersion(c.D_m, c.V0_inter, c.d_p)
@@ -255,6 +254,11 @@ end
     @test M.cycle_steps(q.cycle)[4][2].to == 0.1bar && q.flowsheet.feed.pressure == 1bar
     @test M.stages(q)[4].settings[:V_vacuum].outlet.pressure.stop == 0.1bar
     @test M.stages(p)[4].settings[:V_vacuum].outlet.pressure.stop == 0.12bar
+    # A new feed temperature reaches the stages at once
+    add_variable!(p, :T_feed, (:feed, :temperature))
+    p[:T_feed] = 310.0
+    @test M.stages(p)[1].settings[:V_feed].inlet.temperature == 310.0
+    @test M.stages(p)[2].settings[:V_feed].inlet.temperature == 310.0
 end
 
 @testset "Axial dispersion is a parameter" begin

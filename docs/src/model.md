@@ -124,9 +124,7 @@ per-mass values of each component,
 \bar M = \sum_i y_i M_i.
 ```
 
-``\Delta H_i < 0``, so adsorption heats the bed. With `sorption_heat =
-:first_component` (the behaviour of Mocca 0.1.0) the sums over ``i`` include
-only the first component.
+``\Delta H_i < 0``, so adsorption heats the bed.
 
 ### Wall energy balance
 

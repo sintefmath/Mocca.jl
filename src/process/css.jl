@@ -14,19 +14,54 @@ function restart_state(model::Jutul.MultiModel, state)
     return Dict{Symbol, Any}(k => restart_state(model.models[k], state[k]) for k in Jutul.submodels_symbols(model))
 end
 
+# Fraction of a component's saturation capacity below which its loading counts
+# as zero
+const LOADING_SCALE_FRACTION = 1e-3
+
+# Mole fraction below which a component counts as absent
+const MOLE_FRACTION_SCALE_FLOOR = 1e-6
+
+# Magnitude of primary variable `p` below which its values count as zero when
+# changes are measured relative to it: a number, or one per component for a
+# per-component variable. Without it, a component that is absent, or at its
+# minimum value, everywhere (such as a trace in the gas, or the loading of a
+# bed no adsorbate has reached) would measure round-off against itself.
+_scale_floor(model, p) = p == :y ? MOLE_FRACTION_SCALE_FLOOR : eps()
+
+function _scale_floor(model::SorbentBedModel, p)
+    p == :AdsorbedConcentration || return p == :y ? MOLE_FRACTION_SCALE_FLOOR : eps()
+    qs = saturation_capacity(model.system.isotherm)
+    isnothing(qs) && return eps()
+    # A component the sorbent does not take up is measured against the others
+    q_max = maximum(qs)
+    return [max(LOADING_SCALE_FRACTION * (q > 0 ? q : q_max), eps()) for q in qs]
+end
+
+# Scale of primary variable `p` with values `x`, at least its floor: the
+# largest magnitude of each component (a vector, one per row) for a
+# per-component variable if `per_component`, otherwise of the whole variable
+function _variable_scale(model, p, x; per_component = true)
+    floor = _scale_floor(model, p)
+    per_component && x isa AbstractMatrix && return max.(vec(maximum(abs, x; dims = 2)), floor)
+    return max(maximum(abs, x), maximum(floor))
+end
+
 """
     cycle_change(model, state_start, state_end) → Float64
 
 Largest relative change of any primary variable of a unit with holdup between
 the start and the end of a cycle: `max |x_end − x_start| / max |x_start|`, taken
-per variable. Devices are skipped, since they hold no inventory.
+per variable, and per component for mole fractions and loadings, so that a
+trace component is measured against its own level. A mole fraction is measured
+against at least 10⁻⁶, and a loading against at least 0.1% of the component's
+saturation capacity, so that an absent component does not measure round-off
+against itself. Devices are skipped, since they hold no inventory.
 """
 function cycle_change(model::Jutul.SimulationModel, s0, s1)
     err = 0.0
     for k in keys(model.primary_variables)
         x0, x1 = s0[k], s1[k]
-        scale = max(maximum(abs, x0), eps())
-        err = max(err, maximum(abs, x1 .- x0) / scale)
+        err = max(err, maximum(abs.(x1 .- x0) ./ _variable_scale(model, k, x0)))
     end
     return err
 end
@@ -55,12 +90,15 @@ function _stack(model, state)
     return v
 end
 
-# Scale of each entry: the largest magnitude of its variable in `state`
+# Scale of each entry: the largest magnitude of its variable in `state`, at
+# least the floor. Taken over the whole variable rather than per component: it
+# weights the least squares fit of Anderson acceleration, which a small
+# component, such as a weakly adsorbed one, would otherwise dominate.
 function _stack_scale(model, state)
     v = Float64[]
     for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
         x = _unit_state(state, k)[p]
-        append!(v, fill(max(maximum(abs, x), eps()), length(x)))
+        append!(v, fill(_variable_scale(m, p, x; per_component = false), length(x)))
     end
     return v
 end

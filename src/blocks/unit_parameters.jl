@@ -66,12 +66,6 @@ function Jutul.default_parameter_values(data_domain, model, ::FluidViscosity, sy
     return copy(data_domain[:fluid_viscosity, Unit()])
 end
 
-struct FluidDensity <: Jutul.ScalarVariable end
-Jutul.associated_entity(::FluidDensity) = Unit()
-function Jutul.default_parameter_values(data_domain, model, ::FluidDensity, symb)
-    return copy(data_domain[:fluid_density, Unit()])
-end
-
 struct InnerHeatTransferCoeff <: Jutul.ScalarVariable end
 Jutul.associated_entity(::InnerHeatTransferCoeff) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::InnerHeatTransferCoeff, symb)

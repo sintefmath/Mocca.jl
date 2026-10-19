@@ -126,24 +126,13 @@ struct SorptionUptake <: AbstractSourceTerm end
     return -state.SolidVolume[cell] * ∂q∂t
 end
 
-# Components included in the sorption energy terms. Versions up to 0.1.0 only
-# included the first component (a loop bound taken from the length-1 energy
-# equation buffer); `all_components = false` reproduces that.
-@inline _sorption_energy_components(AC, all_components::Bool) = all_components ? axes(AC, 1) : (1:1)
-
 """
-    HeatOfSorption(; all_components = false)
-
 Heat released by sorption, plus the sensible heat carried by the adsorbed
 phase: removes `V_s·Σ_i (C_pa·M̄·T + ΔH_i)·∂q_i/∂t` from the gas energy balance.
-
-With `all_components = false` the sum only includes the first component, which
-reproduces results from Mocca 0.1.0 and earlier.
 """
-struct HeatOfSorption{A} <: AbstractSourceTerm end
-HeatOfSorption(; all_components::Bool = false) = HeatOfSorption{all_components}()
+struct HeatOfSorption <: AbstractSourceTerm end
 
-@inline function energy_source(::HeatOfSorption{A}, model, state, state0, cell, Δt) where A
+@inline function energy_source(::HeatOfSorption, model, state, state0, cell, Δt)
     AC = state.AdsorbedLoading
     AC₀ = state0.AdsorbedLoading
     ΔH = state.ΔH
@@ -151,7 +140,7 @@ HeatOfSorption(; all_components::Bool = false) = HeatOfSorption{all_components}(
     avm = state.AverageMolarMass[cell]
     T = state.Temperature[cell]
     adsorption_term = zero(T)
-    for i in _sorption_energy_components(AC, A)
+    for i in axes(AC, 1)
         ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, cell)
         adsorption_term += (C_pa * avm * T + ΔH[i, cell]) * ∂q∂t
     end
@@ -165,19 +154,13 @@ struct SolidHeatCapacity <: AbstractSourceTerm end
     return state.SolidVolume[cell] * state.AdsorbentDensity[1] * state.AdsorbentHeatCapacity[1]
 end
 
-"""
-    AdsorbedPhaseHeatCapacity(; all_components = false)
+"Heat capacity of the adsorbed phase: `V_s·C_pa·M̄·Σ_i q_i`."
+struct AdsorbedPhaseHeatCapacity <: AbstractSourceTerm end
 
-Heat capacity of the adsorbed phase: `V_s·C_pa·M̄·Σ_i q_i`. See
-[`HeatOfSorption`](@ref) for `all_components`.
-"""
-struct AdsorbedPhaseHeatCapacity{A} <: AbstractSourceTerm end
-AdsorbedPhaseHeatCapacity(; all_components::Bool = false) = AdsorbedPhaseHeatCapacity{all_components}()
-
-@inline function heat_capacity(::AdsorbedPhaseHeatCapacity{A}, model, state, cell) where A
+@inline function heat_capacity(::AdsorbedPhaseHeatCapacity, model, state, cell)
     AC = state.AdsorbedConcentration
     sq = zero(eltype(AC))
-    for i in _sorption_energy_components(AC, A)
+    for i in axes(AC, 1)
         sq += AC[i, cell]
     end
     return state.SolidVolume[cell] * state.C_pa[cell] * state.AverageMolarMass[cell] * sq

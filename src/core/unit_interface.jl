@@ -6,9 +6,8 @@
 # - `ports(model)`: named ports, each the index of the cell a stream enters or
 #   leaves through (see coupling/ports.jl);
 # - the variables the port cross terms read at a port cell: `Pressure`,
-#   `Temperature` and `y`, and in the equations they add to,
-#   `MolarConcentration` (mass balance), and `C_pg` and `AverageMolarMass`
-#   (energy balance), plus the `FluidDensity` parameter;
+#   `Temperature` and `y`; and, for streams into an energy balance, the
+#   system's `heat_capacity_gas` and `molecular_masses`;
 # - the `TimeScale` parameter, used through `_scaled_dt` in every time
 #   derivative, for gradients with respect to stage durations;
 # - [`stream_equations`](@ref): the equations a stream adds to;

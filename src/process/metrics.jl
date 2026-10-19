@@ -47,11 +47,19 @@ purity(n; component = 1) = n[component] / sum(n)
 recovery(n_product, n_feed; component = 1) = n_product[component] / n_feed[component]
 
 """
-    productivity(n_product, duration, sorbent_mass; component = 1)
+    productivity(n_product, duration, adsorbent_volume; component = 1)
 
-Moles of `component` produced per kilogram of sorbent per second.
+Moles of `component` produced per m³ of adsorbent (the particles, without the
+voids between them) per second.
 """
-productivity(n_product, duration, sorbent_mass; component = 1) = n_product[component] / (sorbent_mass * duration)
+productivity(n_product, duration, adsorbent_volume; component = 1) = n_product[component] / (adsorbent_volume * duration)
+
+"""
+    adsorbent_volume(model, parameters)
+
+Volume [m³] of the adsorbent particles in a bed, without the voids between them.
+"""
+adsorbent_volume(model::SorbentBedModel, parameters) = sum(parameters[:SolidVolume])
 
 """
     sorbent_mass(model, parameters)

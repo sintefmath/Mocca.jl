@@ -141,7 +141,7 @@ end
 """
     Adsorbent(name = ""; isotherm, density, heat_capacity, particle_diameter,
         particle_porosity, tortuosity = 3.0, adsorbed_heat_capacity = nothing,
-        sorption_heat = :all, mass_transfer = nothing, reference = "")
+        mass_transfer = nothing, reference = "")
 
 An adsorbent material:
 
@@ -152,8 +152,6 @@ An adsorbent material:
   macropore diffusion of the default linear driving force;
 - `adsorbed_heat_capacity` [J/(kg·K)] of the adsorbed phase, per component (a
   vector in gas order or by name); by default the gas heat capacities;
-- `sorption_heat`: `:all` sums the heat of sorption over every component;
-  `:first_component` counts only the first, as Mocca 0.1.0 did;
 - `mass_transfer`: an [`AbstractMassTransfer`](@ref); by default a
   [`LinearDrivingForce`](@ref) from the particle properties and the gas
   diffusivity;
@@ -170,23 +168,21 @@ struct Adsorbent
     particle_porosity::Float64
     tortuosity::Float64
     adsorbed_heat_capacity::Any
-    sorption_heat::Symbol
     mass_transfer::Any
     reference::String
 end
 
 function Adsorbent(name = ""; isotherm, density, heat_capacity, particle_diameter, particle_porosity,
-        tortuosity = 3.0, adsorbed_heat_capacity = nothing, sorption_heat = :all, mass_transfer = nothing, reference = "")
+        tortuosity = 3.0, adsorbed_heat_capacity = nothing, mass_transfer = nothing, reference = "")
     loc = isempty(name) ? "adsorbent" : "adsorbent $name"
     isotherm isa Union{AbstractIsothermData, AbstractIsotherm} || input_error(loc, "isotherm", "expected isotherm data such as dual_site_langmuir(...), got $(typeof(isotherm))")
     for (k, v) in (:density => density, :heat_capacity => heat_capacity, :particle_diameter => particle_diameter, :tortuosity => tortuosity)
         v > 0 || input_error(loc, k, "must be positive, got $v")
     end
     0 < particle_porosity < 1 || input_error(loc, "particle_porosity", "must be between 0 and 1, got $particle_porosity")
-    sorption_heat in (:all, :first_component) || input_error(loc, "sorption_heat", "use :all or :first_component, got $sorption_heat")
     isnothing(mass_transfer) || mass_transfer isa AbstractMassTransfer || input_error(loc, "mass_transfer", "expected an AbstractMassTransfer, got $(typeof(mass_transfer))")
     return Adsorbent(String(name), isotherm, density, heat_capacity, particle_diameter, particle_porosity, tortuosity,
-        adsorbed_heat_capacity, sorption_heat, mass_transfer, String(reference))
+        adsorbed_heat_capacity, mass_transfer, String(reference))
 end
 
 "Isotherm of `adsorbent` for the components of `gas`."

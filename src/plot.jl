@@ -293,7 +293,7 @@ function plot_profiles(states, timesteps, model, times;
     names = model.system.component_names
     x = model.data_domain[:cell_centroids][1, :]
     x = x ./ sum(model.data_domain[:dx])
-    q_scale = _saturation_capacity(model.system.isotherm)
+    q_scale = saturation_capacity(model.system.isotherm)
     colors = Makie.wong_colors()
     f = Figure(size = (300 * length(components), 600))
     ax = nothing
@@ -316,5 +316,3 @@ function plot_profiles(states, timesteps, model, times;
     return f
 end
 
-_saturation_capacity(iso::DualSiteLangmuir) = iso.qsb .+ iso.qsd
-_saturation_capacity(iso) = nothing

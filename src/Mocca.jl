@@ -14,7 +14,7 @@ export Flowsheet, UnitNetwork, add_unit!, connect!, set_boundary!, setup_flowshe
 export AbstractConnection, StreamConnection, PortRef
 export setup_flowsheet_state, setup_flowsheet_parameters
 export Stage, setup_schedule
-export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass
+export cycle_window, stream_totals, purity, recovery, productivity, adsorbent_volume, sorbent_mass
 export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
 export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance
 export StreamObjective, VacuumPumpObjective, CompressorObjective, force_gradients, newton_cyclic_steady_state, cyclic_steady_state_gradient
@@ -52,6 +52,7 @@ export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorb
 import Jutul
 import Jutul: simulate
 import JSON
+using LinearAlgebra
 using StaticArrays
 
 import Jutul: JutulCase

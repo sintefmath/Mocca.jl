@@ -16,11 +16,11 @@ of its two site energies weighted by their saturation capacities.
 """
 struct DualSiteLangmuir{N, T} <: AbstractIsotherm
     # Site b (high energy)
-    qsb::SVector{N, T}    # Saturation loading [mol/kg]
+    qsb::SVector{N, T}    # Saturation loading [mol/m³ adsorbent]
     b0::SVector{N, T}     # Pre-exponential factor [m³/mol]
     ΔUb::SVector{N, T}    # Adsorption energy [J/mol]
     # Site d (low energy)
-    qsd::SVector{N, T}    # Saturation loading [mol/kg]
+    qsd::SVector{N, T}    # Saturation loading [mol/m³ adsorbent]
     d0::SVector{N, T}     # Pre-exponential factor [m³/mol]
     ΔUd::SVector{N, T}    # Adsorption energy [J/mol]
     # Precomputed
@@ -70,3 +70,5 @@ function compute_equilibrium(iso::DualSiteLangmuir{N}, concentration, temperatur
 end
 
 compute_enthalpy(iso::DualSiteLangmuir, concentration, temperature) = iso.ΔH
+
+saturation_capacity(iso::DualSiteLangmuir) = iso.qsb .+ iso.qsd

@@ -12,24 +12,13 @@ function run_cyclic_simulation(; ncells = 200, num_cycles = 3, max_dt = 1.0)
     return unit_states(r.states), p.flowsheet[:Bed], r.timesteps, num_cycles, stage_times
 end
 
+# The averages over the last cycle are weighted by time, so that they do not
+# depend on where the solver splits a step
 function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
     nc = number_of_cells(model.domain)
     final = states[end]
-
-    cycle_duration = sum(stage_times)
-    last_cycle_start_time = (num_cycles - 1) * cycle_duration
-
-    cumtime = 0.0
-    last_cycle_start_idx = 1
-    for i in 1:length(timesteps_out)
-        if cumtime >= last_cycle_start_time
-            last_cycle_start_idx = i
-            break
-        end
-        cumtime += timesteps_out[i]
-    end
-
-    last_cycle_states = states[last_cycle_start_idx:end]
+    w = Mocca.cycle_window(timesteps_out, sum(stage_times), num_cycles)
+    time_average(f) = sum(f(states[i]) * timesteps_out[i] for i in w) / sum(timesteps_out[w])
 
     return (
         y_CO2_final = final[:y][1, nc],
@@ -37,8 +26,8 @@ function cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
         T_final = final[:Temperature][nc],
         P_final = final[:Pressure][nc],
         total_CO2_adsorbed_final = sum(final[:AdsorbedConcentration][1, :]),
-        avg_T_last_cycle = mean([maximum(s[:Temperature]) for s in last_cycle_states]),
-        avg_P_last_cycle = mean([mean(s[:Pressure]) for s in last_cycle_states]),
+        avg_T_last_cycle = time_average(s -> maximum(s[:Temperature])),
+        avg_P_last_cycle = time_average(s -> mean(s[:Pressure])),
     )
 end
 
@@ -47,17 +36,22 @@ end
     m = cyclic_metrics(states, model, timesteps_out, num_cycles, stage_times)
 
     # From the Process (flowsheet) form of the cycle. The legacy boundary
-    # conditions, whose references these replace, agreed to within 4e-4 in
-    # every quantity, apart from the trace of CO2 left at the top of the bed
-    # (5.05e-8 there, 7.00e-8 here)
+    # conditions agreed with it to within 4e-4. Carrying the stream enthalpy
+    # into the bed without an extra conduction term at the ports then lowered
+    # the CO2 held by 1.1% and raised the average peak temperature by 0.5 K;
+    # the scale-free convergence criteria moved nothing by more than 1e-4
+    # apart from the trace of CO2 at the top of the bed. Counting the heat of
+    # sorption of N2 as well as CO2 then lowered the final top temperature by
+    # 2.4 K and the average peak temperature by 1.3 K. Computed at the default
+    # nonlinear tolerance of 1e-6
     ref = (
-        y_CO2_final = 7.00076017689521e-8,
-        y_N2_final = 0.9999999299923981,
-        T_final = 295.76747069213474,
-        P_final = 9998.232940271764,
-        total_CO2_adsorbed_final = 50790.2436361158,
-        avg_T_last_cycle = 348.2936828984303,
-        avg_P_last_cycle = 40068.949813652536,
+        y_CO2_final = 5.540219427310748e-8,
+        y_N2_final = 0.9999999445978052,
+        T_final = 293.3962731654778,
+        P_final = 9998.471927554892,
+        total_CO2_adsorbed_final = 50215.80381763518,
+        avg_T_last_cycle = 347.51098939059665,
+        avg_P_last_cycle = 40170.12038925197,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

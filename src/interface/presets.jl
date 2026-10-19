@@ -63,8 +63,8 @@ end
 
 """
     two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0,
-        equalisation_time = 10.0, equalisation_conductance = 1e-6, P_H = 1e5, P_I = 0.2e5,
-        P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
+        equalisation_time = 10.0, equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5,
+        velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
 
 Two beds, A and B, running the four-stage VSA cycle half a cycle apart, with
 a pressure equalisation valve joining their tops:
@@ -89,10 +89,11 @@ which saves feed gas and compression work:
 | 6     | equalisation (takes)   | equalisation (gives)   |
 
 After equalising, a bed is taken to be midway between the high and low
-pressures, where its pressurisation starts; evacuation ramps from `P_I`.
+pressures, where its pressurisation or evacuation starts. A bed evacuates
+through two stages, along one ramp to `P_L`.
 """
 function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0, equalisation_time = 10.0,
-        equalisation_conductance = 1e-6, P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
+        equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
         timestepping = TimeStepping(), name = "two-bed VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
     feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
@@ -108,13 +109,17 @@ function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_tim
     add_device!(fs, :V_eq, :link; from = (:A, :top), to = (:B, :top))
     P_eq = (P_H + P_L) / 2
     tp, tf, te = pressurisation_time, feed_time, equalisation_time
-    evacuate(b, t) = Evacuate(t; bed = b, from = P_I, to = P_L)
+    # A bed evacuates through two stages. The second carries on along the ramp
+    # of the first, from where it left the bed: the pressure of the ramp from
+    # P_eq after the first stage
+    P_mid = evaluate_profile(ExponentialRamp(P_eq, P_L, ramp_rate), tp)
+    evacuate(b, t, from) = Evacuate(t; bed = b, from = from, to = P_L)
     cycle = Cycle([
-        Concurrent(Pressurise(tp; bed = :A, from = P_eq), evacuate(:B, tp)),
-        Concurrent(Adsorb(tf; bed = :A, velocity = velocity), evacuate(:B, tf)),
+        Concurrent(Pressurise(tp; bed = :A, from = P_eq), evacuate(:B, tp, P_eq)),
+        Concurrent(Adsorb(tf; bed = :A, velocity = velocity), evacuate(:B, tf, P_mid)),
         Equalise(te; beds = (:A, :B), conductance = equalisation_conductance),
-        Concurrent(Pressurise(tp; bed = :B, from = P_eq), evacuate(:A, tp)),
-        Concurrent(Adsorb(tf; bed = :B, velocity = velocity), evacuate(:A, tf)),
+        Concurrent(Pressurise(tp; bed = :B, from = P_eq), evacuate(:A, tp, P_eq)),
+        Concurrent(Adsorb(tf; bed = :B, velocity = velocity), evacuate(:A, tf, P_mid)),
         Equalise(te; beds = (:B, :A), conductance = equalisation_conductance),
     ])
     return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5)
@@ -239,18 +244,17 @@ The [`Gas`](@ref), [`Feed`](@ref), [`Adsorbent`](@ref) and [`Column`](@ref)
 described by a `HaghpanahConstants` or `adsorptionConstants` struct, and its
 operating conditions: `p_high`, `p_intermediate` and `p_low` [Pa], the
 superficial feed velocity `v_feed` and the interstitial `velocity` [m/s], the
-ramp rate `λ` [1/s] and the `dispersion_velocity` [m/s] the struct used. The
-adsorbent counts the heat of sorption of its first component only, as Mocca
-0.1.0 did.
+ramp rate `λ` [1/s] and the `dispersion_velocity` [m/s] the struct used.
 """
 function convert_constants(c::ConstantsStruct)
     names = c isa HaghpanahConstants ? ["CO2", "N2"] : collect(String, c.component_names)
     M = c isa HaghpanahConstants ? [c.molecularMassOfCO2, c.molecularMassOfN2] : collect(c.molecular_masses)
     gas = Gas(names; molar_masses = M, heat_capacities = collect(c.C_pg), viscosity = c.fluid_viscosity, density = c.ρ_g, diffusivity = c.D_m)
-    iso = dual_site_langmuir((n => (qsb = c.qsbi[i], b0 = c.b0[i], ΔUb = c.ΔUbi[i], qsd = c.qsdi[i], d0 = c.d0[i], ΔUd = c.ΔUdi[i]) for (i, n) in enumerate(names))...;
-        reference_temperature = c.T0)
+    # T0 is the initial temperature of the struct, not the reference
+    # temperature of the isotherm, which keeps its default
+    iso = dual_site_langmuir((n => (qsb = c.qsbi[i], b0 = c.b0[i], ΔUb = c.ΔUbi[i], qsd = c.qsdi[i], d0 = c.d0[i], ΔUd = c.ΔUdi[i]) for (i, n) in enumerate(names))...)
     adsorbent = Adsorbent(""; isotherm = iso, density = c.ρ_s, heat_capacity = c.C_ps, particle_diameter = c.d_p,
-        particle_porosity = c.ϵ_p, tortuosity = c.τ, adsorbed_heat_capacity = collect(c.C_pa), sorption_heat = :first_component)
+        particle_porosity = c.ϵ_p, tortuosity = c.τ, adsorbed_heat_capacity = collect(c.C_pa))
     column = Column(; length = c.L, radius = c.r_in, outer_radius = c.r_out, porosity = c.Φ, axial_conductivity = c.K_z,
         wall = Wall(density = c.ρ_w, heat_capacity = c.C_pw, conductivity = c.K_w),
         inner_heat_transfer = c.h_in, outer_heat_transfer = c.h_out, ambient_temperature = c.T_a)
