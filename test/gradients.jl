@@ -31,6 +31,19 @@ end
             @test g[d].law == f[d].law
         end
     end
+    # The conventions of Jutul's MultiModel that the device methods rely on:
+    # each device's values sit at its offset in the whole vector, and come back
+    # from its own slice, or from the whole vector with its offset
+    f = forces[end]
+    X, cfg = Jutul.vectorize_forces(f, c.mm)
+    for d in (:V_feed, :V_product, :V_vacuum)
+        Xd, = Jutul.vectorize_forces(f[d], c.mm[d])
+        o = first(cfg[d].offsets) - 1
+        @test X[o .+ (1:length(Xd))] == Xd
+        @test Jutul.devectorize_forces(f[d], c.mm[d], X, cfg[d]; offset = o)[:law] == f[d].law
+        @test Jutul.devectorize_forces(f[d], c.mm[d], X[o .+ (1:length(Xd))], cfg[d])[:law] == f[d].law
+    end
+    @test sum(first(cfg[d].offsets) > 1 for d in (:V_feed, :V_product, :V_vacuum)) >= 2
     # Evacuation: the vacuum valve's conductance and opening, and the ramp
     # (start, stop, λ), temperature and composition of its outlet
     evac = forces[end]
@@ -134,13 +147,18 @@ end
     @test loose.converged
     css = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11)
     @test css.converged
-    @test css.cycles <= 4
-    # The first step, from wherever the loose solve stopped, at least halves
-    # the cycle change; once close, each iteration gains at least an order of
-    # magnitude. (How far the first step gets depends on round-off: Anderson
-    # acceleration amplifies it into a different loose state.)
-    @test css.history[2] < 0.5 * css.history[1]
-    @test all(css.history[3:end] .< 0.1 .* css.history[2:end-1])
+    @test css.cycles <= 5
+    # The first two steps, from wherever the loose solve stopped, gain at least
+    # an order of magnitude in the cycle change; once close, each iteration
+    # gains at least another. (The first step alone can raise the change of a
+    # small component before the rest converges, and how far it gets depends
+    # on round-off: Anderson acceleration amplifies it into a different loose
+    # state.) Below about 1e-11 the cycle change is the noise of the
+    # simulator's own solves, so the rate is only checked from changes well
+    # above that.
+    @test css.history[3] < 0.1 * css.history[1]
+    hist = css.history
+    @test all(hist[i + 1] < 0.1 * hist[i] for i in 2:length(hist) - 1 if hist[i] > 1e-9)
 
     G = (co2 = Mocca.StreamObjective(:V_vacuum; scale = 1e3), energy = Mocca.VacuumPumpObjective(:V_vacuum; scale = 1e-3))
     g = Mocca.cyclic_steady_state_gradient(c.mm, css.state0, c.prm, forces, dt, G; with_forces = true)

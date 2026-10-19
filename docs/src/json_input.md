@@ -129,7 +129,6 @@ same way.
   "particle_porosity": 0.35,
   "tortuosity": 3.0,
   "adsorbed_heat_capacity": {"CO2": 697.5687, "N2": 1096.4},
-  "sorption_heat": "all",
   "isotherm": {
     "type": "dual_site_langmuir",
     "reference_temperature": 298.15,

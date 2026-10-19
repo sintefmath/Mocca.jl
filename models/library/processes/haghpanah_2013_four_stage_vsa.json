@@ -36,7 +36,7 @@
       "format": "mocca-adsorbent",
       "version": 1,
       "name": "zeolite 13X",
-      "reference": "Haghpanah et al., Ind. Eng. Chem. Res. 52 (2013) 4249, doi:10.1021/ie302658y. Capacities per m³ of adsorbent. The heat of sorption counts CO2 only, as in Mocca 0.1.0; use sorption_heat = \"all\" to count every component.",
+      "reference": "Haghpanah et al., Ind. Eng. Chem. Res. 52 (2013) 4249, doi:10.1021/ie302658y. Capacities per m³ of adsorbent.",
       "density": 1130.0,
       "heat_capacity": 1070.0,
       "particle_diameter": 0.002,
@@ -46,7 +46,6 @@
         "CO2": 697.5687,
         "N2": 1096.4
       },
-      "sorption_heat": "first_component",
       "isotherm": {
         "type": "dual_site_langmuir",
         "reference_temperature": 298.15,

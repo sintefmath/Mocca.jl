@@ -59,7 +59,7 @@ The model of a fixed bed of `adsorbent` packed in `column`, for `gas`, on
 `ncells` cells. The permeability (Kozeny–Carman, from the bed porosity and
 particle size) and the axial dispersion (`0.7 D_m + 0.5 v d_p`, at the
 interstitial `dispersion_velocity` [m/s]) are computed unless given. The gas
-viscosity and density default to those of the `feed`; see [`Gas`](@ref).
+viscosity defaults to that of the `feed`; see [`Gas`](@ref).
 """
 function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
         dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing)
@@ -74,8 +74,7 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         component_names = gas.names,
         heat_capacity_gas = gas.heat_capacities,
         heat_capacity_adsorbed = adsorbed_heat_capacities(adsorbent, gas),
-        thermal = thermal,
-        sorption_heat_all_components = adsorbent.sorption_heat == :all)
+        thermal = thermal)
     perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
     disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas), dispersion_velocity, adsorbent.particle_diameter) : dispersion
     mesh = column_mesh(ncells, column.length, column.radius)
@@ -89,7 +88,6 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         wall_heat_capacity = column.wall.heat_capacity,
         wall_conductivity = column.wall.conductivity,
         fluid_viscosity = gas_viscosity(gas, feed.composition),
-        fluid_density = gas_density(gas, feed.composition, feed.pressure, feed.temperature),
         inner_htc = column.inner_heat_transfer,
         outer_htc = column.outer_heat_transfer,
         ambient_temperature = column.ambient_temperature)

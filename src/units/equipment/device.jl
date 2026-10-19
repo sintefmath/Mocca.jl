@@ -23,11 +23,10 @@ end
 
 const FlowDeviceModel = Jutul.SimulationModel{<:Jutul.JutulDomain, <:FlowDevice}
 
-# Residual scales: the port equations are linear, the law is mildly nonlinear.
-# Scaling the flow residual to mmol/s and fractions by 1e3 makes the default
-# nonlinear tolerance (1e-3) tight for these equations.
-const DEVICE_FLOW_SCALE = 1e3
-const DEVICE_FRACTION_SCALE = 1e3
+# A device's equations converge this many times tighter than the nonlinear
+# tolerance: an error in its flow accumulates in the cells it feeds, at a rate
+# that can be large next to their holdup. See set_default_tolerances! below.
+const DEVICE_TOLERANCE_FACTOR = 1e-3
 
 "Molar flow [mol/s] through a device, positive from inlet to outlet."
 struct DeviceMolarFlow <: Jutul.ScalarVariable end
@@ -73,7 +72,7 @@ Jutul.select_secondary_variables!(S, system::FlowDevice, model::Jutul.Simulation
 Jutul.select_parameters!(S, system::FlowDevice, model::Jutul.SimulationModel) = nothing
 
 # Port state equation: the port copy equals whatever it is attached to,
-#   [P_k, T_k, s·y_k,1 … s·y_k,N−1] − [P, T, s·y_1 … s·y_N−1]_attached = 0
+#   [P_k, T_k, y_k,1 … y_k,N−1] − [P, T, y_1 … y_N−1]_attached = 0
 # The local part is the port copy; a PortStateCT or a boundary force subtracts
 # the attached state.
 struct PortStateEquation{K} <: Jutul.JutulEquation end
@@ -87,12 +86,14 @@ function Jutul.update_equation_in_entity!(eq_buf, self_cell, state, state0, eq::
     eq_buf[1] = port_pressure(state, K)
     eq_buf[2] = port_temperature(state, K)
     for i in 1:(N - 1)
-        eq_buf[2 + i] = DEVICE_FRACTION_SCALE * port_composition(state, K, i)
+        eq_buf[2 + i] = port_composition(state, K, i)
     end
 end
 
-# Device law equation: s·(F − F_law) = 0. The local part is s·F; the law force
-# subtracts s·F_law. Without a law force the device is closed.
+# Device law equation: (F − F_law)/F_scale = 0, the flow error relative to the
+# flow scale of the law (see flow_scale). The local part is F; the law force
+# subtracts F_law and divides by the scale. Without a law force the device is
+# closed.
 struct DeviceLawEquation <: Jutul.JutulEquation end
 
 Jutul.associated_entity(::DeviceLawEquation) = Jutul.Cells()
@@ -100,7 +101,7 @@ Jutul.local_discretization(::DeviceLawEquation, i) = nothing
 Jutul.number_of_equations_per_entity(model::FlowDeviceModel, ::DeviceLawEquation) = 1
 
 function Jutul.update_equation_in_entity!(eq_buf, self_cell, state, state0, eq::DeviceLawEquation, model, Δt, ldisc = nothing)
-    eq_buf[1] = DEVICE_FLOW_SCALE * state.MolarFlow[1]
+    eq_buf[1] = state.MolarFlow[1]
 end
 
 function Jutul.select_equations!(eqs, system::FlowDevice, model::Jutul.SimulationModel)
@@ -133,9 +134,37 @@ Molar flow [mol/s] from inlet to outlet prescribed by `law`, given the device
 """
 function device_flow end
 
+"""
+    law_flow_scale(law, state, time) → F
+
+Flow [mol/s] typical of `law` in `state`, which its error is measured
+against (see [`flow_scale`](@ref)). By default `|F_law|`. A law whose flow
+can pass through zero, such as a valve, gives a scale that does not.
+"""
+law_flow_scale(law::AbstractDeviceLaw, state, time) = abs(device_flow(law, state, time))
+
+"""
+    flow_scale(law, state, time) → F_scale
+
+Flow [mol/s] that the device law equation `(F − F_law)/F_scale = 0` measures
+its error against, so that a device converges to a fraction of it set by the
+nonlinear tolerance: the larger of the law's own scale
+([`law_flow_scale`](@ref)) and the current flow through the device, at least
+`MIN_FLOW_SCALE`. The current flow lets a device that has just been closed
+measure what is left of its flow against itself.
+"""
+function flow_scale(law::AbstractDeviceLaw, state, time)
+    F = abs(Jutul.value(state.MolarFlow[1]))
+    return max(law_flow_scale(law, state, time), F, MIN_FLOW_SCALE)
+end
+
+"Smallest flow scale [mol/s], for a device with no flow and a law with none."
+const MIN_FLOW_SCALE = 1e-9
+
 "No flow."
 struct Closed <: AbstractDeviceLaw end
 device_flow(::Closed, state, time) = false
+law_flow_scale(::Closed, state, time) = 0.0
 
 """
     LinearValve(conductance; opening = 1.0)
@@ -159,6 +188,14 @@ function device_flow(law::LinearValve, state, time)
     return law.opening * law.conductance * ΔP * c_up
 end
 
+# The flow with the whole upstream pressure as the drop, which does not vanish
+# when the pressures meet
+function law_flow_scale(law::LinearValve, state, time)
+    up = port_pressure(state, 1) >= port_pressure(state, 2) ? 1 : 2
+    P = port_pressure(state, up)
+    return law.opening * law.conductance * P * P / (GAS_CONSTANT * port_temperature(state, up))
+end
+
 """
     VolumetricFlow(rate)
 
@@ -176,7 +213,8 @@ end
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::FlowDeviceModel, eq::DeviceLawEquation, eq_s, law::AbstractDeviceLaw, time)
     isnothing(acc) && return  # parameter sensitivities, see below
-    acc[1] -= DEVICE_FLOW_SCALE * device_flow(law, storage.state, time)
+    state = storage.state
+    acc[1] = (acc[1] - device_flow(law, state, time)) / flow_scale(law, state, time)
 end
 
 # When Jutul computes sensitivities with respect to parameters it swaps each
@@ -237,7 +275,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::FlowDeviceModel, e
     acc[1] -= evaluate_profile(c.pressure, time)
     acc[2] -= c.temperature
     for i in 1:(N - 1)
-        acc[2 + i] -= DEVICE_FRACTION_SCALE * c.composition[i]
+        acc[2 + i] -= c.composition[i]
     end
 end
 
@@ -308,7 +346,9 @@ Jutul.devectorize_force(f::_DeviceForce, model::FlowDeviceModel, X, meta, name, 
 # but look the lengths up by a counter that skips absent forces, and a
 # MultiModel passes each submodel the whole vector. A device's law is always
 # present while its port conditions often are not, so devices do the loops
-# themselves, starting at the device's offset within the vector.
+# themselves, starting at the device's offset within the vector. A MultiModel
+# devectorises each submodel from its own slice of the vector, with no offset;
+# test/gradients.jl checks both conventions, which these methods rely on.
 function Jutul.vectorize_forces!(v, model::FlowDeviceModel, config, forces; update_config = false)
     offset = first(config.offsets) - 1
     for (i, (k, f)) in enumerate(pairs(forces))
@@ -322,7 +362,6 @@ function Jutul.vectorize_forces!(v, model::FlowDeviceModel, config, forces; upda
 end
 
 function Jutul.devectorize_forces(forces, model::FlowDeviceModel, X, config; offset = 0)
-    offset = 0
     out = Dict{Symbol, Any}()
     for (i, (k, f)) in enumerate(pairs(forces))
         n = config.lengths[i]
@@ -354,5 +393,20 @@ function setup_device_state(model::FlowDeviceModel; inlet, outlet, flow = 0.0)
     )
 end
 
-Jutul.convergence_criterion(model::FlowDeviceModel, storage, eq::PortStateEquation, eq_s, r; dt = 1, update_report = missing) =
-    (AbsMax = (errors = vec(maximum(abs, r; dims = 2)), names = ["P", "T", map(i -> "y_$i", 1:(size(r, 1) - 2))...]),)
+# Port copies are checked relative to the port state, and the device
+# equations against DEVICE_TOLERANCE_FACTOR times the nonlinear tolerance
+function Jutul.convergence_criterion(model::FlowDeviceModel, storage, eq::PortStateEquation{K}, eq_s, r; dt = 1, update_report = missing) where K
+    state = storage.state
+    e = vec(maximum(abs, r; dims = 2))
+    e[1] /= Jutul.value(port_pressure(state, K))
+    e[2] /= Jutul.value(port_temperature(state, K))
+    return (Relative = (errors = e, names = ["P", "T", map(i -> "y_$i", 1:(size(r, 1) - 2))...]),)
+end
+
+function Jutul.set_default_tolerances!(tol_cfg, model::FlowDeviceModel; tol = 1e-3)
+    tol_cfg[:default] = tol
+    for eq in (:inlet_state, :outlet_state, :device_law)
+        tol_cfg[eq] = DEVICE_TOLERANCE_FACTOR * tol
+    end
+    return tol_cfg
+end

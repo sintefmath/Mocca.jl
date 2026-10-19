@@ -125,14 +125,14 @@ function adsorbent_to_dict(a::Adsorbent; gas = nothing)
     return _obj("format" => ADSORBENT_FORMAT, "version" => FILE_VERSION, "name" => a.name, "reference" => a.reference,
         "density" => a.density, "heat_capacity" => a.heat_capacity, "particle_diameter" => a.particle_diameter,
         "particle_porosity" => a.particle_porosity, "tortuosity" => a.tortuosity, "adsorbed_heat_capacity" => cp,
-        "sorption_heat" => String(a.sorption_heat), "isotherm" => isotherm_to_dict(a.isotherm),
+        "isotherm" => isotherm_to_dict(a.isotherm),
         "mass_transfer" => _mass_transfer_to_dict(a.mass_transfer))
 end
 
 function adsorbent_from_dict(d; name = nothing)
     loc = "adsorbent" * (isnothing(name) ? "" : " $name")
     _check_keys(d, ("format", "version", "name", "reference", "density", "heat_capacity", "particle_diameter", "particle_porosity",
-        "tortuosity", "adsorbed_heat_capacity", "sorption_heat", "isotherm", "mass_transfer"), loc)
+        "tortuosity", "adsorbed_heat_capacity", "isotherm", "mass_transfer"), loc)
     get(d, "format", ADSORBENT_FORMAT) == ADSORBENT_FORMAT || input_error(loc, "format", "expected \"$ADSORBENT_FORMAT\"")
     cp = get(d, "adsorbed_heat_capacity", nothing)
     cp = isnothing(cp) ? nothing : Dict(String(k) => _num(v, loc, "adsorbed_heat_capacity") for (k, v) in cp)
@@ -144,7 +144,6 @@ function adsorbent_from_dict(d; name = nothing)
         particle_porosity = _num(_require(d, "particle_porosity", loc), loc, "particle_porosity"),
         tortuosity = something(_optnum(d, "tortuosity", loc), 3.0),
         adsorbed_heat_capacity = cp,
-        sorption_heat = Symbol(get(d, "sorption_heat", "all")),
         mass_transfer = _mass_transfer_from_dict(get(d, "mass_transfer", nothing), loc),
         reference = String(get(d, "reference", "")))
 end

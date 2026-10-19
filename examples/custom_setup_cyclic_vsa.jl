@@ -43,8 +43,7 @@ adsorbent = Mocca.Adsorbent("my zeolite 13X";
     heat_capacity = 1070.0,        # J/(kg·K)
     particle_diameter = 2mm,
     particle_porosity = 0.35,
-    tortuosity = 3.0,
-    sorption_heat = :all)
+    tortuosity = 3.0)
 
 # Check the isotherm before simulating: the loading of each component in
 # equilibrium with the feed, in mol/kg, and the CO₂ isotherm at two

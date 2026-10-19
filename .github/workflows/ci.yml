@@ -26,6 +26,23 @@ jobs:
       - uses: julia-actions/julia-runtest@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  test-latest-jutul:
+    # Mocca overrides some Jutul internals (see src/units/equipment/device.jl),
+    # so its compat bound stops at the last Jutul it was tested with. This job
+    # lifts the bound, to show early whether a new Jutul release breaks it.
+    name: Testing with the latest Jutul
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - name: Lift the Jutul compat bound
+        run: julia --project=. -e 'using Pkg; Pkg.compat("Jutul", ">= 0.4.29"); Pkg.update("Jutul"); Pkg.status("Jutul")'
+      - uses: julia-actions/julia-runtest@v1
   docs:
     name: Documentation
     runs-on: ubuntu-latest
