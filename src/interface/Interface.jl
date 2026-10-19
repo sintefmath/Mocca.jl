@@ -13,7 +13,8 @@ import JSON
 import ..Units
 using ..Framework, ..Physics, ..Balances, ..Devices, ..FixedBeds, ..Networks, ..Operation
 using ..Framework: _is_solver_failure
-using ..Operation: _no_targets, _stage_forces, _sci, cycle_progress, finish_progress!, plan_phases!, report_note!
+using ..Operation: _no_targets, _plural, _stage_forces, _sci, cycle_progress, finish_phase!, finish_progress!, plan_phases!,
+    report_cycle!, report_note!, start_phase!
 
 export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_variable!, Adsorb,
     Adsorbent, adsorbent_to_dict, attachments, axial_diffusivity, bed_dispersion, beds,

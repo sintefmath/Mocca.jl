@@ -394,11 +394,17 @@ end
     g = performance_gradient(p; progress = io)
     @test g.steady_state.converged
     out = String(take!(io))
-    @test startswith(out, "Cyclic steady state of four-stage VSA: Anderson acceleration to 1.0e-03, then Newton's method to 1.0e-09\n")
-    @test contains(out, "  Anderson ") && contains(out, "  Newton ")
+    @test startswith(out, "Cyclic steady state of four-stage VSA: 3 plain cycles, then Newton's method to 1.0e-09\n")
+    @test contains(out, "  Cycles ") && contains(out, "  Newton ")
     @test contains(out, "done, on to Newton") && contains(out, "converged")
-    @test contains(out, "Converged after $(count(contains(r"(cycle|iteration) +\d+  "), split(out, '\n'))) cycles simulated")
+    # Every cycle simulated: one per line, and any step tried and rejected
+    n_lines = count(contains(r"(cycle|iteration) +\d+  "), split(out, '\n'))
+    @test parse(Int, match(r"Converged after (\d+) cycles simulated", out)[1]) >= n_lines
     value() = performance(cyclic_steady_state(p; tol = 1e-11))
+    # Newton–Krylov from the last steady state, its Jacobian as preconditioner
+    k = cyclic_steady_state(p; tol = 1e-11, krylov = true, progress = false)
+    @test k.converged
+    @test performance(k).recovery ≈ g.metrics.recovery rtol = 1e-8
     for n in (:P_L, :t_ads, :P_H)
         x0 = p[n]
         h = 1e-4 * x0
@@ -414,4 +420,55 @@ end
     @test 0.05bar <= r.values.P_L <= 0.3bar && 10.0 <= r.values.t_ads <= 30.0
     @test p[:P_L] == r.values.P_L
     @test r.metrics.recovery >= first(r.history).metrics.recovery - 1e-9
+end
+
+@testset "A fine grid starts from the steady state of a coarser one" begin
+    I = M.Interface
+    p = four_stage_vsa_process(ncells = 20)
+    # Half the cells and the same steps; the process itself is left as it was
+    q = I._coarse_copy(p, 5)
+    @test q.flowsheet.specs[:Bed].ncells == 10 && p.flowsheet.specs[:Bed].ncells == 20
+    @test length(M.initial_state(q)[:Bed][:Pressure]) == 10
+    @test I.cycle_schedule(q)[2] == I.cycle_schedule(p)[2]
+    @test isnothing(I._coarse_copy(p, 20)) && isnothing(I._coarse_copy(p, nothing))
+    @test [g.flowsheet.specs[:Bed].ncells for g in I._coarse_grids(p, 5)] == [5, 10]
+    # Linear interpolation, cell centre to cell centre: a linear profile is
+    # kept inside the bed, the end cells take the nearest coarse cell, and the
+    # mole fractions still add up to one
+    x = M.initial_state(q)
+    x[:Bed][:Pressure] .= 1e5 .* (1 .+ ((1:10) .- 0.5) ./ 10)
+    x[:Bed][:y][1, :] .= ((1:10) .- 0.5) ./ 10
+    x[:Bed][:y][2, :] .= 1 .- x[:Bed][:y][1, :]
+    xf = I._interpolate_state(p, x)
+    @test xf[:Bed][:Pressure][2:19] ≈ 1e5 .* (1 .+ ((2:19) .- 0.5) ./ 20)
+    @test xf[:Bed][:Pressure][[1, 20]] ≈ x[:Bed][:Pressure][[1, 10]]
+    @test vec(sum(xf[:Bed][:y]; dims = 1)) ≈ ones(20)
+    @test I._interpolate_state(q, x)[:Bed][:Pressure] == x[:Bed][:Pressure]
+
+    # The coarsest grid from the initial state, each finer one by Newton's
+    # method from the one before, to the same steady state as from the
+    # initial state on the fine grid. Each grid decides how to solve Newton's
+    # steps: here GMRES above 100 variables, so only on 20 cells (120)
+    io = IOBuffer()
+    r = cyclic_steady_state(p; coarse_cells = 5, krylov = 100, progress = io)
+    @test r.converged
+    out = String(take!(io))
+    @test startswith(out, "Cyclic steady state of four-stage VSA: 3 plain cycles, then Newton's method on 5 cells to 1.0e-06; " *
+        "from there Newton's method on 10 cells to 1.0e-06 and on 20 cells to 1.0e-09\n")
+    @test contains(out, "10 cells: Newton's method from the steady state on 5 cells")
+    @test contains(out, "20 cells: Newton's method from the steady state on 10 cells")
+    grids = split(out, r"\n  \d+ cells: ")
+    @test length(grids) == 4
+    @test contains(grids[2], "Jacobian") && !contains(grids[2], "GMRES")
+    @test contains(grids[3], "Jacobian") && !contains(grids[3], "GMRES")
+    @test contains(grids[4], "GMRES") && !contains(grids[4], "Jacobian")
+    @test_throws MoccaInputError cyclic_steady_state(p; krylov = :yes)
+    cold = cyclic_steady_state(p; coarse_cells = nothing, warm_start = false, progress = false)
+    @test cold.converged
+    @test cycle_change(p.model, r.state0, cold.state0) < 1e-7
+    @test performance(r).recovery ≈ performance(cold).recovery rtol = 1e-7
+    # From its last steady state the process starts on its own grid
+    io = IOBuffer()
+    cyclic_steady_state(p; coarse_cells = 5, progress = io)
+    @test startswith(String(take!(io)), "Cyclic steady state of four-stage VSA: Newton's method to 1.0e-09 from the last steady state\n")
 end
