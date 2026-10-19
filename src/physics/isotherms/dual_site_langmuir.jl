@@ -11,8 +11,8 @@ Two adsorption sites per component:
 - Site b (high energy): saturation `qsb`, affinity `b(T) = b0·exp(-ΔUb/(R·T))`
 - Site d (low energy): saturation `qsd`, affinity `d(T) = d0·exp(-ΔUd/(R·T))`
 
-Enthalpy is state-independent, precomputed as a weighted average of site energies
-normalized by the primary adsorbate's total saturation capacity.
+Enthalpy is state-independent, precomputed for each component as the average
+of its two site energies weighted by their saturation capacities.
 """
 struct DualSiteLangmuir{N, T} <: AbstractIsotherm
     # Site b (high energy)
@@ -34,9 +34,15 @@ function DualSiteLangmuir(; qsb, b0, ΔUb, qsd, d0, ΔUd, T0 = 298.15)
     R = GAS_CONSTANT
     N = length(qsb)
     T = promote_type(eltype(qsb), typeof(R))
-    sumq = qsb[1] + qsd[1]
-    ΔH = SVector{N, T}(ntuple(i ->
-        (qsb[i] * (ΔUb[i] - R * T0) + qsd[i] * (ΔUd[i] - R * T0)) / sumq, N))
+    # Each component's site energies are weighted by its own capacities. Mocca
+    # 0.1.0 divided every component by the first component's capacity, which
+    # only gave the right value for the first component.
+    function site_average(i)
+        q_total = qsb[i] + qsd[i]
+        iszero(q_total) && return zero(T)
+        return (qsb[i] * (ΔUb[i] - R * T0) + qsd[i] * (ΔUd[i] - R * T0)) / q_total
+    end
+    ΔH = SVector{N, T}(ntuple(site_average, N))
     return DualSiteLangmuir{N, T}(
         SVector{N, T}(qsb), SVector{N, T}(b0), SVector{N, T}(ΔUb),
         SVector{N, T}(qsd), SVector{N, T}(d0), SVector{N, T}(ΔUd),

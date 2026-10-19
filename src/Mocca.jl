@@ -15,7 +15,7 @@ export setup_flowsheet_state, setup_flowsheet_parameters
 export Stage, setup_schedule, four_stage_vsa_flowsheet, two_bed_vsa_flowsheet
 export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass
 export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
-export restart_state, cycle_change, simulate_to_cyclic_steady_state
+export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance
 export number_of_components, component_names
 export MoccaCase
 
@@ -29,7 +29,7 @@ export simulate_process
 export mocca_domain
 export column_mesh
 
-export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams
+export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams, plot_profiles
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
@@ -88,6 +88,7 @@ include("flowsheet/flowsheet.jl")
 # L5: process operation
 include("process/schedule.jl")
 include("process/vsa.jl")
+include("process/wet_flue_gas.jl")
 include("process/metrics.jl")
 include("process/css.jl")
 
