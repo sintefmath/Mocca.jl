@@ -1,0 +1,330 @@
+/* Mocca theme for VitePress.
+   Colours come from the logo: the aubergine of the lattice, the red of the CO₂
+   molecule and the cream of the background. The step colours are shared by the
+   home page and should be used for cycle steps wherever they are drawn.
+   The defaults these override are listed in
+   https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css */
+
+@font-face {
+  font-family: JuliaMono-Regular;
+  src: url("https://cdn.jsdelivr.net/gh/cormullion/juliamono/webfonts/JuliaMono-Regular.woff2");
+}
+
+:root {
+  scroll-behavior: smooth;
+
+  /* Typography: Archivo (expanded) for headings, IBM Plex Sans for text,
+     JuliaMono for code */
+  --mc-font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --vp-font-family-base: "IBM Plex Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --vp-font-family-mono: JuliaMono-Regular, ui-monospace, Menlo, monospace;
+
+  /* Mocca colours */
+  --mc-aubergine: #5b2f73;
+  --mc-co2: #c4362e;
+  --mc-crema: #fce6a9;
+  --mc-ink: #1e1a22;
+  --mc-ink-2: #5d5566;
+  --mc-line: #ddd8e2;
+  --mc-soft: #f1edf4;
+  --mc-bead: #ffffff;
+
+  /* Cycle steps */
+  --mc-step-pressurise: #8a63b8;
+  --mc-step-adsorb: #3d8c47;
+  --mc-step-blowdown: #c48a1f;
+  --mc-step-evacuate: #3f63c9;
+  --mc-step-equalise: #8d8a94;
+  --mc-step-lpp: #c79ad9;
+
+  /* VitePress */
+  --vp-c-bg: #fbfafc;
+  --vp-c-bg-alt: #f4f1f6;
+  --vp-c-bg-soft: var(--mc-soft);
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-divider: var(--mc-line);
+  --vp-c-gutter: var(--mc-line);
+  --vp-c-text-1: var(--mc-ink);
+  --vp-c-text-2: var(--mc-ink-2);
+  --vp-c-brand-1: #5b2f73;
+  --vp-c-brand-2: #6e3d89;
+  --vp-c-brand-3: #5b2f73;
+  --vp-c-brand-soft: rgba(91, 47, 115, 0.12);
+  --vp-code-color: var(--vp-c-text-1);
+
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-bg: var(--vp-c-brand-3);
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-1);
+
+  --vp-custom-block-tip-border: transparent;
+  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
+
+  --vp-c-bg-output: #f7f5f9;
+  --vp-c-bg-output-outline: var(--mc-line);
+}
+
+.dark {
+  --mc-aubergine: #c9a3dd;
+  --mc-co2: #f0675d;
+  --mc-crema: #4a3f25;
+  --mc-ink: #ece8ef;
+  --mc-ink-2: #aaa2b3;
+  --mc-line: #342e3b;
+  --mc-soft: #211c26;
+  --mc-bead: #16131a;
+
+  --mc-step-pressurise: #a888d4;
+  --mc-step-adsorb: #5fb36a;
+  --mc-step-blowdown: #e0a83d;
+  --mc-step-evacuate: #7393f0;
+  --mc-step-equalise: #9b98a3;
+  --mc-step-lpp: #d9b3e8;
+
+  --vp-c-bg: #16131a;
+  --vp-c-bg-alt: #120f15;
+  --vp-c-bg-elv: #1c1821;
+  --vp-c-brand-1: #c9a3dd;
+  --vp-c-brand-2: #d8bce6;
+  --vp-c-brand-3: #7a4a96;
+  --vp-c-brand-soft: rgba(201, 163, 221, 0.16);
+
+  --vp-c-bg-output: #1a161e;
+}
+
+/* Headings and the site title in Archivo, at an expanded width */
+.vp-doc h1, .vp-doc h2, .vp-doc h3,
+.VPNavBarTitle .title {
+  font-family: var(--mc-font-display);
+  font-stretch: 116%;
+  letter-spacing: -0.005em;
+}
+.vp-doc h1 { font-weight: 800; }
+.vp-doc h2 { font-weight: 700; }
+.VPNavBarTitle .title { font-weight: 700; }
+
+/* Squarer buttons than the VitePress pills */
+.VPButton { border-radius: 4px !important; }
+
+/* Disable contextual alternates in monospace, which turn `|>` and `/>` into arrows */
+.mono-no-substitutions {
+  font-family: "JuliaMono-Regular", monospace;
+  font-feature-settings: "calt" off;
+}
+.mono-no-substitutions-alt {
+  font-family: "JuliaMono-Regular", monospace;
+  font-variant-ligatures: none;
+}
+pre, code {
+  font-family: "JuliaMono-Regular", monospace;
+  font-feature-settings: "calt" off;
+}
+
+.custom-block.tip code {
+  color: var(--vp-c-text-1);
+  background-color: var(--vp-code-bg);
+}
+.custom-block.tip a > code {
+  color: var(--vp-c-tip-1);
+}
+
+/* ------------------------------------------------------------------------
+   The rest is the DocumenterVitepress template, with its colours replaced
+   ------------------------------------------------------------------------ */
+
+/* Component: MathJax */
+
+
+.mjx-scroll-wrapper {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+mjx-container {
+  display: inline-block;
+  padding: 0.5rem 0;
+  margin: auto 2px -2px;
+  overflow: visible !important;  /* Override MathJax's overflow */
+  text-align: left;
+}
+
+mjx-container > svg {
+  display: inline-block;
+  height: auto;
+}
+
+mjx-container > svg[data-labels="true"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* @mdit/plugin-mathjax theming refs */
+
+mjx-container svg path {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.MathJax_ref {
+  color: var(--vp-c-brand-1);
+}
+
+.MathJax_ref:hover {
+  color: var(--vp-c-brand-2);
+  cursor: pointer;
+}
+
+
+/*
+.language-julia {
+  background-color: var(--vp-c-bg-input) !important;
+}
+*/
+
+.language- {
+  background-color: var(--vp-c-bg-output) !important;
+  outline: 1px solid var(--vp-c-bg-output-outline);
+}
+
+/* Julia REPL prompt syntax highlighting */
+/* prompt token behavior */
+.vp-doc .shiki .repl-prompt {
+  opacity: 1.0;
+  user-select: none;
+}
+
+:root:not(.dark) .vp-doc .shiki .repl-prompt-julia {
+  color: var(--mc-step-adsorb);
+}
+
+:root:not(.dark) .vp-doc .shiki .repl-prompt-pkg {
+  color: var(--vp-c-brand-1);
+}
+
+.dark .vp-doc .shiki .repl-prompt-julia {
+  color: var(--mc-step-adsorb);
+}
+
+.dark .vp-doc .shiki .repl-prompt-pkg {
+  color: var(--vp-c-brand-1);
+}
+
+/* ===== Sidebar Drawer Toggle ===== */
+/* Smooth transitions for sidebar collapse/expand on desktop */
+@media (min-width: 960px) {
+  .VPSidebar {
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease;
+  }
+
+  .VPContent.has-sidebar {
+    transition: padding-left 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                padding-right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth transitions for navbar elements (needed for expand-back too) */
+  .VPNavBar.has-sidebar .content {
+    transition: padding-left 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .VPNavBar.has-sidebar .divider {
+    transition: padding-left 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .VPNavBar.has-sidebar .title {
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease !important;
+  }
+
+  /* Collapsed state: zero the sidebar width variable so all layout formulas
+     (VitePress defaults + Enhanced Readabilities plugin) adjust automatically */
+  html.sidebar-drawer-collapsed {
+    --vp-sidebar-width: 0px !important;
+  }
+
+  html.sidebar-drawer-collapsed .VPSidebar {
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Original width mode only: let content fill space up to the aside */
+  html.sidebar-drawer-collapsed
+    body:not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchFullWidth):not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchSidebarWidthAdjustableOnly):not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchBothWidthAdjustable)
+    .VPDoc.has-sidebar .container {
+    display: flex;
+    justify-content: center;
+    max-width: 992px;
+  }
+
+  html.sidebar-drawer-collapsed
+    body:not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchFullWidth):not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchSidebarWidthAdjustableOnly):not(.VPNolebaseEnhancedReadabilitiesLayoutSwitchBothWidthAdjustable)
+    .VPDoc.has-sidebar .content-container {
+    max-width: none;
+  }
+
+  /* Collapse the navbar title area (site logo + name) */
+  html.sidebar-drawer-collapsed .VPNavBar.has-sidebar .title,
+  html.sidebar-drawer-collapsed .VPNavBar.has-sidebar > .wrapper > .container > .title {
+    width: 0 !important;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0 !important;
+    pointer-events: none;
+  }
+
+  /* Move drawer button closer to the edge */
+  html.sidebar-drawer-collapsed .VPNavBar.has-sidebar .content,
+  html.sidebar-drawer-collapsed .VPNavBar.has-sidebar > .wrapper > .container > .content {
+    padding-left: 8px !important;
+  }
+}
+
+/* Inline SVG schematics in the manual pages */
+.mocca-schematic { margin: 24px 0; }
+.mocca-schematic svg { display: block; width: 100%; max-width: 680px; height: auto; margin: 0 auto; }
+.mocca-schematic figcaption { margin-top: 8px; font-size: 14px; line-height: 1.55; color: var(--vp-c-text-2); }
+
+/* Parts of the schematics. They live here, not in the SVGs: Vue drops <style>
+   tags inside page content when it renders a page on navigation. */
+.cs-line{stroke:var(--vp-c-text-1);stroke-width:1.4;fill:none}
+.cs-thin{stroke:var(--vp-c-text-2);stroke-width:1;fill:none}
+.cs-wall{fill:url(#cs-hatch);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.cs-bed{fill:var(--vp-c-bg-soft)}
+.cs-part{fill:var(--mc-crema);stroke:var(--vp-c-text-2);stroke-width:.7}
+.cs-pore{fill:var(--vp-c-text-2);opacity:.5}
+.cs-text{fill:var(--vp-c-text-2);font:13px var(--vp-font-family-base)}
+.cs-head{fill:var(--vp-c-text-1);font:600 13px var(--vp-font-family-base)}
+.cs-sym{fill:var(--vp-c-text-1);font:italic 13px var(--vp-font-family-base)}
+.cs-sub{font-size:10px}
+.cs-arrowhead{fill:var(--vp-c-text-1)}
+.cs-heat{stroke:var(--mc-co2);stroke-width:1.6;fill:none}
+.cs-heathead{fill:var(--mc-co2)}
+.cy-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.cy-load{fill:var(--mc-co2);opacity:.35}
+.cy-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
+.cy-head{fill:var(--vp-c-text-1)}
+.cy-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
+.cy-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
+.cy-sym{font-style:italic}
+.cy-sub{font-size:10px}
+.cy-num{fill:var(--vp-c-text-2);font:600 12px var(--vp-font-family-mono)}
+.sk-bed{fill:var(--vp-c-bg-soft);stroke:var(--vp-c-text-1);stroke-width:1.4}
+.sk-line{stroke:var(--vp-c-text-1);stroke-width:1.6;fill:none}
+.sk-head{fill:var(--vp-c-text-1)}
+.sk-text{fill:var(--vp-c-text-2);font:12.5px var(--vp-font-family-base)}
+.sk-name{fill:var(--vp-c-text-1);font:600 14px var(--vp-font-family-base)}
+
+/* Julia's Markdown aligns table columns right unless told otherwise; read
+   tables from the left, as the Documenter HTML theme did */
+.vp-doc table th, .vp-doc table td { text-align: left !important; }
