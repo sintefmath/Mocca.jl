@@ -19,6 +19,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Haghpanah DCB" => "dcb_haghpanah_2013_co2_n2"
         "Haghpanah cyclic VSA" => "cyclic_vsa_haghpanah_2013_co2_n2"
         "Custom setup cyclic VSA" => "custom_setup_cyclic_vsa"
+        "Flowsheet cyclic VSA" => "flowsheet_vsa"
         "History matching" => "history_matching"
         "Optimization" => "optimization"
     ]
