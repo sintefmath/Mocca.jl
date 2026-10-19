@@ -34,6 +34,17 @@ using StaticArrays
 
         # State-independent: different C, T give the same result
         @test compute_enthalpy(isotherm, @SVector([200.0, 100.0]), 350.0) === ΔH
+
+        # Each component's enthalpy is the capacity-weighted mean of its own
+        # site energies, also for components after the first
+        wet = Mocca.wet_flue_gas_isotherm(:silica_gel)
+        ΔH_wet = compute_enthalpy(wet, @SVector([1.0, 1.0, 1.0]), 298.15)
+        RT = Mocca.GAS_CONSTANT * 298.15
+        for i in 1:3
+            expected = (wet.qsb[i] * (wet.ΔUb[i] - RT) + wet.qsd[i] * (wet.ΔUd[i] - RT)) / (wet.qsb[i] + wet.qsd[i])
+            @test ΔH_wet[i] ≈ expected
+        end
+        @test -90e3 < ΔH_wet[3] < -40e3
     end
 
     @testset "Edge cases" begin

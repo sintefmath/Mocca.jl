@@ -205,15 +205,15 @@ A 0D well-mixed model is much less work than a 1D bubble/emulsion model. The rig
 
 ## 10. Implementation status
 
-Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. All 162 original tests still pass unchanged; the suite now has 267.
+Implemented on branch `worktree-mocca-architecture-doc`, one commit per phase. The original tests still pass, except for the regression references updated with issue 3.
 
 | Phase | Status | What exists |
 |---|---|---|
 | 0 | Done | `MoccaSystem` hierarchy in `src/core/types.jl`; `Unit` entity (`Column` alias); `FixedBed` (`AdsorptionSystem` alias); boundary conditions read `Permeability`, `BedCrossSectionArea` and unit parameters instead of `data_domain`. |
 | 1 | Done, except Ergun | One residual per conservation law with source-term tuples (`src/core/conservation.jl`); blocks in `src/blocks/`; thermal options `WithWall`, `Adiabatic`, `Isothermal(T)`. |
 | 2 | Done | `FlowDevice` with `Closed`, `LinearValve`, `VolumetricFlow`; `PortStateCT` and `StreamCT`; `Flowsheet`, `connect!`, `set_boundary!`, `setup_flowsheet_model`; `Stage` and `setup_schedule`; `four_stage_vsa_flowsheet`; `examples/flowsheet_vsa.jl`. |
-| 3 | Partly | `two_bed_vsa_flowsheet` with pressure equalisation. Not done: the membrane rebase and `counter_current_pair`. |
-| 4 | Partly | Metrics from device streams (`stream_totals`, `purity`, `recovery`, `productivity`, `vacuum_pump_energy`, `specific_energy_kwh_per_tonne`); `simulate_to_cyclic_steady_state` with Anderson acceleration; adjoint gradients through flowsheets, tested against finite differences. Not done: the gradient of the cyclic steady state itself. |
+| 3 | Partly | `two_bed_vsa_flowsheet` with pressure equalisation. The wet flue gas processes of Krishnamurthy et al. (2014) (`src/process/wet_flue_gas.jl`): `lpp_vsa_flowsheet`, a single 13X bed with light product pressurisation, and `dual_adsorbent_vsa_flowsheet`, a silica gel bed feeding a 13X bed, with three components (CO2, N2, H2O), the paper's isotherms and Table S2 data, and examples. `parallel_stages` combines per-bed step sequences of different lengths; `setup_schedule(...; first_dt)` starts each stage with short steps. Not done: the membrane rebase and `counter_current_pair`. |
+| 4 | Partly | Metrics from device streams (`stream_totals`, `purity`, `recovery`, `productivity`, `vacuum_pump_energy`, `specific_energy_kwh_per_tonne`); `simulate_to_cyclic_steady_state` with Anderson acceleration; `simulate_until_mass_balance`, the CO2-balance criterion of Haghpanah et al.; adjoint gradients through flowsheets, tested against finite differences. Not done: the gradient of the cyclic steady state itself. |
 | 5 | Not started | |
 
 ### Departures from the proposal
@@ -234,6 +234,7 @@ Each is left at its old behaviour unless noted, so earlier results are reproduce
 5. **Fixed: adjoint gradients with respect to `SolidVolume` and `FluidVolume` were wrong** (about 2× and 2% off), on `main` as well. To differentiate with respect to parameters, Jutul turns the primary variables into parameters, and it stores parameters once for both time levels, so the time difference of a primary variable vanished. The loading equation, sorption uptake and heat of sorption differenced the loading directly, and the energy equation differenced the pressure directly. They now use the secondary copies `AdsorbedLoading` and `ConservedPressure`, as temperature already did through `ColumnConservedEnergy`. Forward results are unchanged. Rule: take time differences of secondary variables only.
 6. **`setup_forces` drops the remainder of a stage** when its duration is not a multiple of `max_dt` (15 s stages with `max_dt = 2` become 14 s).
 7. **`DictOptimization` with the default `deps = :case` gives gradients about 1% off when the solver splits the first report step.** This is a bug in Jutul's `AdjointsDI`: `evaluate_residual_and_jacobian_for_state_pair` resets `state0` to the initial state for every sub-step of report step 1, not only the first. Checking `step_info[:substep_global] == 1` instead of `step_info[:step] == 1` fixes it (column-length gradient 1.2% off → 5e-11). A Jutul-only reproduction and issue text are in `docs/upstream/`. Until it is fixed upstream, use `deps = :parameters` when the setup function only changes parameters.
+8. **Fixed: the heat of sorption of every component after the first was divided by the first component's saturation capacity** in `DualSiteLangmuir`, instead of its own. It only matters with `sorption_heat_all_components = true`; for water on silica gel it gave about −800 kJ/mol instead of about −40. The first component's value is unchanged.
 
 ### Next steps
 
