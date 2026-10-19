@@ -100,6 +100,7 @@ LinearDrivingForce
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state
 simulate_until_mass_balance
+CycleProgress
 cycle_change
 cyclic_steady_state_gradient
 force_gradients

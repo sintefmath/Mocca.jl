@@ -85,7 +85,7 @@ process = Mocca.Process(fs, cycle; name = "two-bed VSA")
 # # 3. Cyclic steady state and performance
 # Two beds approach their steady state more slowly than one, so the first
 # steady state takes a few minutes.
-result = Mocca.cyclic_steady_state(process)
+result = Mocca.cyclic_steady_state(process; progress = true)
 perf = Mocca.performance(result)
 println("converged: $(result.converged) after $(result.iterations) cycles")
 println("purity $(round(100perf.purity, digits = 1))%, recovery $(round(100perf.recovery, digits = 1))%, ",

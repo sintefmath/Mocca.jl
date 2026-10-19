@@ -56,7 +56,7 @@ end
 # `cyclic_steady_state` repeats the cycle until the state of the bed at the end
 # of a cycle is the state it started from, accelerating the approach with
 # Newton's method. The result holds the steady cycle.
-result = Mocca.cyclic_steady_state(process)
+result = Mocca.cyclic_steady_state(process; progress = true)
 println("converged: $(result.converged), cycles: $(result.iterations)")
 
 # # 4. Measure its performance

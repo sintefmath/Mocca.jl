@@ -25,7 +25,7 @@ Mocca.add_variable!(process, :v_feed, ("adsorption", :velocity); bounds = (0.1, 
 Mocca.add_variable!(process, :P_L, ("evacuation", :to); bounds = (0.05bar, 0.5bar), description = "low pressure")
 Mocca.add_variable!(process, :P_I, ("blowdown", :to); bounds = (0.05bar, 0.5bar), description = "intermediate pressure")
 
-start = Mocca.performance(process)
+start = Mocca.performance(process; progress = true)
 println("start: purity $(round(100start.purity, digits = 1))%, recovery $(round(100start.recovery, digits = 1))%")
 
 # # Run the optimisation

@@ -139,7 +139,7 @@ end
 """
     simulate_to_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5,
-        info_level = -1, kwarg...)
+        progress = false, info_level = -1, kwarg...)
 
 Repeat one cycle, given by its `forces` and `timesteps`, until the
 [`cycle_change`](@ref) of a cycle falls below `tol` or `max_cycles` is reached.
@@ -153,14 +153,19 @@ fixed point (Anderson acceleration), which usually needs far fewer cycles. The
 extrapolated state is kept within the bounds of each variable, and if a cycle
 started from it fails, the next cycle starts from `Φ(x)` instead.
 
+With `progress` (`true`, an `IO` or a [`CycleProgress`](@ref)), each cycle
+is printed with its change and how far it has come towards `tol`.
+
 Returns a NamedTuple with the states and time steps of the last cycle, its
 initial state `state0`, the change per cycle in `history`, the number of
 `cycles` simulated, and whether it `converged`. Extra keywords go to
 `simulate_process`.
 """
 function simulate_to_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5, info_level = -1, kwarg...)
+        tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5, progress = false, info_level = -1, kwarg...)
     acceleration in (:none, :anderson) || error("acceleration must be :none or :anderson, got $acceleration")
+    pr = cycle_progress(progress; info_level = info_level)
+    start_phase!(pr, acceleration == :anderson ? "Anderson" : "Substitution"; tol = tol)
     cycle_time = sum(timesteps)
     function run_cycle(x)
         case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
@@ -181,6 +186,7 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
     states = ts = nothing
     for cycle in 1:max_cycles
         states, ts, ok = run_cycle(x)
+        restarted = !ok
         if !ok
             isnothing(last_end) && throw(SimulationFailure("simulation of cycle $cycle failed"))
             empty!(ΔF); empty!(ΔG)
@@ -191,7 +197,9 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
         end
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
+        report_cycle!(pr, cycle, history[end]; note = restarted ? "failed from the extrapolated state, rerun" : "")
         if history[end] < tol
+            finish_phase!(pr, cycle, true)
             return (states = states, timesteps = ts, state0 = x, history = history, cycles = cycle, converged = true)
         end
         last_end = x_end
@@ -220,13 +228,14 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
         end
         x = restart_state(model, _unstack(model, x_end, x_next .* scale))
     end
+    finish_phase!(pr, max_cycles, false)
     return (states = states, timesteps = ts, state0 = x, history = history, cycles = max_cycles, converged = false)
 end
 
 """
     simulate_until_mass_balance(model, state0, parameters, forces, timesteps;
         inflow, outflow, component = 1, tol = 0.005, consecutive = 5,
-        min_cycles = 50, max_cycles = 300, info_level = -1, kwarg...)
+        min_cycles = 50, max_cycles = 300, progress = false, info_level = -1, kwarg...)
 
 Repeat one cycle of a flowsheet, given by its `forces` and `timesteps`, until
 the mass balance of `component` over the flowsheet closes: the relative
@@ -240,6 +249,10 @@ It only checks one component. A more strongly adsorbed component, such as
 water, can still be accumulating when it is met; use
 [`simulate_to_cyclic_steady_state`](@ref) to require every variable to settle.
 
+With `progress` (`true`, an `IO` or a [`CycleProgress`](@ref)), each cycle
+is printed with its balance error, how many cycles in a row have been below
+`tol`, and an estimate of the cycles left.
+
 Returns a NamedTuple with the states and time steps of the last cycle, its
 initial state `state0`, the balance error of each cycle in `history`, the number
 of `cycles` simulated, and whether the criterion was met (`converged`). Extra
@@ -247,8 +260,10 @@ keywords go to `simulate_process`.
 """
 function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters, forces, timesteps;
         inflow, outflow, component = 1, tol = 0.005, consecutive = 5,
-        min_cycles = 50, max_cycles = 300, info_level = -1, kwarg...)
+        min_cycles = 50, max_cycles = 300, progress = false, info_level = -1, kwarg...)
     cycle_time = sum(timesteps)
+    pr = cycle_progress(progress; info_level = info_level)
+    start_phase!(pr, "Mass balance"; tol = tol, measure = "balance error")
     x = restart_state(model, state0)
     history = Float64[]
     states = ts = nothing
@@ -261,10 +276,34 @@ function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters
         n_in = sum(d -> stream_totals(states, ts, d)[component], inflow)
         n_out = sum(d -> stream_totals(states, ts, d)[component], outflow)
         push!(history, abs(n_in - n_out) / abs(n_in))
+        if !isnothing(pr)
+            left, streak = _mass_balance_cycles_left(history, tol, consecutive, min_cycles)
+            report_cycle!(pr, cycle, history[end]; left = left,
+                fraction = isnothing(left) ? nothing : cycle / (cycle + left),
+                note = "$streak/$consecutive in a row" * (cycle < min_cycles ? " (min $min_cycles cycles)" : ""))
+        end
         if cycle >= min_cycles && length(history) >= consecutive && all(<(tol), history[end-consecutive+1:end])
+            finish_phase!(pr, cycle, true; note = "below for $consecutive $(_plural("cycle", consecutive)) in a row")
             return (states = states, timesteps = ts, state0 = x_start, history = history, cycles = cycle, converged = true)
         end
         x = restart_state(model, states[end])
     end
+    finish_phase!(pr, max_cycles, false)
     return (states = states, timesteps = ts, state0 = x_start, history = history, cycles = max_cycles, converged = false)
+end
+
+# Estimate of the cycles left until the mass balance criterion is met, from
+# the rate of decrease of the balance error, or nothing; and the number of the
+# last cycles below `tol`
+function _mass_balance_cycles_left(history, tol, consecutive, min_cycles)
+    n = length(history)
+    streak = something(findfirst(>=(tol), reverse(history)), n + 1) - 1
+    if streak > 0
+        need = max(consecutive - streak, 0)
+    else
+        k = _cycles_to_reach(history, tol)
+        need = isnothing(k) ? nothing : k + consecutive - 1
+    end
+    isnothing(need) && return (n < min_cycles ? min_cycles - n : nothing, streak)
+    return (max(need, min_cycles - n), streak)
 end

@@ -49,9 +49,16 @@ end
     state0 = Mocca.initial_state(p)
     forces, dt = Mocca.cycle_schedule(p)
 
-    res = Mocca.simulate_to_cyclic_steady_state(model, state0, prm, forces, dt; tol = 1e-3, max_cycles = 200)
+    io = IOBuffer()
+    res = Mocca.simulate_to_cyclic_steady_state(model, state0, prm, forces, dt; tol = 1e-3, max_cycles = 200, progress = io)
     @test res.converged
     @test res.history[end] < 1e-3
+    # One line per cycle, then the end of the phase
+    lines = split(String(take!(io)), '\n'; keepempty = false)
+    @test length(lines) == res.cycles + 1
+    @test all(contains("Anderson"), lines)
+    @test contains(lines[1], "cycle   1") && contains(lines[1], "change ")
+    @test contains(lines[end], "$(res.cycles) cycles") && contains(lines[end], "< 1.0e-03") && contains(lines[end], "  converged")
     @test sum(res.timesteps) ≈ 100.0
     @test Mocca.cycle_change(model, res.state0, Mocca.restart_state(model, res.states[end])) ≈ res.history[end]
 
@@ -64,6 +71,121 @@ end
     n_feed = Mocca.stream_totals(res.states, res.timesteps, :V_feed)
     n_out = Mocca.stream_totals(res.states, res.timesteps, :V_product) .+ Mocca.stream_totals(res.states, res.timesteps, :V_vacuum)
     @test isapprox(sum(n_feed), sum(n_out), rtol = 1e-2)
+end
+
+@testset "Cyclic steady state progress" begin
+    O = Mocca.Operation
+    @test O._sci(2.346e-3) == "2.35e-03"
+    @test O._sci(1e-9) == "1.0e-09"
+    @test O._sci(9.996e-4) == "1.0e-03"
+    @test O._sci(0.0) == "0"
+    @test O._duration(4.12) == "4.1 s"
+    @test O._duration(32.4) == "32 s"
+    @test O._duration(75.0) == "1 min 15 s"
+    @test O._duration(3700.0) == "1 h 2 min"
+    @test O._bar(0.5; width = 4) == "▕██  ▏"
+    @test O._bar(0.5625; width = 4) == "▕██▎ ▏"
+    @test O._bar(2.0; width = 4) == "▕████▏"
+    # Two of four decades from the first change to the tolerance, by the
+    # smallest change so far
+    @test O._log_fraction([1e-1, 1e-3], 1e-5) ≈ 0.5
+    @test O._log_fraction([1e-1, 1e-3, 1e-2], 1e-5) ≈ 0.5
+    @test O._log_fraction([1e-1, 1.0], 1e-5) == 0
+    # At a tenfold drop per cycle, 3e-5 is reached in two more cycles; the
+    # first cycle, from the initial guess, does not count
+    @test O._cycles_to_reach([1e3, 1e-1, 1e-2, 1e-3], 3e-5) == 2
+    @test O._cycles_to_reach([1e3, 1e-1, 1e-2, 1e-1, 1e-3], 3e-5) == 3
+    @test isnothing(O._cycles_to_reach([1e3, 1e-1, 1e-2], 3e-5))
+    @test isnothing(O._cycles_to_reach([1e3, 1e-2, 2e-2, 1e-2], 1e-4))
+    # Four more cycles below the tolerance, unless the minimum is further away
+    @test O._mass_balance_cycles_left([0.1, 0.01, 0.001], 0.005, 5, 0) == (4, 1)
+    @test O._mass_balance_cycles_left([0.1, 0.01, 0.001], 0.005, 5, 50) == (47, 1)
+    @test O._mass_balance_cycles_left([1.0, 0.1, 0.03, 0.009], 0.005, 5, 0) == (5, 0)
+    @test O._mass_balance_cycles_left([0.1, 0.03], 0.005, 5, 10) == (8, 0)
+
+    # What a terminal shows of a live printout, which only returns to the start
+    # of a line, starts a new one, clears to its end and moves up
+    function terminal_screen(out)
+        rows, r, col = [""], 1, 0
+        for m in eachmatch(r"\r|\n|\e\[K|\e\[(\d+)A|[^\r\n\e]+", out)
+            t = m.match
+            if t == "\r"
+                col = 0
+            elseif t == "\n"
+                r += 1
+                r > length(rows) && push!(rows, "")
+                col = 0
+            elseif t == "\e[K"
+                rows[r] = first(rows[r], col)
+            elseif startswith(t, "\e[")
+                r -= parse(Int, m.captures[1])
+            else
+                rows[r] = first(rows[r], col) * t
+                col += length(t)
+            end
+        end
+        return rows
+    end
+
+    # A live printout of a single phase rewrites one line in place, kept within
+    # the display
+    io = IOBuffer()
+    pr = Mocca.CycleProgress(IOContext(io, :displaysize => (24, 60)); live = true)
+    O.start_phase!(pr, "Anderson"; tol = 1e-4)
+    O.report_cycle!(pr, 1, 1e-1)
+    O.report_cycle!(pr, 2, 1e-2)
+    O.finish_phase!(pr, 2, false)
+    O.finish_progress!(pr, false)
+    screen = terminal_screen(String(take!(io)))
+    @test length(screen) == 3 && screen[end] == ""
+    @test all(l -> textwidth(l) <= 59, screen)
+    @test occursin(r"^  Anderson +2 cycles +change 1\.0e-02 ≥ 1\.0e-04 ", screen[1])
+    @test startswith(screen[2], "Not converged after 2 cycles simulated")
+
+    # With two phases planned, each has its own line and bar: the second
+    # waits for the first, which is done rather than converged when it hands
+    # over
+    io = IOBuffer()
+    out = ""
+    show_screen() = (out *= String(take!(io)); terminal_screen(out))
+    pr = Mocca.CycleProgress(IOContext(io, :displaysize => (24, 200)); live = true)
+    O.plan_phases!(pr, [("Anderson", 1e-3, "cycle"), ("Newton", 1e-9, "iteration")])
+    O.start_phase!(pr, "Anderson"; tol = 1e-3)
+    O.report_cycle!(pr, 1, 1e-1)
+    screen = show_screen()
+    @test length(screen) == 2
+    @test contains(screen[1], "Anderson") && contains(screen[1], "cycle   1") && contains(screen[1], "change 1.0e-01 → 1.0e-03")
+    @test contains(screen[2], "Newton") && contains(screen[2], "to 1.0e-09") && contains(screen[2], "  0%  waiting for Anderson")
+    # The bars line up
+    @test findfirst(==('▕'), collect(screen[1])) == findfirst(==('▕'), collect(screen[2]))
+    O.report_cycle!(pr, 2, 1e-4)
+    O.finish_phase!(pr, 2, true)
+    O.start_phase!(pr, "Newton"; tol = 1e-9, noun = "iteration", estimate = false)
+    O.report_cycle!(pr, 0, 1e-4)
+    O.report_cycle!(pr, 1, 1e-10)
+    O.finish_phase!(pr, 1, true)
+    O.finish_progress!(pr, true)
+    screen = show_screen()
+    @test length(screen) == 4 && screen[end] == ""
+    @test contains(screen[1], "2 cycles") && contains(screen[1], "100%  done, on to Newton") && !contains(screen[1], "converged")
+    @test contains(screen[2], "1 iteration ") && contains(screen[2], "< 1.0e-09") && contains(screen[2], "100%  converged")
+    @test startswith(screen[3], "Converged after 4 cycles simulated")
+
+    # Without a terminal, each cycle gets its own line and the waiting phase
+    # none
+    io = IOBuffer()
+    pr = Mocca.CycleProgress(io; live = false)
+    O.plan_phases!(pr, [("Anderson", 1e-3, "cycle"), ("Newton", 1e-9, "iteration")])
+    O.start_phase!(pr, "Anderson"; tol = 1e-3)
+    O.report_cycle!(pr, 1, 1e-1)
+    O.report_cycle!(pr, 2, 1e-4)
+    O.finish_phase!(pr, 2, true)
+    out = String(take!(io))
+    lines = split(out, '\n'; keepempty = false)
+    @test length(lines) == 3 && all(contains("Anderson"), lines)
+    @test !contains(out, "\e") && !any(startswith("  Newton"), lines)
+    @test contains(lines[end], "done, on to Newton")
+    @test isnothing(O.cycle_progress(false))
 end
 
 @testset "Scale of trace components and empty loadings" begin
