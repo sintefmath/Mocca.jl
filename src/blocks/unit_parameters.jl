@@ -2,6 +2,31 @@
 # Each is a single scalar associated with the Unit entity (count=1),
 # accessed at runtime as state.ParamName[1].
 
+"""
+    TimeScale
+
+Factor on the time step in every time derivative of a unit. It is 1 in a
+simulation. To differentiate with respect to a stage's duration,
+[`force_gradients`](@ref) sets it for each step, through the unit's
+`time_scale` force, to the stage's relative duration, so that stretching a
+stage stretches its steps.
+"""
+struct TimeScale <: Jutul.ScalarVariable end
+Jutul.associated_entity(::TimeScale) = Unit()
+Jutul.default_parameter_values(data_domain, model, ::TimeScale, symb) = [1.0]
+
+# A parameter is set once per simulation, while the time scale differs per
+# stage, so it comes in as a force and is copied before each step
+function Jutul.update_parameter_before_step!(x, ::TimeScale, storage, model, dt, forces)
+    s = _time_scale_force(forces)
+    isnothing(s) || (x .= s)
+    return x
+end
+_time_scale_force(forces) = hasproperty(forces, :time_scale) ? forces.time_scale : nothing
+
+# The time step of a unit's time derivatives
+@inline _scaled_dt(state, Δt) = hasproperty(state, :TimeScale) ? Δt * state.TimeScale[1] : Δt
+
 struct AdsorbentDensity <: Jutul.ScalarVariable end
 Jutul.associated_entity(::AdsorbentDensity) = Unit()
 function Jutul.default_parameter_values(data_domain, model, ::AdsorbentDensity, symb)
