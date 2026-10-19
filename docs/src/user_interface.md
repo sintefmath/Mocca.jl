@@ -2,8 +2,9 @@
 CurrentModule = Mocca
 ```
 
-# Setting up processes
+# Reference
 
+The functions and types for setting up, running and measuring a process.
 A process is described in layers, from the physics to the operation. Each
 layer is a plain object that can be edited, saved and reused on its own:
 
@@ -16,24 +17,10 @@ layer is a plain object that can be edited, saved and reused on its own:
 | Process | [`Process`](@ref): [`simulate`](@ref), [`cyclic_steady_state`](@ref), [`performance`](@ref) |
 | Design | [`add_variable!`](@ref), [`performance_gradient`](@ref), [`optimise!`](@ref) |
 | Files | [`read_process`](@ref), [`write_process`](@ref), [`load_adsorbent`](@ref); see [Process files](@ref) |
+| Results | [`ProcessResult`](@ref), plots; see [Results and plots](@ref) |
 
-```julia
-using Mocca
-using Mocca.Units
-
-gas = Gas(["CO2", "N2"])
-feed = Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), pressure = 1bar)
-fs = Flowsheet(gas, feed)
-add_bed!(fs, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"),
-    Column(length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37))
-add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
-add_device!(fs, :V_product, :product; at = (:Bed, :top))
-add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
-cycle = Cycle([Pressurise(15.0), Adsorb(15.0; velocity = 1.0),
-    Blowdown(30.0; to = 0.2bar), Evacuate(40.0; to = 0.1bar)])
-process = Process(fs, cycle)
-performance(cyclic_steady_state(process))
-```
+The [Building a process from its parts](@ref) example uses each layer in turn.
+To add your own kinds of step or unit, see [Extending Mocca](@ref).
 
 ## Units
 
@@ -80,20 +67,19 @@ valve size, tells the steps which device to open, and tells
 [`performance`](@ref) which streams are feed and product.
 
 ```@docs
+Flowsheet
 add_bed!
-fixed_bed_model
 add_device!
 DEVICE_ROLES
-default_conductance
 print_flowsheet_diagram
 ```
 
 ## Cycles and steps
 
 A step acts on a bed and opens the devices it needs, found by their roles;
-every other device stays closed. Pressure carries over from step to step: a
-ramp starts from the pressure the step before left the bed at, around the
-cycle, unless `from` is given.
+every other device stays closed. Each step that changes the pressure starts
+where the step before ended, wrapping around the cycle; give `from` to start
+elsewhere.
 
 ```@docs
 Cycle
@@ -106,27 +92,6 @@ Equalise
 Idle
 Concurrent
 TimeStepping
-compile_cycle
-```
-
-### Adding a kind of step
-
-The set of steps is open: define a subtype of [`AbstractStep`](@ref) and a
-method of [`step_settings`](@ref).
-
-```@docs
-AbstractStep
-StepContext
-step_settings
-end_pressure
-step_beds
-default_step_name
-register_step!
-find_device
-valve
-boundary
-start_pressure
-ramp
 ```
 
 ## Processes
@@ -137,7 +102,6 @@ simulate(::Process)
 initial_state
 stages
 cyclic_steady_state
-ProcessResult
 performance
 validate
 MoccaInputError
@@ -178,42 +142,10 @@ haghpanah_2013_gas
 haghpanah_2013_column
 krishnamurthy_2014_gas
 krishnamurthy_2014_column
-convert_constants
 ```
 
-## Deprecated
+## Index
 
-These functions of Mocca 0.1.0 still work, with a deprecation warning when
-Julia runs with `--depwarn=yes`:
-
-| Deprecated | Use instead |
-|---|---|
-| `HaghpanahConstants`, `adsorptionConstants` with `FixedBed(constants)`, `setup_process_model(system, constants)`, `DualSiteLangmuir(constants)` | [`Gas`](@ref), [`Adsorbent`](@ref), [`Column`](@ref) and [`add_bed!`](@ref); [`convert_constants`](@ref) converts the structs |
-| `setup_boundary_conditions`, `setup_forces(model, stage_times, bcs)` and the `AdsorptionBC`, `PressurisationBC`, `BlowdownBC`, `EvacuationBC` boundary conditions | a flowsheet with devices and a [`Cycle`](@ref), run as a [`Process`](@ref) |
-| `parse_input`, `setup_mocca_case` and their JSON format | [`read_process`](@ref) and [Process files](@ref) |
-| `four_stage_vsa_flowsheet`, `two_bed_vsa_flowsheet`, `lpp_vsa_flowsheet`, `dual_adsorbent_vsa_flowsheet` | [`four_stage_vsa_process`](@ref), [`two_bed_vsa_process`](@ref), [`lpp_vsa_process`](@ref), [`dual_adsorbent_vsa_process`](@ref) |
-| `wet_flue_gas_isotherm`, `wet_flue_gas_constants`, `wet_flue_gas_system`, `wet_flue_gas_initial_state` | [`load_adsorbent`](@ref), [`krishnamurthy_2014_gas`](@ref), [`krishnamurthy_2014_column`](@ref) |
-| `Column()` for the unit entity | `Unit()` |
-
-## The layer underneath
-
-The objects above build these, which can also be used directly.
-
-```@docs
-Flowsheet
-Stage
-setup_schedule
-parallel_stages
-PortCondition
-ExponentialRamp
-port_conductance
-setup_flowsheet_model
-DualSiteLangmuir
-AbstractIsotherm
-AbstractMassTransfer
-LinearDrivingForce
-simulate_to_cyclic_steady_state
-newton_cyclic_steady_state
-simulate_until_mass_balance
-cyclic_steady_state_gradient
+```@index
+Pages = ["user_interface.md", "results.md"]
 ```

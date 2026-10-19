@@ -25,6 +25,15 @@ function prettyVarNames(vars::Vector{Symbol})
 end
 
 
+"""
+    plot_cell(states, model, timesteps, cell)
+
+History of every variable of `cell` of a bed through time, one panel per
+variable, such as the outlet (`cell = ncells`, the top of the bed) or the feed
+end (`cell = 1`). `states` belong to the bed alone: for a process, pass
+`[s[:Bed] for s in result.states]`, with `model` the bed (`process.flowsheet[:Bed]`)
+and the `timesteps` of the result.
+"""
 function plot_cell(states, model, timesteps, cell)
 
     pvars = model.primary_variables.keys
@@ -66,6 +75,13 @@ function plot_cell(states, model, timesteps, cell)
 end
 
 
+"""
+    plot_state(state, model)
+
+Every variable along a bed at one time, one panel per variable. `state` is the
+state of the bed alone, such as `result.states[end][:Bed]` at the end of a
+simulation, and `model` the bed (`process.flowsheet[:Bed]`).
+"""
 function plot_state(state, model)
 
     pvars = model.primary_variables.keys
