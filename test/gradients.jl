@@ -2,13 +2,13 @@ using Test
 using Mocca
 using Jutul
 
-function gradient_test_case(; v_feed = Mocca.HaghpanahConstants{Float64}().v_feed, ncells = 8, kwarg...)
-    constants = Mocca.HaghpanahConstants{Float64}(v_feed = v_feed)
-    fs, stages = Mocca.four_stage_vsa_flowsheet(constants; ncells = ncells, kwarg...)
-    mm = Mocca.setup_flowsheet_model(fs)
-    init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])
-    state0 = Mocca.setup_flowsheet_state(fs; Bed = Mocca.setup_process_state(fs[:Bed]; init...))
-    prm = Mocca.setup_flowsheet_parameters(fs)
+# The four-stage VSA with superficial feed velocity `v_feed`; `A` is the bed
+# cross-section, so a feed rate gradient times `A` is a gradient in `v_feed`
+function gradient_test_case(; v_feed = haghpanah_constants().v_feed, ncells = 8, stage_durations = (15.0, 15.0, 30.0, 40.0))
+    constants = haghpanah_constants(v_feed = v_feed)
+    p = haghpanah_vsa(constants; ncells = ncells, durations = Tuple(stage_durations))
+    fs, mm, stages = p.flowsheet, p.model, Mocca.stages(p)
+    state0, prm = Mocca.initial_state(p), p.parameters
     A = π * constants.r_in^2
     return (; constants, fs, stages, mm, state0, prm, A)
 end

@@ -66,38 +66,6 @@ function FixedBed(;
     )
 end
 
-function FixedBed(constants::HaghpanahConstants; kwarg...)
-    Base.depwarn("`FixedBed(constants)` is deprecated. Convert the constants with `convert_constants` and build a bed with `add_bed!` from a `Gas`, an `Adsorbent` and a `Column`.", :FixedBed)
-    isotherm = DualSiteLangmuir(constants)
-    mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
-
-    return FixedBed(;
-        isotherm = isotherm,
-        mass_transfer = mass_transfer,
-        molecular_masses = SVector(constants.molecularMassOfCO2, constants.molecularMassOfN2),
-        component_names = ["CO2", "N2"],
-        heat_capacity_gas = constants.C_pg,
-        heat_capacity_adsorbed = constants.C_pa,
-        kwarg...
-    )
-end
-
-function FixedBed(constants::adsorptionConstants; kwarg...)
-    Base.depwarn("`FixedBed(constants)` is deprecated. Convert the constants with `convert_constants` and build a bed with `add_bed!` from a `Gas`, an `Adsorbent` and a `Column`.", :FixedBed)
-    isotherm = DualSiteLangmuir(constants)
-    mass_transfer = LinearDrivingForce(constants.D_m, constants.τ, constants.ϵ_p, constants.d_p)
-
-    return FixedBed(;
-        isotherm = isotherm,
-        mass_transfer = mass_transfer,
-        molecular_masses = constants.molecular_masses,
-        component_names = constants.component_names,
-        heat_capacity_gas = constants.C_pg,
-        heat_capacity_adsorbed = constants.C_pa,
-        kwarg...
-    )
-end
-
 # Terms the shared conservation laws pick up for a fixed bed
 sorption_heat_all_components(::FixedBed{N, R, I, M, T, AllC}) where {N, R, I, M, T, AllC} = AllC
 

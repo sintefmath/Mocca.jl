@@ -131,7 +131,7 @@ Each step keeps the current lower-level functions working, so examples can move 
 - **How far to deprecate.** Whether `HaghpanahConstants`, `adsorptionConstants` and the old boundary conditions (`setup_forces` and the `*BC` structs) stay as compatibility shims or are removed at the next breaking release.
 - **Scope of step templates.** A fixed set of VSA/PSA steps, or an open set that users extend. The latter would also cover TSA and moving beds later.
 
-Decided: JSON; plain SI with helpers (`Mocca.Units`); the old interfaces are deprecated shims, kept until the next breaking release; the set of steps is open.
+Decided: JSON; plain SI with helpers (`Mocca.Units`); the old interfaces are deprecated shims, kept until the next breaking release; the set of steps is open. Since revised (5 October 2026): the simulation path of Mocca 0.1.0 is removed (the stage boundary conditions, `setup_boundary_conditions`, `setup_forces`, `setup_mocca_case`, `setup_process_model(system, constants)`, `FixedBed(constants)`, `DualSiteLangmuir(constants)` and `Column()` as the unit entity), as are the deprecated builders that were never released (`four_stage_vsa_flowsheet`, `two_bed_vsa_flowsheet`, `lpp_vsa_flowsheet`, `dual_adsorbent_vsa_flowsheet` and the `wet_flue_gas_*` functions). The constants structs, `parse_input` and `convert_constants` stay, to move 0.1.0 inputs over.
 
 ## 6. Implementation
 
@@ -149,11 +149,11 @@ In `src/interface/`, one file per layer, built on the existing `Flowsheet`, `Sta
 
 `validate` (in `validation.jl`) and `MoccaInputError` (in `errors.jl`) give the checks of section 3.10.
 
-Checks (`test/interface.jl`): the four ready-made processes give the same parameters, forces, initial states and simulated states, to the last bit, as the deprecated builders; every process round-trips through a file exactly; the gradients of purity, recovery, specific energy and productivity with respect to step pressures, the feed velocity and pressure, stage durations and a bed parameter match finite differences to 1e-6 or better.
+Checks (`test/interface.jl`): the four ready-made processes gave the same parameters, forces, initial states and simulated states, to the last bit, as the deprecated builders, until those were removed; every process round-trips through a file exactly; the gradients of purity, recovery, specific energy and productivity with respect to step pressures, the feed velocity and pressure, stage durations and a bed parameter match finite differences to 1e-6 or better.
 
 ### Departures from the note
 
-- **`Column` changed meaning.** It was an alias of the `Unit` entity; it is now the column geometry. `Column()` with no arguments still returns `Unit()`, with a deprecation warning.
+- **`Column` changed meaning.** It was an alias of the `Unit` entity; it is now the column geometry. `Column()` no longer returns `Unit()`.
 - **Default valve size.** A valve defaults to the conductance of the half cell at the bed end it is attached to (in series for a link), which reproduces the old boundary conditions, rather than a size that reaches the set pressure in the ramp time.
 - **Pressure carries over between steps.** A step's ramp starts where the step before left its bed, around the cycle, unless `from` is given; `Equalise` leaves both beds at the mean of their start pressures. Extract and waste lines default to the lowest pressure of their bed.
 - **Dispersion follows the adsorption velocity once.** With `dispersion_velocity = :adsorption` (the default) a bed's axial dispersion is set from its adsorption step's velocity when the `Process` is built, and stays fixed when design variables change, as the gas viscosity and density do. It is the bed's `AxialDispersion` parameter, so setting it does not rebuild the bed, and a design variable can set it. `validate` reports a fixed dispersion velocity far from the adsorption velocity.

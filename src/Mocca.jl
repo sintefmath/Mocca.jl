@@ -13,7 +13,7 @@ export PortCondition, ExponentialRamp, port_conductance
 export Flowsheet, UnitNetwork, add_unit!, connect!, set_boundary!, setup_flowsheet_model
 export AbstractConnection, StreamConnection, PortRef
 export setup_flowsheet_state, setup_flowsheet_parameters
-export Stage, setup_schedule, four_stage_vsa_flowsheet, two_bed_vsa_flowsheet
+export Stage, setup_schedule
 export cycle_window, stream_totals, purity, recovery, productivity, sorbent_mass
 export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
 export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance
@@ -25,8 +25,6 @@ export setup_process_model
 export setup_process_simulator
 export setup_process_parameters
 export setup_process_state
-export setup_boundary_conditions
-export setup_dcb_forces
 export simulate_process
 export mocca_domain
 export column_mesh
@@ -95,7 +93,6 @@ include("blocks/sorbent.jl")
 include("blocks/energy.jl")
 include("blocks/wall.jl")
 
-include("units/fixed_bed/legacy_bcs/forces.jl")
 include("units/fixed_bed/select.jl")
 include("units/equipment/device.jl")
 
@@ -105,8 +102,6 @@ include("flowsheet/flowsheet.jl")
 
 # L5: process operation
 include("process/schedule.jl")
-include("process/vsa.jl")
-include("process/wet_flue_gas.jl")
 include("process/metrics.jl")
 include("process/css.jl")
 include("process/gradients.jl")

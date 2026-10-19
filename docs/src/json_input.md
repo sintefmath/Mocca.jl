@@ -148,6 +148,6 @@ the same way.
 
 ## The earlier format
 
-`Mocca.parse_input` still reads the JSON files of Mocca 0.1.0 into
-constants structs, but is deprecated. [`convert_constants`](@ref) turns those
-structs into the objects above.
+`Mocca.parse_input` reads the JSON files of Mocca 0.1.0 into constants
+structs, and [`convert_constants`](@ref) turns those into the objects above,
+to move such inputs over. Mocca no longer simulates them directly.

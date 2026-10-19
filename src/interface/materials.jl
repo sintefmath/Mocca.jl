@@ -292,11 +292,6 @@ end
 
 function Column(; length = nothing, radius = nothing, porosity = nothing, outer_radius = radius, axial_conductivity = 0.09, wall = Wall(),
         inner_heat_transfer = 8.6, outer_heat_transfer = 2.5, ambient_temperature = 298.15)
-    if all(isnothing, (length, radius, porosity))
-        # Mocca 0.1.0 used Column() for the entity of unit-level values
-        Base.depwarn("`Column()` for the unit entity is deprecated; use `Unit()`. `Column` now describes the geometry of a column.", :Column)
-        return Unit()
-    end
     for (k, v) in (:length => length, :radius => radius, :porosity => porosity)
         isnothing(v) && input_error("column", k, "is required")
     end
