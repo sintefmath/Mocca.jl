@@ -42,6 +42,7 @@ function Jutul.update_equation_in_entity!(
     Δt,
     ldisc = Jutul.local_discretization(eq, self_cell),
 ) where {T_e}
+    Δt = _scaled_dt(state, Δt)
     conserved = Jutul.conserved_symbol(eq)
     M₀ = state0[conserved]
     M = state[conserved]

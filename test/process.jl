@@ -45,6 +45,35 @@ import Jutul.DictOptimization: DictParameters, free_optimization_parameter!, par
     @test Mocca.vacuum_pump_energy(states, ts, :V_feed; window = w2, discharge_pressure = 1.0) == 0
 end
 
+@testset "Legacy stage time steps" begin
+    constants = Mocca.HaghpanahConstants{Float64}()
+    bed = Mocca.setup_process_model(Mocca.FixedBed(constants), constants; ncells = 5)
+    bcs = Mocca.setup_boundary_conditions(constants, ["pressurisation", "adsorption", "blowdown", "evacuation"])
+    stage_times = [15.0, 15.0, 30.0, 40.0]
+    # 15 s is not a multiple of max_dt = 2, so those stages need a shorter step
+    forces, dt = Mocca.setup_forces(bed, stage_times, bcs; num_cycles = 2, max_dt = 2.0)
+    @test length(forces) == length(dt)
+    @test sum(dt) ≈ 2 * sum(stage_times)
+    @test maximum(dt) <= 2.0
+    # Each stage keeps its own duration, and its pressure ramp starts when the
+    # stage does in simulated time
+    t = 0.0
+    k = 1
+    for cycle in 1:2, (i, τ) in enumerate(stage_times)
+        bc = forces[k].bc
+        @test bc isa typeof(bcs[i])
+        hasfield(typeof(bc), :stage_start) && @test bc.stage_start ≈ t
+        t_stage = 0.0
+        while k <= length(forces) && forces[k].bc === bc
+            t_stage += dt[k]
+            k += 1
+        end
+        @test t_stage ≈ τ
+        t += τ
+    end
+    @test k == length(forces) + 1
+end
+
 @testset "Cyclic steady state" begin
     constants = Mocca.HaghpanahConstants{Float64}()
     init = (Pressure = constants.p_low, Temperature = 298.15, WallTemperature = constants.T_a, y = [1e-10, 1.0 - 1e-10])

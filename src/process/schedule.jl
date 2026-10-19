@@ -25,7 +25,8 @@ Stage(name, duration; settings...) = Stage(String(name), Float64(duration), Dict
 Stage(name, duration, settings::Pair{Symbol}...) = Stage(String(name), Float64(duration), Dict{Symbol, Any}(settings...))
 
 """
-    setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 1.0, first_dt = max_dt) → (forces, timesteps)
+    setup_schedule(fs, model, stages; num_cycles = 1, max_dt = 1.0, first_dt = max_dt,
+        reference_durations = nothing) → (forces, timesteps)
 
 Forces and time steps for `num_cycles` repetitions of `stages` on the flowsheet
 `fs` and its `MultiModel`. Each stage is split into steps no longer than
@@ -33,20 +34,33 @@ Forces and time steps for `num_cycles` repetitions of `stages` on the flowsheet
 `first_dt`, doubling up to `max_dt`, which helps the solver through the abrupt
 change when a valve opens or a flow controller starts. Boundary ports use the stage's port condition if given, otherwise the
 flowsheet default from [`set_boundary!`](@ref).
+
+With `reference_durations`, one per stage, each stage instead takes the steps
+of its reference duration, stretched in proportion to its own. Changing the
+durations then keeps the number of steps, which is how the stage duration
+gradients of [`force_gradients`](@ref) treat them, so an optimiser that
+changes durations sees the same model that the gradients describe.
 """
 function setup_schedule(fs::Flowsheet, model::Jutul.MultiModel, stages::AbstractVector{Stage};
-        num_cycles = 1, max_dt = 1.0, first_dt = max_dt)
+        num_cycles = 1, max_dt = 1.0, first_dt = max_dt, reference_durations = nothing)
     for st in stages, k in keys(st.settings)
         haskey(fs.units, k) && _is_device(fs.units[k]) || error("Stage $(st.name) sets $k, which is not a device in the flowsheet")
     end
+    isnothing(reference_durations) || length(reference_durations) == length(stages) ||
+        error("Expected one reference duration per stage, got $(length(reference_durations)) for $(length(stages)) stages")
     cycle_time = sum(st -> st.duration, stages)
     forces = Any[]
     timesteps = Float64[]
     t = 0.0
     for cycle in 1:num_cycles
-        for st in stages
+        for (j, st) in enumerate(stages)
             f = _stage_forces(fs, model, st, t)
-            dt = _stage_steps(st.duration, max_dt, first_dt)
+            if isnothing(reference_durations)
+                dt = _stage_steps(st.duration, max_dt, first_dt)
+            else
+                τ = reference_durations[j]
+                dt = _stage_steps(τ, max_dt, first_dt) .* (st.duration / τ)
+            end
             append!(timesteps, dt)
             append!(forces, fill(f, length(dt)))
             t += st.duration

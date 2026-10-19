@@ -83,6 +83,7 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     S[:AmbientTemperature] = AmbientTemperature()
     S[:WallCrossSectionArea] = WallCrossSectionArea()
     S[:BedCrossSectionArea] = BedCrossSectionArea()
+    S[:TimeScale] = TimeScale()
     if !has_energy_balance(sys)
         S[:IsothermalTemperature] = IsothermalTemperature()
     end
