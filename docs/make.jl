@@ -88,7 +88,9 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
             repo = "https://github.com/sintefmath/Mocca.jl",
             devbranch = "main",
             devurl = "dev",
-            deploy_url = "sintefmath.github.io/Mocca.jl",
+            # Needs the scheme: without it DocumenterVitepress takes the
+            # whole string as the base path of the site
+            deploy_url = "https://sintefmath.github.io/Mocca.jl",
         ),
     )
 
