@@ -10,6 +10,28 @@ function units_dict()
     return unit_label
 end
 
+# Colours shared with the documentation: one per kind of step and one per
+# component, so that a reader learns them once. Anything else falls back to
+# Makie's default palette.
+const STEP_COLOURS = [
+    "lpp" => "#c79ad9", "light product" => "#c79ad9", "purge" => "#c79ad9",
+    "pressur" => "#8a63b8", "adsor" => "#3d8c47", "blowdown" => "#c48a1f",
+    "evacua" => "#3f63c9", "equali" => "#8d8a94", "idle" => "#b9b6bf",
+]
+const COMPONENT_COLOURS = Dict("CO2" => "#c4362e", "N2" => "#4a5a75", "H2O" => "#2b8cbe")
+const SINGLE_COLOUR = "#5b2f73"
+
+# The colour of the kind of step that a stage or label name starts with, or
+# `fallback`
+function _step_colour(name, fallback)
+    n = lowercase(String(name))
+    hits = [(first(findfirst(k, n)), c) for (k, c) in STEP_COLOURS if occursin(k, n)]
+    isempty(hits) && return fallback
+    return last(hits[argmin(first.(hits))])
+end
+
+_component_colour(name, k) = get(COMPONENT_COLOURS, String(name), Makie.wong_colors()[mod1(k, 7)])
+
 function prettyVarNames(vars::Vector{Symbol})
     pretty_names = Dict()
 
@@ -57,10 +79,11 @@ function plot_cell(states, model, timesteps, cell)
             ylabel=L"%$(units[symb])")
 
         if size(states[end][symb], 2) == 1
-           lines!(ax, t, [result[symb][cell] for result in states])
+           lines!(ax, t, [result[symb][cell] for result in states], color = SINGLE_COLOUR)
         else
             for k in 1:size(states[end][symb], 1)
-                lines!(ax, t, [result[symb][k, cell] for result in states], label = comp_names[k])
+                lines!(ax, t, [result[symb][k, cell] for result in states], label = comp_names[k],
+                    color = _component_colour(comp_names[k], k))
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
             
@@ -105,10 +128,10 @@ function plot_state(state, model)
             ylabel=L"%$(units[symb])")
 
         if size(state[symb], 2) == 1
-           lines!(ax, x, state[symb])
+           lines!(ax, x, state[symb], color = SINGLE_COLOUR)
         else
             for k in 1:size(state[symb], 1)
-                lines!(ax, x, state[symb][k,:], label = comp_names[k])
+                lines!(ax, x, state[symb][k,:], label = comp_names[k], color = _component_colour(comp_names[k], k))
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
             
@@ -239,7 +262,7 @@ function plot_flowsheet_streams(states, model::Jutul.MultiModel, timesteps;
         for ax in (ax_F, ax_y)
             _shade_stages!(ax, stages, t[end], colors)
         end
-        Legend(f[2, 2], [PolyElement(color = (colors[i], 0.25)) for i in eachindex(stages)],
+        Legend(f[2, 2], [PolyElement(color = (_step_colour(st.name, colors[mod1(i, length(colors))]), 0.25)) for (i, st) in enumerate(stages)],
             [st.name for st in stages], "Stage", tellheight = false)
     end
     F_max = maximum(abs(s[d][:MolarFlow][1]) for s in states for d in devices)
@@ -264,7 +287,7 @@ function _shade_stages!(ax, stages, t_end, colors)
     while t < t_end
         for (i, st) in enumerate(stages)
             t >= t_end && break
-            vspan!(ax, t, min(t + st.duration, t_end), color = (colors[mod1(i, length(colors))], 0.12))
+            vspan!(ax, t, min(t + st.duration, t_end), color = (_step_colour(st.name, colors[mod1(i, length(colors))]), 0.12))
             t += st.duration
         end
     end
@@ -305,7 +328,7 @@ function plot_profiles(states, timesteps, model, times;
             s = unit_states[k]
             q = s[:AdsorbedConcentration][i, :]
             isnothing(q_scale) || (q = q ./ q_scale[i])
-            color = colors[mod1(j, length(colors))]
+            color = _step_colour(label, colors[mod1(j, length(colors))])
             lines!(ax_y, x, s[:y][i, :], color = color, label = label)
             lines!(ax, x, q, color = color, label = label)
         end

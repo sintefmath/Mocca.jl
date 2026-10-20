@@ -69,8 +69,12 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
             "Manual" => [
                 "Model equations" => "model.md",
                 "Cycle steps" => "cycle_steps.md",
-                "Adsorbents" => "adsorbents.md",
+                "Cyclic steady state" => "steady_state.md",
                 "Results and plots" => "results.md",
+            ],
+            "Library" => [
+                "Processes and validation" => "processes.md",
+                "Adsorbents" => "adsorbents.md",
             ],
             "Examples" => examples_markdown[2:end],
             "Reference" => [

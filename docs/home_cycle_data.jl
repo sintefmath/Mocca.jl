@@ -33,6 +33,20 @@ num(x) = @sprintf("%.4g", x)
 vec_json(v) = "[" * join(num.(v), ",") * "]"
 
 stages = Mocca.stages(process)
+
+# The pressure set at the valve that is open at the bed's end in each stage:
+# the feed inlet while the bed is pressurised and fed, and the outlet while it
+# is blown down and evacuated. It follows the ramps of the steps, without the
+# pressure drop that the feed flow adds inside the bed.
+stage_ends = cumsum([st.duration for st in stages])
+open_valve = Dict("pressurisation" => (:V_feed, :InletPressure), "adsorption" => (:V_feed, :InletPressure),
+    "blowdown" => (:V_product, :OutletPressure), "evacuation" => (:V_vacuum, :OutletPressure))
+function valve_pressure(k)
+    st = stages[something(findfirst(>=(t[k] - 1e-9), stage_ends), length(stages))]
+    device, port = open_valve[st.name]
+    return result.states[k][device][port][1]
+end
+
 open(joinpath(@__DIR__, "src", "assets", "home_cycle.json"), "w") do io
     println(io, "{")
     println(io, "  \"process\": \"haghpanah_2013_four_stage_vsa\",")
@@ -44,7 +58,7 @@ open(joinpath(@__DIR__, "src", "assets", "home_cycle.json"), "w") do io
     println(io, "  \"stages\": [", join(["{\"name\": \"$(st.name)\", \"duration\": $(num(st.duration))}" for st in stages], ", "), "],")
     println(io, "  \"z\": ", vec_json(z), ",")
     println(io, "  \"t\": ", vec_json(t[frames]), ",")
-    println(io, "  \"pressure_bottom_bar\": ", vec_json([s[:Pressure][1] / bar for s in bed_states]), ",")
+    println(io, "  \"pressure_valve_bar\": ", vec_json([valve_pressure(k) / bar for k in frames]), ",")
     println(io, "  \"loading\": [", join([vec_json(qk ./ q_max) for qk in q], ",\n    "), "],")
     println(io, "  \"y_co2\": [", join([vec_json(s[:y][1, :]) for s in bed_states], ",\n    "), "]")
     println(io, "}")

@@ -21,81 +21,9 @@ times measured from the start of that cycle.
 
 ## Following the approach to steady state
 
-In the REPL, [`cyclic_steady_state`](@ref) prints each cycle as it runs. By
-default it works in two phases, each with its own line and bar: three plain
-cycles, each from the end of the last, let the fastest changes die out, then
-Newton's method takes the change over a cycle to the tolerance. In a terminal
-the lines are rewritten in place. While Newton's method runs:
-
-```
-Cyclic steady state of four-stage VSA: 3 plain cycles, then Newton's method to 1.0e-09
-  Cycles          3 cycles      change 6.51e-01            ▕████████████▏ 100%  done, on to Newton  0.5 s
-  Newton        iteration   5   change 6.31e-02 → 1.0e-09  ▕█           ▏   8%  1.7 s
-```
-
-and when it is done:
-
-```
-Cyclic steady state of four-stage VSA: 3 plain cycles, then Newton's method to 1.0e-09
-  Cycles          3 cycles      change 6.51e-01            ▕████████████▏ 100%  done, on to Newton  0.5 s
-  Newton         13 iterations  change 1.96e-10 < 1.0e-09  ▕████████████▏ 100%  converged  4 Jacobians built  3.2 s
-Converged after 17 cycles simulated in 4.1 s
-```
-
-Far from the steady state a Newton step can make the change larger before the
-next ones converge; a step that makes it far worse, or from which the cycle
-fails to simulate, is cut back, and the line says how many were. Newton's
-method builds its Jacobian from forward sensitivities over one cycle, every
-column in one sweep, so a Jacobian takes about as long as a cycle on a
-coarse grid. On a grid with more than 800 variables in its beds (by default,
-`krylov = :auto`), or on any grid with `krylov = true`, it solves each step
-by GMRES instead, one forward sensitivity per product, and shows how far the
-solve has come:
-
-```
-  Newton        iteration   0   change 3.19e-01 → 1.0e-09  ▕            ▏   0%  GMRES: product 12, residual 3.4e-02 → 1.0e-02
-```
-
-With `handover = 1e-3`, say, Anderson acceleration takes the change to `1e-3`
-before Newton's method starts, as earlier versions did; if Newton's method
-does not converge from the plain cycles, Anderson acceleration takes over
-that way, with a note.
-
-On a fine grid, with more than 40 cells in a bed (`coarse_cells`), it first
-finds the steady state on half as many cells, and so on down to 40 or fewer,
-to a change of `1e-6`; each is interpolated onto the next finer grid as the
-start of Newton's method there, which then needs only a few iterations
-(here with `krylov = true`, at 160 cells):
-
-```
-Cyclic steady state of four-stage VSA: 3 plain cycles, then Newton's method on 40 cells to 1.0e-06; from there Newton's method on 80 cells to 1.0e-06 and on 160 cells to 1.0e-09
-  40 cells: 3 plain cycles, then Newton's method
-  Cycles          3 cycles      change 4.49e-01            ▕████████████▏ 100%  done, on to Newton  1.1 s
-  Newton         10 iterations  change 1.18e-08 < 1.0e-06  ▕████████████▏ 100%  converged  273 GMRES products  8.4 s
-  80 cells: Newton's method from the steady state on 40 cells
-  Newton          2 iterations  change 5.89e-07 < 1.0e-06  ▕████████████▏ 100%  converged  76 GMRES products  3.0 s
-  160 cells: Newton's method from the steady state on 80 cells
-  Newton          3 iterations  change 7.55e-11 < 1.0e-09  ▕████████████▏ 100%  converged  114 GMRES products  7.1 s
-Converged after 21 cycles simulated in 20 s
-```
-
-The coarser grids only give the start; the steady state is that of the
-process as set up. Pass `coarse_cells = nothing` to start every grid from its
-initial state.
-
-The change is the largest relative change of any variable of the beds over
-one cycle (see [`cycle_change`](@ref)). Each bar shows how far the smallest
-change so far has come from the first cycle of its phase to the phase's
-tolerance, on a log scale, and the estimate of what is left is for that phase.
-From the last steady state of the process, Newton's method starts at once,
-with a single line. With `method = :mass_balance` the line shows the balance
-error of the key component instead, and how many cycles in a row it has been
-below the tolerance.
-
-Pass `progress = false` to turn it off, or `progress = true` to have it in a
-script, as the examples do. Outside a terminal, such as in a log file, each
-cycle gets its own line. It is off when
-[`optimise!`](@ref) finds the steady state of each design.
+In the REPL, [`cyclic_steady_state`](@ref) prints each cycle as it runs. What
+it prints, and how it finds the steady state, are on the
+[Cyclic steady state](@ref) page.
 
 ## Performance
 
