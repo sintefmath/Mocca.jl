@@ -49,9 +49,9 @@ process
 
 # # 2. Performance and its gradient at cyclic steady state
 #
-# `performance_gradient` finds the steady state — Anderson acceleration
-# close to it, then Newton's method on the cycle map, with its Jacobian from
-# one adjoint per bed variable — and then the gradients. The gradient is only
+# `performance_gradient` finds the steady state (a few plain cycles, then
+# Newton's method on the cycle map, with its Jacobian from forward
+# sensitivities over one cycle) and then the gradients. The gradient is only
 # as accurate as the steady state, since the slowest mode of this cycle decays
 # by only about 1% per cycle. Purity, recovery, energy and productivity are
 # ratios of sums over the cycle (the CO₂ and the gas in the extract, the CO₂

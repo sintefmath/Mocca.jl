@@ -83,8 +83,9 @@ cycle = Mocca.Cycle([
 process = Mocca.Process(fs, cycle; name = "two-bed VSA")
 
 # # 3. Cyclic steady state and performance
-# Two beds approach their steady state more slowly than one, so the first
-# steady state takes a few minutes.
+# Two beds approach their steady state more slowly than one when the cycle is
+# simply repeated, but after three plain cycles Newton's method needs only
+# about ten iterations.
 result = Mocca.cyclic_steady_state(process; progress = true)
 perf = Mocca.performance(result)
 println("converged: $(result.converged) after $(result.iterations) cycles")

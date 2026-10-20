@@ -521,21 +521,12 @@ reported in kWh per tonne of key component. ``P_{amb}``, ``\eta`` and
 the vacuum pumps only; [`vacuum_pump_energy`](@ref) gives the energy of one
 device, to report it their way.
 
-## Cyclic steady state
+## Steady state of the cycle
 
 The cycle maps the state of the beds at its start, ``x``, to the state at its
-end, ``\Phi(x)``. [`cyclic_steady_state`](@ref) solves ``x = \Phi(x)``:
-
-| `method` | How | Converged when |
-|---|---|---|
-| `:newton` (default) | Anderson acceleration, then Newton's method on ``x - \Phi(x)`` | change per cycle below `tol` = 10⁻⁹ |
-| `:anderson` | Repeated cycles with Anderson acceleration | change per cycle below `tol` = 10⁻⁶ |
-| `:mass_balance` | Repeated cycles | key component in and out agree within 0.5% for 5 cycles in a row, after at least 50 (Haghpanah et al. 2013; Krishnamurthy et al. 2014) |
-
-The change per cycle is the largest relative change of any variable of any
-bed (see [`cycle_change`](@ref)). `:newton` and `:anderson` require every
-variable to settle, including slowly accumulating components such as water; a
-mass balance on one component does not.
+end, ``\Phi(x)``. Performance is measured at the cyclic steady state,
+``x = \Phi(x)``. How Mocca finds it, and its options, are on the
+[Cyclic steady state](@ref) page.
 
 ## Numerical method
 

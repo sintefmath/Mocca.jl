@@ -152,20 +152,27 @@ the [Model equations](@ref) page, under Performance.
 A bed that starts from some initial state ends each cycle a little different
 from how it began. After enough cycles the state at the end of a cycle is the
 state it started from: the cyclic steady state, where the performance is
-measured. [`cyclic_steady_state`](@ref) gets there faster than running cycle
-after cycle, by Anderson acceleration and then Newton's method. The largest
-relative change of any variable over a cycle, at each iteration:
+measured. Running cycle after cycle would take hundreds of cycles to get
+there. [`cyclic_steady_state`](@ref) runs three plain cycles and then solves
+for the steady state by Newton's method, which needs fewer than twenty more. The
+largest relative change of any variable over a cycle, at each step:
 
 ```@example cycle
 fig = Figure(size = (620, 300)) # hide
-ax = Axis(fig[1, 1], yscale = log10, xlabel = "iteration", ylabel = "change over a cycle") # hide
-scatterlines!(ax, 1:length(result.history), result.history) # hide
+ax = Axis(fig[1, 1], yscale = log10, xlabel = "plain cycle, then Newton iteration", ylabel = "change over a cycle") # hide
+n = length(result.history) # hide
+scatterlines!(ax, 1:min(3, n), result.history[1:min(3, n)], label = "plain cycles") # hide
+n > 3 && scatterlines!(ax, 3:n, result.history[3:n], label = "Newton's method") # hide
+axislegend(ax, position = :lb) # hide
 fig # hide
 ```
 
-From the initial state, a bed at 1 bar, Anderson acceleration brings the
-change below 10⁻³ in about 270 cycles. Newton's method then takes it below
-10⁻¹⁰ in three iterations.
+The plain cycles take out the fastest changes. Far from the steady state, the
+first Newton steps make the change larger before they bring it down; Newton's
+method cuts back any step that would make it far worse. From there each
+iteration reduces the change by a factor of about ten, to 10⁻¹⁰ after 17
+iterations. The [Cyclic steady state](@ref) page describes the methods and
+their options.
 
 ## Changing a setting
 
