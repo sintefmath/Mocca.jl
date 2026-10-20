@@ -7,7 +7,9 @@ The rate equation is:
 ```
 ∂q/∂t = k * (q* - q)
 ```
-where `k = 15 * ε_p * D_p / r_p² * C / q*` and `D_p = D_m / τ`.
+where `k = 15 * ε_p * D_p / r_p² * C / q*` and `D_p = D_m / τ`. A component the
+sorbent does not take up (`q* = 0` at any concentration, such as one without
+isotherm data) has no mass transfer.
 """
 struct LinearDrivingForce{T, D} <: AbstractMassTransfer
     D_m::D
@@ -32,6 +34,11 @@ LinearDrivingForce(; D_m, τ, ϵ_p, d_p) = LinearDrivingForce(D_m, τ, ϵ_p, d_p
 function compute_mass_transfer_rate(mt::LinearDrivingForce, C, q, qstar)
     D_p = mt.D_m ./ mt.τ
     r_p = mt.d_p / 2.0
-    k = C ./ qstar .* 15 .* mt.ϵ_p .* D_p ./ r_p^2
+    k = _capacity_ratio.(C, qstar) .* 15 .* mt.ϵ_p .* D_p ./ r_p^2
     return k .* (qstar .- q)
 end
+
+# C/q*, or zero where the sorbent takes up none of a component, where C/q*
+# would be C/0. ifelse evaluates both sides, so the derivatives keep the same
+# pattern whichever applies.
+@inline _capacity_ratio(c, qstar) = ifelse(qstar > 0, c / qstar, zero(c / one(qstar)))

@@ -363,7 +363,9 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
         r = s.result
         finish_progress!(pr, r.converged)
         r.converged || @warn "Cyclic steady state not converged by Newton's method" r.history
-        p.warm.state, p.warm.jacobian = r.state0, r.jacobian
+        # Only a steady state is a good start for the next solve; otherwise the
+        # last one found, if any, stays
+        r.converged && ((p.warm.state, p.warm.jacobian) = (r.state0, r.jacobian))
         return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
     elseif method == :anderson
         tol = something(tol, 1e-6)

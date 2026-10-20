@@ -183,21 +183,42 @@ function add_device!(fs::Flowsheet, name::Symbol, role::Symbol; at = nothing, fr
     role in DEVICE_ROLES || input_error(loc, "role", "unknown role $role; roles are $(join(DEVICE_ROLES, ", "))")
     add_unit!(fs, name, setup_device_model(fs.gas.names))
     fs.roles[name] = role
-    _at(loc) do
-        if role == :link
-            (isnothing(from) || isnothing(to)) && input_error(loc, "", "a link needs from = (bed, port) and to = (bed, port)")
-            isnothing(boundary) || input_error(loc, "boundary", "a link has no boundary")
-            connect!(fs, _port_pair(from) => (name, :inlet))
-            connect!(fs, _port_pair(to) => (name, :outlet))
-        else
-            isnothing(at) && input_error(loc, "at", "give the bed port it connects to, such as at = (:Bed, :bottom)")
-            inlet = role in INLET_ROLES
-            connect!(fs, _port_pair(at) => (name, inlet ? :outlet : :inlet))
-            port = inlet ? :inlet : :outlet
-            set_boundary!(fs.network, name, port, _role_boundary(fs, role, boundary, loc))
-            isnothing(boundary) && push!(fs.default_boundaries, PortRef(name, port))
+    try
+        _at(loc) do
+            if role == :link
+                (isnothing(from) || isnothing(to)) && input_error(loc, "", "a link needs from = (bed, port) and to = (bed, port)")
+                isnothing(boundary) || input_error(loc, "boundary", "a link has no boundary")
+                connect!(fs, _port_pair(from) => (name, :inlet))
+                connect!(fs, _port_pair(to) => (name, :outlet))
+            else
+                isnothing(at) && input_error(loc, "at", "give the bed port it connects to, such as at = (:Bed, :bottom)")
+                inlet = role in INLET_ROLES
+                connect!(fs, _port_pair(at) => (name, inlet ? :outlet : :inlet))
+                port = inlet ? :inlet : :outlet
+                set_boundary!(fs.network, name, port, _role_boundary(fs, role, boundary, loc))
+                isnothing(boundary) && push!(fs.default_boundaries, PortRef(name, port))
+            end
         end
+    catch
+        # Leave the flowsheet as it was, so that the call can be corrected
+        # and made again under the same name
+        _remove_device!(fs, name)
+        rethrow()
     end
+    return fs
+end
+
+# Undo add_device!: the device, its role, connections and boundaries
+function _remove_device!(fs::Flowsheet, name::Symbol)
+    net = fs.network
+    delete!(net.units, name)
+    filter!(!=(name), net.order)
+    filter!(c -> all(r -> r.name != name, connection_ports(c)), net.connections)
+    for p in DEVICE_PORTS
+        delete!(net.boundaries, PortRef(name, p))
+        delete!(fs.default_boundaries, PortRef(name, p))
+    end
+    delete!(fs.roles, name)
     return fs
 end
 
