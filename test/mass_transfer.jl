@@ -20,6 +20,10 @@
     rate_small = Mocca.compute_mass_transfer_rate(system.mass_transfer, concentration, q_zero, qstar_small)
     @test all(isfinite.(rate_small))
 
+    # A component the sorbent does not take up (q* = 0) has no mass transfer
+    rate_none = Mocca.compute_mass_transfer_rate(system.mass_transfer, concentration, q_zero, [qstar[1], 0.0])
+    @test all(isfinite, rate_none) && rate_none[1] > 0 && rate_none[2] == 0
+
     # LinearDrivingForce is constructed in the system
     @test system.mass_transfer isa Mocca.LinearDrivingForce
 end

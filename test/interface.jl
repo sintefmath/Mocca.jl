@@ -100,6 +100,24 @@ end
     @test k.velocity ≈ c.v_feed / c.Φ && k.p_low == c.p_low
 end
 
+@testset "A component the sorbent does not take up" begin
+    # The adsorbent has no O2 data, so O2 does not adsorb, and the bed
+    # simulates with its loading staying at zero
+    gas = Gas(["CO2", "N2", "O2"])
+    fs = Flowsheet(gas, Feed(gas; composition = (CO2 = 0.15, N2 = 0.8, O2 = 0.05), pressure = 1bar))
+    add_bed!(fs, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), M.haghpanah_2013_column(); ncells = 5)
+    add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+    add_device!(fs, :V_product, :product; at = (:Bed, :top))
+    add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
+    p = Process(fs, Cycle([Pressurise(5.0), Adsorb(10.0; superficial_velocity = 0.37), Evacuate(10.0; to = 0.1bar)]))
+    r = simulate(p)
+    bed = r.states[end][:Bed]
+    @test all(isfinite, bed[:AdsorbedConcentration]) && all(isfinite, bed[:Pressure])
+    @test maximum(bed[:AdsorbedConcentration][3, :]) < 1e-8
+    @test maximum(bed[:AdsorbedConcentration][1, :]) > 1.0
+    @test performance(r).feed[3] > 0
+end
+
 @testset "Steps, roles and cycles" begin
     gas = M.haghpanah_2013_gas()
     feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
@@ -113,6 +131,17 @@ end
     add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
     @test devices_with_role(fs, :extract) == [:V_vacuum]
     @test_throws MoccaInputError add_device!(fs, :V_x, :vacuum; at = (:Bed, :bottom))
+    # A device that cannot be connected leaves the flowsheet as it was, so the
+    # call can be corrected under the same name
+    fs2 = deepcopy(fs)
+    n_units, n_connections = length(M.unit_names(fs2)), length(M.connections(fs2))
+    @test_throws MoccaInputError add_device!(fs2, :V_waste, :waste; at = (:Bed, :botom))
+    @test_throws MoccaInputError add_device!(fs2, :V_waste, :link; from = (:Bed, :bottom), to = (:Bed, :middle))
+    @test length(M.unit_names(fs2)) == n_units && length(M.connections(fs2)) == n_connections
+    @test !haskey(fs2, :V_waste) && isnothing(M.device_role(fs2, :V_waste))
+    @test !any(r -> r.name == :V_waste, keys(fs2.network.boundaries))
+    add_device!(fs2, :V_waste, :waste; at = (:Bed, :bottom))
+    @test devices_with_role(fs2, :waste) == [:V_waste]
     cycle = Cycle([Pressurise(10.0), Adsorb(20.0; superficial_velocity = 0.37), Blowdown(10.0; to = 0.2bar),
         Evacuate(20.0; to = 0.1bar), Purge(5.0; velocity = 0.1), Idle(5.0)])
     c = M.compile_cycle(cycle, fs)
