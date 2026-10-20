@@ -351,7 +351,22 @@ Jutul.devectorize_force(f::_DeviceForce, model::FlowDeviceModel, X, meta, name, 
 # themselves, starting at the device's offset within the vector. A MultiModel
 # devectorises each submodel from its own slice of the vector, with no offset;
 # test/gradients.jl checks both conventions, which these methods rely on.
+# The proper fix is in Jutul's loops; until then, _check_force_layout stops
+# with an error, rather than giving wrong gradients, if Jutul changes either.
+function _check_force_layout(config, forces, X = nothing, offset = 0)
+    length(config.lengths) == length(forces) ||
+        error("Jutul's force vectorisation config has $(length(config.lengths)) lengths for $(length(forces)) device forces; " *
+            "Mocca's device methods (src/devices/device.jl) expect one per force and need updating for this Jutul version")
+    isnothing(X) && return
+    # Read from the start of X, it must be the device's own slice or begin with it
+    offset == 0 && length(X) != sum(config.lengths) && first(config.offsets) != 1 &&
+        error("Jutul passed a device the whole force vector without its offset; " *
+            "Mocca's device methods (src/devices/device.jl) need updating for this Jutul version")
+    return
+end
+
 function Jutul.vectorize_forces!(v, model::FlowDeviceModel, config, forces; update_config = false)
+    _check_force_layout(config, forces)
     offset = first(config.offsets) - 1
     for (i, (k, f)) in enumerate(pairs(forces))
         n = config.lengths[i]
@@ -364,6 +379,7 @@ function Jutul.vectorize_forces!(v, model::FlowDeviceModel, config, forces; upda
 end
 
 function Jutul.devectorize_forces(forces, model::FlowDeviceModel, X, config; offset = 0)
+    _check_force_layout(config, forces, X, offset)
     out = Dict{Symbol, Any}()
     for (i, (k, f)) in enumerate(pairs(forces))
         n = config.lengths[i]

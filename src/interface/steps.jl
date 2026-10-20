@@ -385,6 +385,7 @@ end_pressure(s::Purge, ctx) = isnothing(s.pressure) ? ctx.pressure : s.pressure
 Open the link between the two `beds`, such as `(:A, :B)`, so that their
 pressures equalise; gas flows from the higher to the lower. Both beds are then
 taken to be at the mean of their start pressures, the start of the next ramp.
+The link is found from the beds, or given as `device`, which must join them.
 """
 Base.@kwdef mutable struct Equalise <: AbstractStep
     duration::Float64
@@ -399,12 +400,15 @@ default_step_name(s::Equalise) = "equalisation $(s.beds[1]) to $(s.beds[2])"
 
 function _equalisation_link(s::Equalise, ctx)
     length(s.beds) == 2 || input_error(ctx.location, "beds", "equalisation joins two beds, got $(s.beds)")
+    joins_beds(d) = Set(a.unit.name for a in attachments(ctx.fs, d)) == Set(s.beds)
     if !isnothing(s.device)
-        return s.device
+        d = s.device
+        haskey(ctx.fs, d) && is_device(ctx.fs, d) || input_error(ctx.location, "device", "$d is not a device of the flowsheet")
+        joins_beds(d) || input_error(ctx.location, "device", "$d does not join $(s.beds[1]) and $(s.beds[2])")
+        return d
     end
     for d in devices_with_role(ctx.fs, :link)
-        us = Set(a.unit.name for a in attachments(ctx.fs, d))
-        us == Set(s.beds) && return d
+        joins_beds(d) && return d
     end
     input_error(ctx.location, "", "no link joins $(s.beds[1]) and $(s.beds[2]); add one with add_device!(fs, name, :link; from, to)")
 end

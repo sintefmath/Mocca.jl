@@ -166,13 +166,7 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
     acceleration in (:none, :anderson) || error("acceleration must be :none or :anderson, got $acceleration")
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, acceleration == :anderson ? "Anderson" : "Substitution"; tol = tol)
-    cycle_time = sum(timesteps)
-    function run_cycle(x)
-        case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
-        states, ts = simulate_process(case; info_level = info_level, output_substates = true, kwarg...)
-        ok = !isempty(ts) && isapprox(sum(ts), cycle_time)
-        return (states, ts, ok)
-    end
+    run_cycle(x) = _simulate_schedule(model, x, parameters, forces, timesteps; info_level = info_level, kwarg...)
 
     x = restart_state(model, state0)
     history = Float64[]
@@ -181,14 +175,17 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
     ΔG = Vector{Float64}[]
     f_prev = g_prev = nothing
     scale = nothing
-    # End of the last successful cycle, the fallback start
+    # End of the last successful cycle, the fallback start, and whether `x`
+    # was extrapolated from it rather than taken as it is
     last_end = nothing
+    extrapolated = false
     states = ts = nothing
     for cycle in 1:max_cycles
         states, ts, ok = run_cycle(x)
         restarted = !ok
         if !ok
-            isnothing(last_end) && throw(SimulationFailure("simulation of cycle $cycle failed"))
+            # From the end of the last cycle, the same cycle would fail again
+            extrapolated || throw(SimulationFailure("simulation of cycle $cycle failed"))
             empty!(ΔF); empty!(ΔG)
             f_prev = g_prev = nothing
             x = last_end
@@ -205,6 +202,7 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
         last_end = x_end
         if acceleration == :none
             x = x_end
+            extrapolated = false
             continue
         end
 
@@ -226,6 +224,7 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
             γ = reduce(hcat, ΔF) \ f
             x_next = g .- reduce(hcat, ΔG) * γ
         end
+        extrapolated = !isempty(ΔF)
         x = restart_state(model, _unstack(model, x_end, x_next .* scale))
     end
     finish_phase!(pr, max_cycles, false)
@@ -261,7 +260,6 @@ keywords go to `simulate_process`.
 function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters, forces, timesteps;
         inflow, outflow, component = 1, tol = 0.005, consecutive = 5,
         min_cycles = 50, max_cycles = 300, progress = false, info_level = -1, kwarg...)
-    cycle_time = sum(timesteps)
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, "Mass balance"; tol = tol, measure = "balance error")
     x = restart_state(model, state0)
@@ -270,9 +268,8 @@ function simulate_until_mass_balance(model::Jutul.MultiModel, state0, parameters
     x_start = x
     for cycle in 1:max_cycles
         x_start = x
-        case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
-        states, ts = simulate_process(case; info_level = info_level, output_substates = true, kwarg...)
-        (!isempty(ts) && isapprox(sum(ts), cycle_time)) || throw(SimulationFailure("simulation of cycle $cycle failed"))
+        states, ts, ok = _simulate_schedule(model, x, parameters, forces, timesteps; info_level = info_level, kwarg...)
+        ok || throw(SimulationFailure("simulation of cycle $cycle failed"))
         n_in = sum(d -> stream_totals(states, ts, d)[component], inflow)
         n_out = sum(d -> stream_totals(states, ts, d)[component], outflow)
         push!(history, abs(n_in - n_out) / abs(n_in))
