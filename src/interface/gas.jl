@@ -171,15 +171,16 @@ function composition(gas::Gas, spec; trace = 1e-10, location = "composition")
 end
 
 """
-    light_product_composition(y_feed; trace = 1e-10)
+    light_product_composition(y_feed; component = 1, trace = 1e-10)
 
-The feed composition with its first component reduced to `trace` and the rest
-renormalised: a stand-in for the light product of a separation.
+The feed composition with `component` (the one captured) reduced to `trace`
+and the rest renormalised: a stand-in for the light product of a separation.
 """
-function light_product_composition(y_feed; trace = 1e-10)
-    rest = y_feed[2:end]
-    rest = rest ./ sum(rest) .* (1 - trace)
-    return vcat(trace, rest)
+function light_product_composition(y_feed; component = 1, trace = 1e-10)
+    rest = sum(y_feed) - y_feed[component]
+    y = collect(Float64, y_feed) .* ((1 - trace) / rest)
+    y[component] = trace
+    return y
 end
 
 """
@@ -188,14 +189,18 @@ end
 The feed gas of a flowsheet: its composition (see [`composition`](@ref)),
 temperature [K] and pressure [Pa]. `light_product` is the composition of the
 gas leaving the top of a bed during adsorption, used where light product flows
-back into a bed (for example in light product pressurisation); by default the
-feed with its first component reduced to a trace.
+back into a bed (for example in light product pressurisation). By default it
+is the feed with the component captured reduced to a trace: the first
+component, or the `key_component` of the [`Process`](@ref) the feed is used in.
 """
 mutable struct Feed
     composition::Vector{Float64}
     temperature::Float64
     pressure::Float64
     light_product::Vector{Float64}
+    # Whether `light_product` was given, rather than derived from the key
+    # component, which a Process may change
+    light_product_given::Bool
 end
 
 function Feed(gas::Gas; composition, temperature = 298.15, pressure = 101325.0, light_product = nothing)
@@ -203,7 +208,7 @@ function Feed(gas::Gas; composition, temperature = 298.15, pressure = 101325.0, 
     yl = isnothing(light_product) ? light_product_composition(y) : Interface.composition(gas, light_product; location = "feed light product")
     temperature > 0 || input_error("feed", "temperature", "must be positive (in K), got $temperature")
     pressure > 0 || input_error("feed", "pressure", "must be positive (in Pa), got $pressure")
-    return Feed(y, Float64(temperature), Float64(pressure), yl)
+    return Feed(y, Float64(temperature), Float64(pressure), yl, !isnothing(light_product))
 end
 
 "Mixture viscosity [Pa·s] of `gas` at composition `y`: the gas value if set, else Herning–Zipperer."

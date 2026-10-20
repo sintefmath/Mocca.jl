@@ -77,6 +77,8 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     cycle = deepcopy(cycle)
     k = key_component isa Integer ? Int(key_component) : component_index(fs.gas, key_component)
     1 <= k <= number_of_components(fs.gas) || input_error("process", "key_component", "the gas has $(number_of_components(fs.gas)) components, got $k")
+    # A light product not given is the feed stripped of what is captured
+    fs.feed.light_product_given || (fs.feed.light_product = light_product_composition(fs.feed.composition; component = k))
     options = ProcessOptions(k, ambient_pressure, pump_efficiency, heat_capacity_ratio, ramp_rate)
     compiled = _compile!(fs, cycle, ramp_rate)
     _set_dispersion_velocities!(fs, compiled)
@@ -263,9 +265,8 @@ Simulate `cycles` cycles of the process. Extra keywords go to
 function Jutul.simulate(p::Process; cycles = 1, state0 = nothing, info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p; cycles = cycles)
     x0 = isnothing(state0) ? initial_state(p) : state0
-    case = MoccaCase(p.model, dt, forces; state0 = x0, parameters = p.parameters)
-    states, ts = simulate_process(case; output_substates = true, info_level = info_level, kwarg...)
-    isapprox(sum(ts), sum(dt)) || throw(SimulationFailure("the simulation stopped at t = $(sum(ts)) s of $(sum(dt)) s"))
+    states, ts, ok = _simulate_schedule(p.model, x0, p.parameters, forces, dt; info_level = info_level, kwarg...)
+    ok || throw(SimulationFailure("the simulation stopped at t = $(sum(ts)) s of $(sum(dt)) s"))
     n = cycles
     if cycles > 1
         w = cycle_window(ts, cycle_time(p), cycles)
@@ -585,9 +586,8 @@ function _plain_cycles(model, x, prm, forces, dt, n, pr; info_level = -1, kwarg.
     start_phase!(pr, "Cycles"; tol = NaN, estimate = false)
     history = Float64[]
     for k in 1:n
-        states, ts = simulate_process(MoccaCase(model, dt, forces; state0 = x, parameters = prm);
-            info_level = info_level, output_substates = true, kwarg...)
-        (!isempty(ts) && isapprox(sum(ts), sum(dt))) || throw(SimulationFailure("simulation of cycle $k failed"))
+        states, _, ok = _simulate_schedule(model, x, prm, forces, dt; info_level = info_level, kwarg...)
+        ok || throw(SimulationFailure("simulation of cycle $k failed"))
         x_end = restart_state(model, states[end])
         push!(history, cycle_change(model, x, x_end))
         report_cycle!(pr, k, history[end]; fraction = k / n)

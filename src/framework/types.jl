@@ -9,9 +9,8 @@ Entity holding one set of scalar values per unit operation (bed radius, wall
 properties, fluid viscosity, ...). Every Mocca domain registers it with count 1,
 and the matching Jutul parameters are read at runtime as `state.ParamName[1]`.
 
-Mocca 0.1.0 called it `Column`; `Column()` with no arguments still gives it,
-with a deprecation warning. `Column` is now the column geometry of the user
-interface.
+Mocca 0.1.0 called it `Column`; use `Unit()` where `Column()` was used.
+`Column` is now the column geometry of the user interface.
 """
 struct Unit <: Jutul.JutulEntity end
 

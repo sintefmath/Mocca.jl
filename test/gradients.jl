@@ -42,6 +42,13 @@ end
         @test X[o .+ (1:length(Xd))] == Xd
         @test Jutul.devectorize_forces(f[d], c.mm[d], X, cfg[d]; offset = o)[:law] == f[d].law
         @test Jutul.devectorize_forces(f[d], c.mm[d], X[o .+ (1:length(Xd))], cfg[d])[:law] == f[d].law
+        # A layout these methods do not expect stops with an error rather
+        # than giving wrong values: the whole vector without the offset, or
+        # lengths that are not one per force
+        o > 0 && @test_throws ErrorException Jutul.devectorize_forces(f[d], c.mm[d], X, cfg[d])
+        short = merge(cfg[d], (lengths = cfg[d].lengths[1:end-1],))
+        @test_throws ErrorException Jutul.devectorize_forces(f[d], c.mm[d], X[o .+ (1:length(Xd))], short)
+        @test_throws ErrorException Jutul.vectorize_forces!(zeros(length(X)), c.mm[d], short, f[d])
     end
     @test sum(first(cfg[d].offsets) > 1 for d in (:V_feed, :V_product, :V_vacuum)) >= 2
     # Evacuation: the vacuum valve's conductance and opening, and the ramp

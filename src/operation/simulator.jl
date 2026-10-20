@@ -53,7 +53,6 @@ function simulate_process(case::MoccaCase;
     (; model, forces, state0, parameters, dt) = case
 
     if ismissing(simulator)
-        sim = Jutul.Simulator(model; state0 = state0, parameters = parameters)
         (sim, cfg_new) = setup_process_simulator(model, state0, parameters; kwargs...)
         config = cfg_new
         extra_arg = NamedTuple()
@@ -78,4 +77,14 @@ function simulate_process(case::MoccaCase;
 
     states, timesteps = Jutul.expand_to_ministeps(result)
     return states, timesteps
+end
+
+# Simulate `timesteps` from `x`, with every step the solver took, and whether
+# it got to the end: Jutul gives up on a step after cutting it, and returns
+# the states up to there.
+function _simulate_schedule(model, x, parameters, forces, timesteps; kwarg...)
+    case = MoccaCase(model, timesteps, forces; state0 = x, parameters = parameters)
+    states, ts = simulate_process(case; output_substates = true, kwarg...)
+    completed = !isempty(ts) && isapprox(sum(ts), sum(timesteps))
+    return (states = states, timesteps = ts, completed = completed)
 end

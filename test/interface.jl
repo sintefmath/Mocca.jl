@@ -118,6 +118,34 @@ end
     @test performance(r).feed[3] > 0
 end
 
+@testset "The default light product follows the key component" begin
+    yl = M.light_product_composition([0.03, 0.15, 0.82]; component = 2)
+    @test yl[2] == 1e-10 && sum(yl) ≈ 1 && yl[1] / yl[3] ≈ 0.03 / 0.82
+    # CO2 is captured but is not the first component: the light product, and
+    # the boundaries that take it, are stripped of CO2 rather than H2O
+    gas = Gas(["H2O", "CO2", "N2"])
+    function build(feed)
+        local f = Flowsheet(gas, feed)
+        add_bed!(f, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), M.haghpanah_2013_column(); ncells = 5)
+        add_device!(f, :V_feed, :feed; at = (:Bed, :bottom))
+        add_device!(f, :V_product, :product; at = (:Bed, :top))
+        add_device!(f, :V_purge, :light_inlet; at = (:Bed, :top))
+        add_device!(f, :V_vacuum, :extract; at = (:Bed, :bottom))
+        return f
+    end
+    cycle = Cycle([Pressurise(5.0; source = :light_product), Adsorb(10.0; superficial_velocity = 0.37), Evacuate(10.0; to = 0.1bar)])
+    fs = build(Feed(gas; composition = (H2O = 0.03, CO2 = 0.15, N2 = 0.82), pressure = 1bar))
+    p = Process(fs, cycle; key_component = "CO2")
+    yl = p.flowsheet.feed.light_product
+    @test yl[2] == 1e-10 && yl[1] > 0.01 && sum(yl) ≈ 1
+    @test M.boundary_condition(p.flowsheet, :V_purge, :inlet).composition == yl
+    @test M.boundary_condition(p.flowsheet, :V_product, :outlet).composition == yl
+    @test fs.feed.light_product[1] == 1e-10  # the flowsheet given is unchanged
+    # A light product that is given is kept
+    fs_given = build(Feed(gas; composition = (H2O = 0.03, CO2 = 0.15, N2 = 0.82), pressure = 1bar, light_product = (N2 = 1.0,)))
+    @test Process(fs_given, cycle; key_component = "CO2").flowsheet.feed.light_product == fs_given.feed.light_product
+end
+
 @testset "Steps, roles and cycles" begin
     gas = M.haghpanah_2013_gas()
     feed = Feed(gas; composition = [0.15, 0.85], pressure = 1bar)
@@ -176,6 +204,13 @@ end
     q = read_process(write_process(joinpath(mktempdir(), "hold.json"), p))
     @test M.stages(q)[1].name == "hold" && M.cycle_steps(q.cycle)[1][2] isa HoldAtFeed
     @test isempty(validate(p))
+
+    # Equalisation through a device given by name: it must join the two beds
+    fs2 = two_bed_vsa_process(ncells = 5).flowsheet
+    eq(device) = M.compile_cycle(Cycle([Equalise(5.0; beds = (:A, :B), device = device)]), fs2)
+    @test only(eq(:V_eq).stages).settings[:V_eq].law isa M.LinearValve
+    @test_throws MoccaInputError eq(:V_vacuum_A)
+    @test_throws MoccaInputError eq(:Nowhere)
 end
 
 @testset "Processes, files and validation" begin
