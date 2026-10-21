@@ -251,6 +251,10 @@ plot_profiles
 plot_flowsheet_streams
 plot_cell_comparison
 plot_state_comparison
+axial_profile
+axial_positions
+cross_section_mean
+port_state
 stream_totals
 vacuum_pump_energy
 compressor_energy

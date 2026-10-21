@@ -7,7 +7,8 @@ export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
 export AbstractThermalModel, WithWall, Adiabatic, Isothermal
 export AbstractSourceTerm
 export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, VolumetricFlow
-export PortCondition, ExponentialRamp, port_conductance
+export PortCondition, ExponentialRamp, port_conductance, port_cells
+export axial_profile, axial_positions
 export Flowsheet, UnitNetwork, add_unit!, connect!, set_boundary!, setup_flowsheet_model
 export AbstractConnection, StreamConnection, PortRef
 export setup_flowsheet_state, setup_flowsheet_parameters

@@ -261,11 +261,13 @@ function _bed_header(gas)
         ["y $c [mol%]" for c in gas.names], ["q $c [mol/kg]" for c in gas.names])
 end
 
-# Values of `cell` of a bed state, with the loading per kg of adsorbent
-function _bed_values(s, cell, density)
-    Tw = haskey(s, :WallTemperature) ? _degC(s[:WallTemperature][cell]) : NaN
-    return vcat(Any[_bara(s[:Pressure][cell]), _degC(s[:Temperature][cell]), Tw],
-        _percent.(s[:y][:, cell]), s[:AdsorbedConcentration][:, cell] ./ density)
+# Values of a bed state at `cells`, averaged over them (see
+# cross_section_mean), with the loading per kg of adsorbent
+function _bed_values(model, s, cells, density)
+    m(v) = cross_section_mean(model, v, cells)
+    Tw = haskey(s, :WallTemperature) ? _degC(m(s[:WallTemperature])) : NaN
+    return vcat(Any[_bara(m(s[:Pressure])), _degC(m(s[:Temperature])), Tw],
+        _percent.(m(s[:y])), m(s[:AdsorbedConcentration]) ./ density)
 end
 
 _density(p::Process, b) = first(p.parameters[b][:AdsorbentDensity])
@@ -275,9 +277,9 @@ function _bed_history_table(r::ProcessResult)
     fs = p.flowsheet
     info = _step_times(r)
     rows = Vector{Any}[]
-    for (k, s) in enumerate(r.states), b in beds(fs), (port, cell) in pairs(ports(fs[b]))
+    for (k, s) in enumerate(r.states), b in beds(fs), port in keys(ports(fs[b]))
         push!(rows, vcat(Any[info[k].cycle, info[k].time, info[k].time_in_cycle, info[k].stage, string(b), string(port)],
-            _bed_values(s[b], cell, _density(p, b))))
+            _bed_values(fs[b], s[b], port_cells(fs[b], port), _density(p, b))))
     end
     header = vcat(["Cycle", "Time [s]", "Time in cycle [s]", "Stage", "Bed", "End"], _bed_header(fs.gas))
     return (header = header, rows = rows)
@@ -298,10 +300,11 @@ function _bed_profile_table(r::ProcessResult)
     end
     rows = Vector{Any}[]
     for (label, tc, s) in snapshots, b in beds(fs)
-        x = fs[b].data_domain[:cell_centroids][1, :]
-        L = sum(fs[b].data_domain[:dx])
-        for cell in eachindex(x)
-            push!(rows, vcat(Any[label, tc, string(b), cell, x[cell], x[cell] / L], _bed_values(s[b], cell, _density(p, b))))
+        layers = axial_layers(fs[b])
+        x = axial_positions(fs[b])
+        L = sum(fs[b].data_domain[:dx][first(l)] for l in layers)
+        for (i, cells) in enumerate(layers)
+            push!(rows, vcat(Any[label, tc, string(b), i, x[i], x[i] / L], _bed_values(fs[b], s[b], cells, _density(p, b))))
         end
     end
     header = vcat(["Snapshot", "Time in cycle [s]", "Bed", "Cell", "Position [m]", "Relative position [-]"], _bed_header(fs.gas))

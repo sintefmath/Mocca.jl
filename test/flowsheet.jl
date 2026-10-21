@@ -131,6 +131,102 @@ end
     @test e1 ≈ e2 ≈ [-0.1 * cp(feed) * 298.15]
 end
 
+@testset "A port of several cells" begin
+    bed = haghpanah_channel_bed(; ncells = 3, channels = 2, thermal = Mocca.WithWall())
+    sys = bed.system
+    @test Mocca.ports(bed) == (bottom = [1, 4], top = [3, 6])
+    @test Mocca.axial_layers(bed) == [[1, 4], [2, 5], [3, 6]]
+    @test Mocca.port_weights(bed, [1, 4]) ≈ [0.5, 0.5]
+    # Each channel has half the cross-section, so the port conducts as the
+    # end of the whole bed
+    @test Mocca.port_conductance(bed, :bottom) ≈ Mocca.port_conductance(haghpanah_bed(ncells = 3), :bottom)
+
+    eq_m, eq_e = bed.equations[:mass_conservation], bed.equations[:energy_column]
+    dev_model = Mocca.setup_device_model(sys.component_names)
+    cp(y) = sum(y .* sys.heat_capacity_gas) * sum(y .* sys.molecular_masses)
+    # The top cells differ in temperature and composition
+    yt, Tt = ([0.4, 0.6], [0.1, 0.9]), (330.0, 300.0)
+    s = (Pressure = [1e5, 1e5, 1.1e5, 1e5, 1e5, 0.9e5], Temperature = [300.0, 300.0, Tt[1], 300.0, 300.0, Tt[2]],
+        y = hcat([0.5, 0.5], [0.5, 0.5], yt[1], [0.5, 0.5], [0.5, 0.5], yt[2]))
+    top = Mocca.PortStateCT([3, 6], [0.5, 0.5])
+    # The device sees the gas of the two cells mixed: the mean pressure and
+    # composition, and the temperature that carries their enthalpy
+    y_mix = (yt[1] .+ yt[2]) ./ 2
+    T_mix = (cp(yt[1]) * Tt[1] + cp(yt[2]) * Tt[2]) / 2 / cp(y_mix)
+    F0 = (MolarFlow = [0.0], InletComposition = zeros(2, 1), InletTemperature = [0.0], InletPressure = [0.0],
+        OutletComposition = zeros(2, 1), OutletTemperature = [0.0], OutletPressure = [0.0])
+    out = zeros(3)
+    Jutul.update_cross_term_in_entity!(out, 1, F0, F0, s, s, dev_model, bed, top, nothing, 1.0)
+    @test out ≈ -[1e5, T_mix, y_mix[1]]
+    @test Mocca.port_state(bed, s, :top).composition ≈ y_mix
+
+    # The device's inlet holds that mixed gas; a stream through it leaves the
+    # top cells, each giving up its share of its own gas, and enters another
+    # unit at the device's outlet
+    device(F) = (MolarFlow = [F], InletComposition = reshape(y_mix, :, 1), InletTemperature = [T_mix], InletPressure = [1e5],
+        OutletComposition = reshape([0.15, 0.85], :, 1), OutletTemperature = [298.15], OutletPressure = [0.5e5])
+    function terms(ct, eq, dev)
+        n = eq === eq_m ? 2 : 1
+        return [(o = zeros(n); Jutul.update_cross_term_in_entity!(o, i, s, s, dev, dev, bed, nothing, ct, eq, 1.0); o)
+            for i in eachindex(ct.cells)]
+    end
+    out_of_top = Mocca.StreamCT([3, 6], [0.5, 0.5], 1)
+    F = 0.02
+    m = terms(out_of_top, eq_m, device(F))
+    @test m[1] ≈ 0.5 * F .* yt[1] && m[2] ≈ 0.5 * F .* yt[2]
+    @test sum(m) ≈ F .* y_mix
+    e = terms(out_of_top, eq_e, device(F))
+    @test sum(e)[1] ≈ F * cp(y_mix) * T_mix
+    # Flowing back, the top cells share the gas of the device's outlet
+    m = terms(out_of_top, eq_m, device(-F))
+    @test m[1] ≈ m[2] ≈ -0.5 * F .* [0.15, 0.85]
+end
+
+@testset "A bed in equal channels is the bed" begin
+    # Split side by side into two equal channels, a bed fed evenly across its
+    # end behaves as one channel
+    one = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic())
+    two = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic(),
+        bed_model = haghpanah_channel_bed(; ncells = 10, channels = 2))
+    r1, r2 = simulate(one), simulate(two)
+    @test length(r1.states) == length(r2.states)
+    bed2 = two.flowsheet[:Bed]
+    s1, s2 = r1.states[end], r2.states[end]
+    for k in (:Pressure, :Temperature, :y, :AdsorbedConcentration)
+        @test Mocca.axial_profile(bed2, s2[:Bed][k]) ≈ s1[:Bed][k] rtol = 1e-6
+    end
+    # Both channels are the same
+    @test s2[:Bed][:y][:, 1:10] ≈ s2[:Bed][:y][:, 11:20] rtol = 1e-8
+    for d in (:V_feed, :V_product, :V_vacuum)
+        @test Mocca.stream_totals(r2.states, r2.timesteps, d) ≈ Mocca.stream_totals(r1.states, r1.timesteps, d) rtol = 1e-6
+    end
+    @test performance(r2).recovery ≈ performance(r1).recovery rtol = 1e-6
+    # Plots along the bed show the cross-section averages
+    @test Mocca.plot_state(s2[:Bed], bed2) isa Mocca.Plotting.Figure
+    @test Mocca.plot_profiles(r2.states, r2.timesteps, bed2, [30.0, 100.0]; unit = :Bed) isa Mocca.Plotting.Figure
+end
+
+@testset "Channels that differ conserve moles" begin
+    # The channels hold different amounts and do not exchange gas or heat
+    # along the bed, so their gas differs, and when the bed is evacuated
+    # through its bottom each bottom cell gives up its own gas
+    p = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic(),
+        bed_model = haghpanah_channel_bed(; ncells = 10, channels = 2, porosity = [0.3, 0.45]))
+    bed = p.flowsheet[:Bed]
+    N = bed.data_domain[:neighbors]
+    between = [f for f in axes(N, 2) if abs(N[1, f] - N[2, f]) == 10]
+    for k in (:Transmissibilities, :DispersionTransmissibilities, :ThermalConductivities)
+        p.parameters[:Bed][k][between] .= 0.0
+    end
+    state0, prm = Mocca.initial_state(p), p.parameters
+    r = simulate(p; state0 = state0)
+    @test maximum(abs(s[:Bed][:y][1, 1] - s[:Bed][:y][1, 11]) for s in r.states) > 0.01
+    held(s) = Mocca.component_inventory(bed, s[:Bed], prm[:Bed])
+    n_in = Mocca.stream_totals(r.states, r.timesteps, :V_feed)
+    n_out = Mocca.stream_totals(r.states, r.timesteps, :V_product) .+ Mocca.stream_totals(r.states, r.timesteps, :V_vacuum)
+    @test held(r.states[end]) .- held(state0) ≈ n_in .- n_out rtol = 1e-7 atol = 1e-8 * sum(n_in)
+end
+
 # State at the end of the step finishing at time t
 _state_at(states, timesteps, t) = states[findfirst(≈(t), cumsum(timesteps))]
 

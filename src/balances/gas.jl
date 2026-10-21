@@ -40,8 +40,7 @@ Jutul.minimum_value(::DispersionTransmissibilities) = 0.0
 Jutul.associated_entity(::DispersionTransmissibilities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::DispersionTransmissibilities, symb)
-    g = Jutul.physical_representation(data_domain)
-    return Jutul.compute_face_trans(g, data_domain[:porosity])
+    return Jutul.compute_face_trans(data_domain, data_domain[:porosity])
 end
 
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::MoccaModel, Pressure, Temperature, ix)

@@ -7,6 +7,7 @@ module Networks
 
 import Jutul
 using ..Framework, ..Balances, ..Devices
+using ..Framework: _port_cells
 
 export AbstractConnection, AbstractFlowsheet, add_cross_terms!, add_unit!,
     boundary_condition, boundary_ports, check_connection, connect!, connection_ports,

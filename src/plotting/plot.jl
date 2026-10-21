@@ -99,9 +99,10 @@ end
 """
     plot_state(state, model)
 
-Every variable along a bed at one time, one panel per variable. `state` is the
-state of the bed alone, such as `result.states[end][:Bed]` at the end of a
-simulation, and `model` the bed (`process.flowsheet[:Bed]`).
+Every variable along a bed at one time, one panel per variable, averaged over
+the cross-section (see [`axial_profile`](@ref)). `state` is the state of the
+bed alone, such as `result.states[end][:Bed]` at the end of a simulation, and
+`model` the bed (`process.flowsheet[:Bed]`).
 """
 function plot_state(state, model)
 
@@ -110,7 +111,7 @@ function plot_state(state, model)
     pretty_names = prettyVarNames(pvars)
 
     units = units_dict()
-    x = model.data_domain[:cell_centroids][1,:]
+    x = axial_positions(model)
 
     f = Figure(size = (900, 600))
     ga = f[2,3] = GridLayout()
@@ -127,11 +128,12 @@ function plot_state(state, model)
             xlabel=L"x\; [m]",
             ylabel=L"%$(units[symb])")
 
-        if size(state[symb], 2) == 1
-           lines!(ax, x, state[symb], color = SINGLE_COLOUR)
+        v = axial_profile(model, state[symb])
+        if v isa AbstractVector
+           lines!(ax, x, v, color = SINGLE_COLOUR)
         else
-            for k in 1:size(state[symb], 1)
-                lines!(ax, x, state[symb][k,:], label = comp_names[k], color = _component_colour(comp_names[k], k))
+            for k in 1:size(v, 1)
+                lines!(ax, x, v[k,:], label = comp_names[k], color = _component_colour(comp_names[k], k))
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
             
@@ -196,13 +198,14 @@ end
 """
     plot_state_comparison(states, model; component = 1)
 
-Overlay profiles along the column from several states of the same unit.
-`states` is a vector of `label => state`.
+Overlay profiles along the column, averaged over the cross-section (see
+[`axial_profile`](@ref)), from several states of the same unit. `states` is a
+vector of `label => state`.
 """
 function plot_state_comparison(states, model; component = 1)
-    x = model.data_domain[:cell_centroids][1, :]
+    x = axial_positions(model)
     curves = map(states) do (label, state)
-        label => (x, symb -> [_component_value(state[symb], component, c) for c in eachindex(x)])
+        label => (x, symb -> (v = axial_profile(model, state[symb]); [_component_value(v, component, i) for i in eachindex(x)]))
     end
     return _comparison_figure(model, curves, L"x\; [m]", component)
 end
@@ -298,12 +301,13 @@ end
     plot_profiles(states, timesteps, model, times; labels, unit = nothing, components = all)
 
 Profiles along a bed at the given `times` [s], measured from the start of
-`states`: the gas mole fraction of each of `components` (top row) and its
-loading (bottom row). For a dual-site Langmuir isotherm the loading is shown
-relative to the component's saturation capacity `qsb + qsd`, as in the bed
-profile figures of Haghpanah et al. and Krishnamurthy et al. For flowsheet
-states, `unit` names the bed and `model` is the bed's model. Each time uses the
-last state at or before it.
+`states`, averaged over the cross-section (see [`axial_profile`](@ref)): the
+gas mole fraction of each of `components` (top row) and its loading (bottom
+row). For a dual-site Langmuir isotherm the loading is shown relative to the
+component's saturation capacity `qsb + qsd`, as in the bed profile figures of
+Haghpanah et al. and Krishnamurthy et al. For flowsheet states, `unit` names
+the bed and `model` is the bed's model. Each time uses the last state at or
+before it.
 """
 function plot_profiles(states, timesteps, model, times;
         labels = ["t = $(round(t, digits = 1)) s" for t in times],
@@ -312,8 +316,8 @@ function plot_profiles(states, timesteps, model, times;
     t = cumsum(timesteps)
     unit_states = isnothing(unit) ? states : [s[unit] for s in states]
     names = model.system.component_names
-    x = model.data_domain[:cell_centroids][1, :]
-    x = x ./ sum(model.data_domain[:dx])
+    x = axial_positions(model)
+    x = x ./ sum(model.data_domain[:dx][first(l)] for l in axial_layers(model))
     q_scale = saturation_capacity(model.system.isotherm)
     colors = Makie.wong_colors()
     f = Figure(size = (300 * length(components), 600))
@@ -326,10 +330,10 @@ function plot_profiles(states, timesteps, model, times;
             k = findlast(<=(tj + 1e-6), t)
             isnothing(k) && error("No state at or before t = $tj s")
             s = unit_states[k]
-            q = s[:AdsorbedConcentration][i, :]
+            q = axial_profile(model, s[:AdsorbedConcentration])[i, :]
             isnothing(q_scale) || (q = q ./ q_scale[i])
             color = _step_colour(label, colors[mod1(j, length(colors))])
-            lines!(ax_y, x, s[:y][i, :], color = color, label = label)
+            lines!(ax_y, x, axial_profile(model, s[:y])[i, :], color = color, label = label)
             lines!(ax, x, q, color = color, label = label)
         end
     end

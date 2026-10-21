@@ -100,9 +100,7 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
     if haskey(data_domain, :transmissibilities, Jutul.Faces())
         return copy(data_domain[:transmissibilities])
     elseif haskey(data_domain, :permeability, Jutul.Cells())
-        g = Jutul.physical_representation(data_domain)
-        K = data_domain[:permeability]
-        return Jutul.compute_face_trans(g, K)
+        return Jutul.compute_face_trans(data_domain, data_domain[:permeability])
     else
         error(":permeability or :transmissibilities must be present in DataDomain to initialize $symb")
     end

@@ -65,6 +65,10 @@ holdup_units
 A new kind of unit is a `MoccaSystem` with these methods.
 
 ```@docs
+ports
+port_cells
+port_weights
+axial_layers
 stream_equations
 setup_unit_state
 setup_unit_parameters

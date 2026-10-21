@@ -27,9 +27,8 @@ Jutul.associated_entity(::ThermalConductivities) = Jutul.Faces()
 function Jutul.default_parameter_values(data_domain, model, param::ThermalConductivities, symb)
     if haskey(data_domain, :thermal_conductivity, Unit())
         K = first(data_domain[:thermal_conductivity, Unit()])
-        g = Jutul.physical_representation(data_domain)
-        nc = Jutul.number_of_cells(g)
-        T = Jutul.compute_face_trans(g, fill(K, nc))
+        nc = Jutul.number_of_cells(Jutul.physical_representation(data_domain))
+        T = Jutul.compute_face_trans(data_domain, fill(K, nc))
     else
         error(":thermal_conductivity on Unit() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end

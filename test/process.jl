@@ -272,7 +272,7 @@ end
     mm, base, state0 = p.model, p.parameters, Mocca.initial_state(p)
     forces, dt = Mocca.cycle_schedule(p)
     with_length(L) = ((:SolidVolume, :FluidVolume, :CellDx, :WallAreaIn, :WallAreaOut) => L,
-        (:Transmissibilities, :DispersionTransmissibilities, :ThermalConductivities) => 1 / L)
+        (:Transmissibilities, :DispersionTransmissibilities, :ThermalConductivities, :WallTransmissibilities) => 1 / L)
     function setup_case(prm, step_info = missing)
         L = prm["L"]
         bed = Dict{Symbol, Any}(k => v for (k, v) in base[:Bed])

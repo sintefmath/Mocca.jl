@@ -162,10 +162,7 @@ function setup_flowsheet_model(fs::AbstractFlowsheet)
     return mm
 end
 
-function _unit_port_condition(fs, unit_state, r::PortRef)
-    cell = ports(fs[r.name])[r.port]
-    return (pressure = unit_state[:Pressure][cell], temperature = unit_state[:Temperature][cell], composition = unit_state[:y][:, cell])
-end
+_unit_port_condition(fs, unit_state, r::PortRef) = port_state(fs[r.name], unit_state, r.port)
 
 """
     setup_flowsheet_state(fs; kwarg...) → Dict

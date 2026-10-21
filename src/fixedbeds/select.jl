@@ -69,6 +69,9 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     # Face transmissibilities
     S[:ThermalConductivities] = ThermalConductivities()
     S[:DispersionTransmissibilities] = DispersionTransmissibilities()
+    if has_wall(sys)
+        S[:WallTransmissibilities] = WallTransmissibilities()
+    end
 
     # Unit-entity parameters (single scalars)
     S[:AxialDispersion] = AxialDispersion()

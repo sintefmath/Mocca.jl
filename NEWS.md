@@ -23,6 +23,20 @@
 
 ### Changed
 
+- **Ports of several cells.** A port of a distributed unit is now the vector
+  of cells at that end, the first or last of its `axial_layers` (one cell for
+  a column), so that a unit meshed across its cross-section connects to
+  devices as a column does. A stream through a port of several cells is shared
+  between them by `port_weights` (their share of the cross-section); out of
+  the unit each cell gives up its own gas, and the device sees the cells mixed,
+  at the mixing-cup temperature, so every component and the enthalpy are still
+  conserved. `port_conductance` takes the cells of a port or its name.
+  Results and plots along a bed show cross-section averages (`axial_profile`,
+  `axial_positions`, `cross_section_mean`, `port_state`). The face
+  transmissibilities are computed from the data domain rather than the mesh,
+  and conduction along the wall from its own face parameter,
+  `WallTransmissibilities`. A column gives the same results as before, to
+  round-off.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a

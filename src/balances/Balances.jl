@@ -11,7 +11,7 @@ module Balances
 import Jutul
 using StaticArrays
 using ..Framework, ..Physics
-using ..Framework: _gas_state, _state_has, _state_or_domain
+using ..Framework: _axial_count, _gas_state, _state_has, _state_or_domain
 
 export AdsorbedConcentration, AdsorbedLoading, AdsorbedPhaseHeatCapacity, AdsorbentDensity,
     AdsorbentHeatCapacity, AdsorptionMassTransfer, AmbientLoss, AmbientTemperature,
@@ -24,7 +24,7 @@ export AdsorbedConcentration, AdsorbedLoading, AdsorbedPhaseHeatCapacity, Adsorb
     SorptionUptake, SpecificHeatCapacityAdsorbent, SpecificHeatCapacityFluid,
     ThermalConductivities, TimeScale, TotalMolarConcentration, WallArea, WallConductivity,
     WallCrossSectionArea, WallDensity, WallEndConduction, WallEnergy, WallExchange,
-    WallHeatCapacity
+    WallHeatCapacity, WallTransmissibilities
 
 include("geometry.jl")
 include("unit_parameters.jl")

@@ -257,7 +257,7 @@ no more resistance than the bed's end and the bed follows the pressure set at
 the other side. For a link, the two half cells in series.
 """
 function default_conductance(fs::Flowsheet, d::Symbol)
-    C = [port_conductance(fs[c.unit.name], ports(fs[c.unit.name])[c.unit.port]) for c in attachments(fs, d)]
+    C = [port_conductance(fs[c.unit.name], c.unit.port) for c in attachments(fs, d)]
     isempty(C) && input_error("device $d", "", "it is not connected to any unit")
     return length(C) == 1 ? C[1] : 1 / (1 / C[1] + 1 / C[2])
 end
