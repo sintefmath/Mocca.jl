@@ -33,8 +33,8 @@ function Jutul.select_secondary_variables!(
         S[:WallConservedEnergy] = WallEnergy()
     end
     S[:ΔH] = EnthalpyChange()
-    S[:C_pa] = SpecificHeatCapacityAdsorbent()
-    S[:C_pg] = SpecificHeatCapacityFluid()
+    S[:C_pa] = AdsorbedMolarHeatCapacity()
+    S[:C_pg] = GasMolarHeatCapacity()
 end
 
 function Jutul.select_equations!(

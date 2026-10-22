@@ -1,11 +1,14 @@
 # Gas-phase block: secondary variables, the advective–dispersive flux and the
 # per-component mass balance. Shared by every distributed unit with a gas phase.
+#
+# A system with a gas phase must have a `thermodynamics` field, an
+# AbstractGasThermodynamics for its equation of state and heat capacity.
 
 struct AverageMolarMass <: Jutul.ScalarVariable end
 
 struct MolarConcentration <: ComponentVariable end
 
-# Total molar concentration (scalar per cell, computed from ideal gas law)
+# Total molar concentration (scalar per cell, from the equation of state)
 struct TotalMolarConcentration <: Jutul.ScalarVariable end
 Jutul.minimum_value(::TotalMolarConcentration) = 0.0
 
@@ -13,7 +16,8 @@ Jutul.minimum_value(::TotalMolarConcentration) = 0.0
 struct ComponentMasses <: ComponentVariable end
 Jutul.minimum_value(::ComponentMasses) = 0.0
 
-struct SpecificHeatCapacityFluid <: Jutul.ScalarVariable end
+"Molar heat capacity [J/(mol·K)] of the gas in a cell, from the system's `thermodynamics`."
+struct GasMolarHeatCapacity <: Jutul.ScalarVariable end
 
 """
     AxialDispersion
@@ -45,8 +49,9 @@ function Jutul.default_parameter_values(data_domain, model, param::DispersionTra
 end
 
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::MoccaModel, Pressure, Temperature, ix)
+    thermo = model.system.thermodynamics
     for cell in ix
-        ctot[cell] = Pressure[cell] / (GAS_CONSTANT * Temperature[cell])
+        ctot[cell] = molar_concentration(thermo, Pressure[cell], Temperature[cell])
     end
 end
 
@@ -78,16 +83,10 @@ Jutul.@jutul_secondary function update_component_masses!(m, tv::ComponentMasses,
     end
 end
 
-Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHeatCapacityFluid, model::MoccaModel, y, ix)
-    sys = model.system
-    C_pg = sys.heat_capacity_gas
-    T = eltype(cpg)
+Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::GasMolarHeatCapacity, model::MoccaModel, y, Temperature, ix)
+    thermo = model.system.thermodynamics
     for cell in ix
-        cpg_i = zero(T)
-        for component in 1:number_of_components(sys)
-            cpg_i += y[component, cell] * C_pg[component]
-        end
-        cpg[cell] = cpg_i
+        cpg[cell] = molar_heat_capacity(thermo, view(y, :, cell), Temperature[cell])
     end
 end
 

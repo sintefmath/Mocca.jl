@@ -8,8 +8,22 @@ struct ProcessOptions
     key_component::Int
     ambient_pressure::Float64
     pump_efficiency::Float64
-    heat_capacity_ratio::Float64
+    heat_capacity_ratio::Union{Nothing, Float64}
     ramp_rate::Float64
+end
+
+"""
+    pump_heat_capacity_ratio(p::Process)
+
+Heat capacity ratio ``\\gamma`` of the vacuum pumps and compressors of `p`: its
+`heat_capacity_ratio` option, or by default that of the feed gas at the feed
+temperature (see [`heat_capacity_ratio`](@ref)).
+"""
+function pump_heat_capacity_ratio(p)
+    γ = p.options.heat_capacity_ratio
+    isnothing(γ) || return γ
+    feed = p.flowsheet.feed
+    return gas_heat_capacity_ratio(p.flowsheet.gas, feed.composition, feed.temperature)
 end
 
 "Last cyclic steady state and cycle Jacobian, to start the next solve from."
@@ -21,7 +35,7 @@ WarmStart() = WarmStart(nothing, nothing)
 
 """
     Process(fs, cycle; name = "", timestepping = TimeStepping(), key_component = 1,
-        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = 1.4,
+        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing,
         ramp_rate = 0.5, initial_state = Dict(), parameters = Dict())
 
 A cyclic adsorption process: the flowsheet `fs` (built with
@@ -33,7 +47,8 @@ A cyclic adsorption process: the flowsheet `fs` (built with
   [`performance`](@ref).
 - `ambient_pressure` [Pa]: vacuum pumps discharge to it and feed compressors
   take gas from it; `pump_efficiency` and `heat_capacity_ratio` are those of
-  both.
+  both. The heat capacity ratio is by default that of the feed, from the
+  thermodynamics of the gas (see [`pump_heat_capacity_ratio`](@ref)).
 - `ramp_rate` [1/s]: of the pressure ramps of steps that do not set their own.
 - `initial_state`: per unit with holdup, a NamedTuple with any of
   `pressure`, `temperature`, `wall_temperature` and `composition`. By default
@@ -68,7 +83,7 @@ mutable struct Process
 end
 
 function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStepping(), key_component = 1,
-        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = 1.4, ramp_rate = 0.5,
+        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing, ramp_rate = 0.5,
         initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
     # The process sets up and later changes its flowsheet (dispersion
     # velocities, default boundaries, the feed) and its steps (design
@@ -79,7 +94,9 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     1 <= k <= number_of_components(fs.gas) || input_error("process", "key_component", "the gas has $(number_of_components(fs.gas)) components, got $k")
     # A light product not given is the feed stripped of what is captured
     fs.feed.light_product_given || (fs.feed.light_product = light_product_composition(fs.feed.composition; component = k))
-    options = ProcessOptions(k, ambient_pressure, pump_efficiency, heat_capacity_ratio, ramp_rate)
+    isnothing(heat_capacity_ratio) || heat_capacity_ratio > 1 ||
+        input_error("process", "heat_capacity_ratio", "must be greater than 1, got $heat_capacity_ratio")
+    options = ProcessOptions(k, ambient_pressure, pump_efficiency, _maybe_float(heat_capacity_ratio), ramp_rate)
     compiled = _compile!(fs, cycle, ramp_rate)
     _set_dispersion_velocities!(fs, compiled)
     for u in holdup_units(fs)
@@ -632,11 +649,12 @@ function performance(r::ProcessResult)
         isempty(ds) ? zeros(N) : sum(d -> stream_totals(states, ts, d; window = w), ds))
     n_feed, n_extract, n_product = total(:feed), total(:extract), total(:product)
     E = 0.0
+    γ = pump_heat_capacity_ratio(p)
     for role in OUTLET_ROLES, d in devices_with_role(fs, role)
-        E += vacuum_pump_energy(states, ts, d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = o.heat_capacity_ratio, window = w)
+        E += vacuum_pump_energy(states, ts, d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ, window = w)
     end
     for role in INLET_ROLES, d in devices_with_role(fs, role)
-        E += compressor_energy(states, ts, d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = o.heat_capacity_ratio, window = w)
+        E += compressor_energy(states, ts, d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ, window = w)
     end
     k = o.key_component
     T = sum(ts[w])

@@ -1,15 +1,18 @@
 # Components, gas mixtures and feeds: the first layer of the user interface.
 #
 # Everything here is plain SI: molar masses in kg/mol, heat capacities in
-# J/(kg·K), viscosities in Pa·s, densities in kg/m³, diffusivities in m²/s,
+# J/(kg·K) (J/(mol·K) in the thermodynamics models), viscosities in Pa·s, densities in kg/m³, diffusivities in m²/s,
 # pressures in Pa and temperatures in K. See Mocca.Units for conversions.
 
 """
-    Component(name; formula = name, cas = "", molar_mass, heat_capacity, viscosity)
+    Component(name; formula = name, cas = "", molar_mass, heat_capacity, viscosity,
+        shomate = nothing)
 
 A chemical component: its molar mass [kg/mol], gas heat capacity [J/(kg·K)]
-and gas viscosity [Pa·s], both near 25 °C. Mocca knows common gases by name
-(see [`component`](@ref)); add others with [`register_component!`](@ref).
+and gas viscosity [Pa·s], both near 25 °C, and optionally the coefficients
+`(A, B, C, D, E)` of the Shomate equation for its molar heat capacity (see
+[`IdealGasShomate`](@ref)). Mocca knows common gases by name (see
+[`component`](@ref)); add others with [`register_component!`](@ref).
 """
 struct Component
     name::String
@@ -18,9 +21,16 @@ struct Component
     molar_mass::Float64
     heat_capacity::Float64
     viscosity::Float64
+    shomate::Union{Nothing, NTuple{5, Float64}}
 end
-Component(name; formula = name, cas = "", molar_mass, heat_capacity, viscosity) =
-    Component(String(name), String(formula), String(cas), molar_mass, heat_capacity, viscosity)
+Component(name; formula = name, cas = "", molar_mass, heat_capacity, viscosity, shomate = nothing) =
+    Component(String(name), String(formula), String(cas), molar_mass, heat_capacity, viscosity, _shomate_tuple(shomate))
+
+_shomate_tuple(::Nothing) = nothing
+function _shomate_tuple(x)
+    length(x) == 5 || input_error("component", "shomate", "expected the five coefficients (A, B, C, D, E), got $(length(x))")
+    return NTuple{5, Float64}(Tuple(Float64.(x)))
+end
 
 const COMPONENTS = Dict{String, Component}()
 
@@ -45,23 +55,35 @@ function component(name)
 end
 
 # Molar masses from IUPAC atomic weights; heat capacities and viscosities of the
-# gas at 25 °C and 1 atm
+# gas at 25 °C and 1 atm. Shomate coefficients from the NIST Chemistry WebBook,
+# for the range from 298 K (100 K for N2 and O2) upwards; that of H2O is fitted
+# from 500 K and is within 0.1% of the tabulated values down to 298 K.
 for c in [
-        Component("CO2"; formula = "CO2", cas = "124-38-9", molar_mass = 44.01e-3, heat_capacity = 846.0, viscosity = 1.49e-5),
-        Component("N2"; formula = "N2", cas = "7727-37-9", molar_mass = 28.0134e-3, heat_capacity = 1040.0, viscosity = 1.78e-5),
-        Component("O2"; formula = "O2", cas = "7782-44-7", molar_mass = 31.998e-3, heat_capacity = 918.0, viscosity = 2.06e-5),
-        Component("Ar"; formula = "Ar", cas = "7440-37-1", molar_mass = 39.948e-3, heat_capacity = 520.0, viscosity = 2.26e-5),
-        Component("H2O"; formula = "H2O", cas = "7732-18-5", molar_mass = 18.015e-3, heat_capacity = 1864.0, viscosity = 0.99e-5),
-        Component("CH4"; formula = "CH4", cas = "74-82-8", molar_mass = 16.043e-3, heat_capacity = 2226.0, viscosity = 1.11e-5),
-        Component("H2"; formula = "H2", cas = "1333-74-0", molar_mass = 2.016e-3, heat_capacity = 14300.0, viscosity = 0.89e-5),
-        Component("CO"; formula = "CO", cas = "630-08-0", molar_mass = 28.010e-3, heat_capacity = 1040.0, viscosity = 1.77e-5),
-        Component("He"; formula = "He", cas = "7440-59-7", molar_mass = 4.0026e-3, heat_capacity = 5193.0, viscosity = 1.99e-5),
+        Component("CO2"; formula = "CO2", cas = "124-38-9", molar_mass = 44.01e-3, heat_capacity = 846.0, viscosity = 1.49e-5,
+            shomate = (24.99735, 55.18696, -33.69137, 7.948387, -0.136638)),
+        Component("N2"; formula = "N2", cas = "7727-37-9", molar_mass = 28.0134e-3, heat_capacity = 1040.0, viscosity = 1.78e-5,
+            shomate = (28.98641, 1.853978, -9.647459, 16.63537, 0.000117)),
+        Component("O2"; formula = "O2", cas = "7782-44-7", molar_mass = 31.998e-3, heat_capacity = 918.0, viscosity = 2.06e-5,
+            shomate = (31.32234, -20.23531, 57.86644, -36.50624, -0.007374)),
+        Component("Ar"; formula = "Ar", cas = "7440-37-1", molar_mass = 39.948e-3, heat_capacity = 520.0, viscosity = 2.26e-5,
+            shomate = (20.786, 2.825911e-7, -1.464191e-7, 1.092131e-8, -3.661371e-8)),
+        Component("H2O"; formula = "H2O", cas = "7732-18-5", molar_mass = 18.015e-3, heat_capacity = 1864.0, viscosity = 0.99e-5,
+            shomate = (30.092, 6.832514, 6.793435, -2.53448, 0.082139)),
+        Component("CH4"; formula = "CH4", cas = "74-82-8", molar_mass = 16.043e-3, heat_capacity = 2226.0, viscosity = 1.11e-5,
+            shomate = (-0.703029, 108.4773, -42.52157, 5.862788, 0.678565)),
+        Component("H2"; formula = "H2", cas = "1333-74-0", molar_mass = 2.016e-3, heat_capacity = 14300.0, viscosity = 0.89e-5,
+            shomate = (33.066178, -11.363417, 11.432816, -2.772874, -0.158558)),
+        Component("CO"; formula = "CO", cas = "630-08-0", molar_mass = 28.010e-3, heat_capacity = 1040.0, viscosity = 1.77e-5,
+            shomate = (25.56759, 6.09613, 4.054656, -2.671301, 0.131021)),
+        Component("He"; formula = "He", cas = "7440-59-7", molar_mass = 4.0026e-3, heat_capacity = 5193.0, viscosity = 1.99e-5,
+            shomate = (20.78603, 4.850638e-10, -1.582916e-10, 1.525102e-11, 3.196347e-11)),
     ]
     register_component!(c)
 end
 
 """
-    Gas(names; molar_masses, heat_capacities, viscosity, density, diffusivity = 1.6e-5)
+    Gas(names; molar_masses, heat_capacities, thermodynamics, shomate, viscosity,
+        density, diffusivity = 1.6e-5)
 
 A gas mixture of the named components, in order. The order sets the order of
 compositions and loadings everywhere; by convention the first component is the
@@ -71,7 +93,20 @@ Properties default to those of the components (see [`component`](@ref)), and
 can be overridden, all at once as a vector in gas order or for some
 components by name, such as `heat_capacities = (CO2 = 697.6,)`:
 
-- `molar_masses` [kg/mol] and `heat_capacities` [J/(kg·K)] per component;
+- `molar_masses` [kg/mol] per component;
+- the heat capacities, through the `thermodynamics` of the gas (see
+  [`AbstractGasThermodynamics`](@ref)):
+  - by default constant, `heat_capacities` [J/(kg·K)] per component
+    ([`IdealGasConstantCp`](@ref));
+  - `thermodynamics = :shomate`: changing with temperature by the Shomate
+    equation ([`IdealGasShomate`](@ref)), with the coefficients of the
+    components, or `shomate`, coefficients `(A, B, C, D, E)` per component.
+    Giving `shomate` chooses this;
+  - or an [`AbstractGasThermodynamics`](@ref) model for the components in
+    gas order.
+
+  The heat capacity of the mixture is the mole average of the molar heat
+  capacities, ``\\sum_i y_i M_i c_{p,i}``;
 - `viscosity` [Pa·s] of the mixture. By default that of the feed, the
   Herning–Zipperer mixture of the component viscosities;
 - `density` [kg/m³] of the mixture, by default the ideal gas at the feed
@@ -80,30 +115,76 @@ components by name, such as `heat_capacities = (CO2 = 697.6,)`:
   component. It sets the macropore diffusion of the default linear driving
   force and, through the first component, the axial dispersion. The default is
   that of CO2 in N2 at 25 °C.
+
+`gas.heat_capacities` holds the heat capacities [J/(kg·K)] per component at
+25 °C, and `gas.thermodynamics` the model.
 """
 struct Gas
     names::Vector{String}
     molar_masses::Vector{Float64}
     heat_capacities::Vector{Float64}
+    thermodynamics::AbstractGasThermodynamics
     viscosity::Union{Nothing, Float64}
     density::Union{Nothing, Float64}
     diffusivity::Union{Float64, Vector{Float64}}
 end
 
-function Gas(names::AbstractVector; molar_masses = nothing, heat_capacities = nothing, viscosity = nothing, density = nothing, diffusivity = 1.6e-5)
+function Gas(names::AbstractVector; molar_masses = nothing, heat_capacities = nothing, thermodynamics = nothing, shomate = nothing,
+        viscosity = nothing, density = nothing, diffusivity = 1.6e-5)
     names = String.(names)
     isempty(names) && input_error("gas", "names", "a gas needs at least one component")
     allunique(names) || input_error("gas", "names", "components appear more than once: $(join(names, ", "))")
     comps = component.(names)
     M = _by_component(names, molar_masses, [c.molar_mass for c in comps], "molar_masses")
-    C = _by_component(names, heat_capacities, [c.heat_capacity for c in comps], "heat_capacities")
+    thermo = _gas_thermodynamics(names, comps, M, thermodynamics, heat_capacities, shomate)
+    # Per mass at 25 °C: as given for constant heat capacities, else from the model
+    C = thermo isa IdealGasConstantCp && !(thermodynamics isa AbstractGasThermodynamics) ?
+        _by_component(names, heat_capacities, [c.heat_capacity for c in comps], "heat_capacities") :
+        collect(component_heat_capacities(thermo, THERMODYNAMIC_REFERENCE_TEMPERATURE)) ./ M
     D = diffusivity isa Number ? Float64(diffusivity) : _by_component(names, diffusivity, fill(NaN, length(names)), "diffusivity")
     any(isnan, D) && input_error("gas", "diffusivity", "give one diffusivity, or one for every component")
-    return Gas(names, M, C, _maybe_float(viscosity), _maybe_float(density), D)
+    return Gas(names, M, C, thermo, _maybe_float(viscosity), _maybe_float(density), D)
 end
 Gas(names::Union{AbstractString, Symbol}...; kwarg...) = Gas(collect(names); kwarg...)
 
 _maybe_float(x) = isnothing(x) ? nothing : Float64(x)
+
+# The thermodynamics model of a gas from the keywords of Gas
+function _gas_thermodynamics(names, comps, M, model, heat_capacities, shomate)
+    N = length(names)
+    if model isa AbstractGasThermodynamics
+        isnothing(heat_capacities) && isnothing(shomate) ||
+            input_error("gas", "thermodynamics", "a thermodynamics model sets the heat capacities; do not also give heat_capacities or shomate")
+        number_of_components(model) == N || input_error("gas", "thermodynamics", "the model has $(number_of_components(model)) components, the gas $N")
+        return model
+    end
+    kind = isnothing(model) ? (isnothing(shomate) ? :constant : :shomate) : model
+    if kind == :constant
+        isnothing(shomate) || input_error("gas", "shomate", "Shomate coefficients need thermodynamics = :shomate")
+        C = _by_component(names, heat_capacities, [c.heat_capacity for c in comps], "heat_capacities")
+        return IdealGasConstantCp(; molar_masses = M, heat_capacities = C)
+    elseif kind == :shomate
+        isnothing(heat_capacities) ||
+            input_error("gas", "heat_capacities", "sets constant heat capacities; with Shomate heat capacities give the coefficients through shomate")
+        coefficients = Vector{Union{Nothing, NTuple{5, Float64}}}([c.shomate for c in comps])
+        if !isnothing(shomate)
+            if shomate isa AbstractVector && !(eltype(shomate) <: Pair)
+                length(shomate) == N || input_error("gas", "shomate", "expected $N sets of coefficients, one per component ($(join(names, ", "))), got $(length(shomate))")
+                coefficients .= _shomate_tuple.(shomate)
+            else
+                for (k, v) in pairs_of(shomate)
+                    i = findfirst(==(String(k)), names)
+                    isnothing(i) && input_error("gas", "shomate", "$k is not a component of the gas ($(join(names, ", ")))")
+                    coefficients[i] = _shomate_tuple(v)
+                end
+            end
+        end
+        missing_ = names[isnothing.(coefficients)]
+        isempty(missing_) || input_error("gas", "shomate", "no Shomate coefficients for $(join(missing_, ", ")); give them through shomate")
+        return IdealGasShomate(collect(NTuple{5, Float64}, coefficients))
+    end
+    input_error("gas", "thermodynamics", "use :constant, :shomate or an AbstractGasThermodynamics, got $model")
+end
 
 Framework.component_names(gas::Gas) = gas.names
 Framework.number_of_components(gas::Gas) = length(gas.names)
@@ -219,19 +300,29 @@ function gas_viscosity(gas::Gas, y)
     return sum(w .* μ) / sum(w)
 end
 
-"Gas density [kg/m³]: the gas value if set, else the ideal gas at pressure `P` and temperature `T`."
+"Gas density [kg/m³]: the gas value if set, else from the equation of state at pressure `P` and temperature `T`."
 function gas_density(gas::Gas, y, P, T)
     isnothing(gas.density) || return gas.density
-    return P * sum(y .* gas.molar_masses) / (GAS_CONSTANT * T)
+    return molar_concentration(gas.thermodynamics, P, T) * sum(y .* gas.molar_masses)
 end
+
+"""
+    gas_heat_capacity_ratio(gas, y, T)
+
+Ratio of heat capacities ``\\gamma = c_p/c_v`` of `gas` at composition `y` and
+temperature `T` [K], from its thermodynamics (see [`heat_capacity_ratio`](@ref)).
+"""
+gas_heat_capacity_ratio(gas::Gas, y, T) = heat_capacity_ratio(gas.thermodynamics, y, T)
 
 "Diffusivity [m²/s] for the axial dispersion: the gas value, or that of its first component."
 axial_diffusivity(gas::Gas) = gas.diffusivity isa Number ? gas.diffusivity : gas.diffusivity[1]
 
 function Base.show(io::IO, ::MIME"text/plain", gas::Gas)
-    println(io, "Gas of ", join(gas.names, ", "))
+    constant = gas.thermodynamics isa IdealGasConstantCp
+    println(io, "Gas of ", join(gas.names, ", "), constant ? "" : ", heat capacities from $(nameof(typeof(gas.thermodynamics)))")
     for (i, n) in enumerate(gas.names)
-        println(io, "  ", rpad(n, 6), "M = ", round(1e3 * gas.molar_masses[i], sigdigits = 5), " g/mol, cp = ", round(gas.heat_capacities[i], sigdigits = 5), " J/(kg·K)")
+        println(io, "  ", rpad(n, 6), "M = ", round(1e3 * gas.molar_masses[i], sigdigits = 5), " g/mol, cp", constant ? "" : " at 25 °C", " = ",
+            round(gas.heat_capacities[i], sigdigits = 5), " J/(kg·K)")
     end
     print(io, "  viscosity ", isnothing(gas.viscosity) ? "from the feed" : "$(gas.viscosity) Pa·s",
         ", density ", isnothing(gas.density) ? "from the feed" : "$(gas.density) kg/m³",

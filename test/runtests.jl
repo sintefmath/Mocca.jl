@@ -58,6 +58,10 @@ include("haghpanah_cases.jl")
         include("isotherms.jl")
     end
 
+    @testset "Gas thermodynamics" begin
+        include("thermodynamics.jl")
+    end
+
     @testset "Integration with Jutul" begin
         include("jutul_integration.jl")
     end

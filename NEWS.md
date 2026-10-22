@@ -4,6 +4,16 @@
 
 ### New
 
+- **Gas thermodynamics.** The heat capacities and the equation of state of a
+  gas come from an `AbstractGasThermodynamics` model in `Mocca.Physics`:
+  `IdealGasConstantCp` (the default, from `heat_capacities` per mass as
+  before) or `IdealGasShomate`, with heat capacities that change with
+  temperature, chosen with `Gas(names; thermodynamics = :shomate)` or by
+  giving `shomate` coefficients. The common components carry the NIST Shomate
+  coefficients. A new model needs one method, `component_heat_capacities`.
+  A bed's system holds the model of the gas (`thermodynamics`) and of the
+  adsorbed phase (`adsorbed_thermodynamics`) in place of `heat_capacity_gas`
+  and `heat_capacity_adsorbed`, which `FixedBed` still takes.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -23,6 +33,31 @@
 
 ### Changed
 
+- **Molar heat capacities in the energy balance.** The heat capacity of the
+  gas is the mole average of the molar heat capacities, `Σ yᵢ Mᵢ cₚᵢ`. It
+  was `(Σ yᵢ cₚᵢ)·(Σ yᵢ Mᵢ)`, exact only for one component or for equal
+  heat capacities per mass: for CO2/CH4 at 40/60 it gave 45.6 J/(mol·K)
+  instead of 36.3. The adsorbed phase is weighted by its loadings rather than
+  by the gas composition: a heat capacity that followed the gas over the
+  cycle added heat on every cycle, and the wet flue gas presets of
+  Krishnamurthy et al. (2014) ran 12 K above the feed temperature on average
+  at the cyclic steady state; they now run at it (LPP VSA recovery 78.3% →
+  78.8%, dual-adsorbent VSA 69.8% → 65.5%, specific energy 188 → 196 kWh/t). The sorption term and the streams into a bed give
+  back exactly the `C_pg·T` the gas terms count for the moles they move, so
+  the energy balance stays right when heat capacities differ between
+  components or change with temperature; a stream entering a bed brings the
+  integral of the heat capacity from the bed's temperature to its own. With
+  the constants of Haghpanah et al. (2013), 30.7 J/(mol·K) for both
+  components, the gas heat capacity is now that constant, where it was up to
+  5% higher in a mixture.
+- **Heat capacity ratio of the pumps from the feed.** A `Process` without
+  `heat_capacity_ratio` takes `γ = c_p/(c_p − R)` of the feed at its
+  temperature (`pump_heat_capacity_ratio`), instead of 1.4. The presets and
+  library processes set 1.4, as their papers do.
+- **Renamed variables.** `SpecificHeatCapacityFluid` and
+  `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
+  `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the
+  state.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a

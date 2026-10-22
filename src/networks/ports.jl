@@ -181,32 +181,35 @@ function Jutul.update_cross_term_in_entity!(out, i,
     return out
 end
 
-# Molar heat capacity [J/(mol·K)] of the gas at device port `k`, with the
-# mixing rule of the energy balance (`C_pg·M̄`, both mole-fraction averages)
-@inline function _port_molar_heat_capacity(sys, device_state, k)
-    C, M = sys.heat_capacity_gas, sys.molecular_masses
-    cp = zero(port_temperature(device_state, k))
-    mm = zero(cp)
-    for i in eachindex(C)
-        y = port_composition(device_state, k, i)
-        cp += y * C[i]
-        mm += y * M[i]
+# Enthalpy [J/mol] a stream brings to cell `c` of a unit from device port `k`.
+# The unit's gas energy terms count C_pg·T of the cell for every mole it
+# gains (see balances/energy.jl), so the stream brings that and the enthalpy
+# to bring its gas from the cell's temperature to its own:
+#
+#   h = C_pg(cell)·T_cell + Σ_i y_i·(h_i(T_port) − h_i(T_cell)),
+#
+# with y the composition at the port. A stream leaving through its own port
+# (T_port = T_cell) takes C_pg·T_cell, and leaves the temperature as it is.
+@inline function _stream_molar_enthalpy(sys, unit_state, c, device_state, k)
+    T_c = unit_state.Temperature[c]
+    T_k = port_temperature(device_state, k)
+    thermo = sys.thermodynamics
+    Δh = component_enthalpies(thermo, T_k) .- component_enthalpies(thermo, T_c)
+    h = unit_state.C_pg[c] * T_c
+    for i in eachindex(Δh)
+        h += port_composition(device_state, k, i) * Δh[i]
     end
-    return cp * mm
+    return h
 end
 
-# The stream carries the enthalpy of the upstream port, `F·c_p(y)·T`, as the
-# interior faces carry that of the upstream cell. Both ends of a device read the
-# same upstream port, so what one unit loses the other gains.
+# The stream carries the enthalpy of the upstream port into the end cell, as
+# the interior faces carry that of the upstream cell
 function Jutul.update_cross_term_in_entity!(out, i,
         state_t, state0_t, state_s, state0_s, model_t, model_s,
         ct::StreamCT, eq::Jutul.ConservationLaw{:ColumnConservedEnergy}, dt, ldisc = Jutul.local_discretization(ct, i))
     c = ct.cell
     F_in, up = _stream_into_unit(ct, state_s)
-    h = _port_molar_heat_capacity(model_t.system, state_s, up) * port_temperature(state_s, up)
-    # The enthalpy does not depend on the unit's state, so anchor to it to keep
-    # the sparsity pattern
-    out[1] = -F_in * h + _target_anchor(state_t.Temperature[c])
+    out[1] = -F_in * _stream_molar_enthalpy(model_t.system, state_t, c, state_s, up)
     return out
 end
 

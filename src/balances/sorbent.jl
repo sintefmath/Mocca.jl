@@ -1,8 +1,9 @@
 # Sorbent block: adsorbed loading, its rate equation, and the terms it adds to
 # the gas mass and energy balances. Shared by every SorbentBed.
 #
-# A SorbentBed system must have `isotherm`, `mass_transfer` and
-# `heat_capacity_adsorbed` fields.
+# A SorbentBed system must have `isotherm`, `mass_transfer`, `thermodynamics`
+# and `adsorbed_thermodynamics` fields; the last is an AbstractGasThermodynamics
+# whose component heat capacities are those of the adsorbed phase.
 
 struct AdsorbedConcentration <: Jutul.VectorVariables
 end
@@ -76,18 +77,18 @@ Jutul.@jutul_secondary function update_enthalpy_change!(ΔH, tv::EnthalpyChange,
     end
 end
 
-struct SpecificHeatCapacityAdsorbent <: Jutul.ScalarVariable end
+"""
+Molar heat capacity [J/(mol·K)] of the adsorbed phase in a cell: the average of
+the component heat capacities of the system's `adsorbed_thermodynamics`,
+weighted by the loadings.
+"""
+struct AdsorbedMolarHeatCapacity <: Jutul.ScalarVariable end
 
-Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::SpecificHeatCapacityAdsorbent, model::SorbentBedModel, y, ix)
-    sys = model.system
-    C_pa = sys.heat_capacity_adsorbed
-    T = eltype(cpa)
+Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::AdsorbedMolarHeatCapacity, model::SorbentBedModel, AdsorbedConcentration, Temperature, ix)
+    thermo = model.system.adsorbed_thermodynamics
     for cell in ix
-        cpa_i = zero(T)
-        for component in 1:number_of_components(sys)
-            cpa_i += y[component, cell] * C_pa[component]
-        end
-        cpa[cell] = cpa_i
+        q = view(AdsorbedConcentration, :, cell)
+        cpa[cell] = molar_heat_capacity(thermo, q, Temperature[cell]) / sum(q)
     end
 end
 
@@ -127,8 +128,16 @@ struct SorptionUptake <: AbstractSourceTerm end
 end
 
 """
-Heat released by sorption, plus the sensible heat carried by the adsorbed
-phase: removes `V_s·Σ_i (C_pa·M̄·T + ΔH_i)·∂q_i/∂t` from the gas energy balance.
+Heat released by sorption, and the sensible heat that the moles taken up carry
+from the gas to the adsorbed phase: removes
+`V_s·Σ_i (C_pg·T + Δh_i + ΔH_i)·∂q_i/∂t` from the gas energy balance.
+
+The gas energy terms of the column, `(C_pg/R)·(V_f·∂P/∂t + ∇·(vP))`, count
+`C_pg·T` for every mole the gas loses, which `C_pg·T` here gives back, so that
+only the heat of sorption `ΔH_i` and `Δh_i`, the enthalpy of the adsorbed
+component less that of the gas, are left. `Δh_i = (c_pa,i − c_pg,i)·T` for
+constant heat capacities (Haghpanah et al. 2013 write `c_pa = c_pg`), and is
+zero when the adsorbed phase has the heat capacities of the gas.
 """
 struct HeatOfSorption <: AbstractSourceTerm end
 
@@ -136,15 +145,27 @@ struct HeatOfSorption <: AbstractSourceTerm end
     AC = state.AdsorbedLoading
     AC₀ = state0.AdsorbedLoading
     ΔH = state.ΔH
-    C_pa = state.C_pa[cell]
-    avm = state.AverageMolarMass[cell]
     T = state.Temperature[cell]
+    gas = state.C_pg[cell] * T
+    Δh = _adsorbed_excess_enthalpies(model.system, T)
     adsorption_term = zero(T)
     for i in axes(AC, 1)
         ∂q∂t = Jutul.accumulation_term(AC, AC₀, Δt, i, cell)
-        adsorption_term += (C_pa * avm * T + ΔH[i, cell]) * ∂q∂t
+        adsorption_term += (gas + Δh[i] + ΔH[i, cell]) * ∂q∂t
     end
     return -state.SolidVolume[cell] * adsorption_term
+end
+
+# Enthalpy of each adsorbed component less that of the gas component [J/mol]:
+# (c_pa,i − c_pg,i)·T for constant heat capacities, as in Haghpanah et al.;
+# otherwise that difference at the reference temperature, carried to T by the
+# integrals of the heat capacities (Kirchhoff's law). Exactly zero when the
+# two models are the same.
+function _adsorbed_excess_enthalpies(sys, T)
+    gas, ads = sys.thermodynamics, sys.adsorbed_thermodynamics
+    T0 = THERMODYNAMIC_REFERENCE_TEMPERATURE
+    return (component_heat_capacities(ads, T0) .- component_heat_capacities(gas, T0)) .* T0 .+
+        component_enthalpies(ads, T) .- component_enthalpies(gas, T)
 end
 
 "Heat capacity of the sorbent solid: `V_s·ρ_s·C_ps`."
@@ -154,7 +175,7 @@ struct SolidHeatCapacity <: AbstractSourceTerm end
     return state.SolidVolume[cell] * state.AdsorbentDensity[1] * state.AdsorbentHeatCapacity[1]
 end
 
-"Heat capacity of the adsorbed phase: `V_s·C_pa·M̄·Σ_i q_i`."
+"Heat capacity of the adsorbed phase: `V_s·C_pa·Σ_i q_i = V_s·Σ_i c_pa,i·q_i`."
 struct AdsorbedPhaseHeatCapacity <: AbstractSourceTerm end
 
 @inline function Framework.heat_capacity(::AdsorbedPhaseHeatCapacity, model, state, cell)
@@ -163,5 +184,5 @@ struct AdsorbedPhaseHeatCapacity <: AbstractSourceTerm end
     for i in axes(AC, 1)
         sq += AC[i, cell]
     end
-    return state.SolidVolume[cell] * state.C_pa[cell] * state.AverageMolarMass[cell] * sq
+    return state.SolidVolume[cell] * state.C_pa[cell] * sq
 end

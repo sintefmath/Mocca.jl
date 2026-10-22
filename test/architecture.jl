@@ -58,16 +58,29 @@ end
 
 @testset "Sorption heat over all components" begin
     # Check the terms against a hand calculation for a two-component state
+    model = haghpanah_bed(ncells = 2)
     q0 = [1.0 2.0; 3.0 4.0]
     q1 = [1.5 2.0; 2.0 4.0]  # cell 1: CO2 adsorbs, N2 desorbs
     st0 = (AdsorbedLoading = q0,)
-    st = (AdsorbedConcentration = q1, AdsorbedLoading = q1, ΔH = [-30e3 -30e3; -15e3 -15e3], C_pa = [700.0, 700.0],
-        AverageMolarMass = [0.03, 0.03], Temperature = [300.0, 300.0], SolidVolume = [0.1, 0.1])
+    st = (AdsorbedConcentration = q1, AdsorbedLoading = q1, ΔH = [-30e3 -30e3; -15e3 -15e3], C_pa = [21.0, 21.0],
+        C_pg = [30.0, 30.0], Temperature = [300.0, 300.0], SolidVolume = [0.1, 0.1])
     Δt = 2.0
     dq = (q1[:, 1] .- q0[:, 1]) ./ Δt
-    per_component = [(700.0 * 0.03 * 300.0 + st.ΔH[i, 1]) * dq[i] for i in 1:2]
-    @test Mocca.energy_source(Mocca.HeatOfSorption(), nothing, st, st0, 1, Δt) ≈ -0.1 * sum(per_component)
-    @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(), nothing, st, 1) ≈ 0.1 * 700.0 * 0.03 * (1.5 + 2.0)
+    # The adsorbed phase has the heat capacities of the gas, so the moles taken
+    # up carry the C_pg·T the gas energy terms count for them, and no more
+    per_component = [(30.0 * 300.0 + st.ΔH[i, 1]) * dq[i] for i in 1:2]
+    @test Mocca.energy_source(Mocca.HeatOfSorption(), model, st, st0, 1, Δt) ≈ -0.1 * sum(per_component)
+    @test Mocca.heat_capacity(Mocca.AdsorbedPhaseHeatCapacity(), model, st, 1) ≈ 0.1 * 21.0 * (1.5 + 2.0)
+
+    # An adsorbed phase with other heat capacities adds the difference in
+    # enthalpy, (c_pa,i − c_pg,i)·T for constant heat capacities
+    sys = model.system
+    cpa = Mocca.IdealGasConstantCp([40.0, 25.0])
+    other = Mocca.FixedBed(; isotherm = sys.isotherm, mass_transfer = sys.mass_transfer, molecular_masses = sys.molecular_masses,
+        component_names = sys.component_names, thermodynamics = sys.thermodynamics, adsorbed_thermodynamics = cpa)
+    cpg = Mocca.component_heat_capacities(sys.thermodynamics, 300.0)
+    per_component = [(30.0 * 300.0 + (cpa.cp[i] - cpg[i]) * 300.0 + st.ΔH[i, 1]) * dq[i] for i in 1:2]
+    @test Mocca.energy_source(Mocca.HeatOfSorption(), (system = other,), st, st0, 1, Δt) ≈ -0.1 * sum(per_component)
 end
 
 # A unit can be extended by adding a source term, without touching the residuals
@@ -104,9 +117,9 @@ end
     @test big.CNV.errors ≈ c.CNV.errors
 
     # Energy: the temperature error that the residual over a step amounts to
-    state = merge(gas, (C_pg = [1000.0, 1000.0], AverageMolarMass = [0.03, 0.03], SolidVolume = [2e-3, 4e-3],
-        AdsorbentDensity = [1000.0], AdsorbentHeatCapacity = [900.0], AdsorbedConcentration = zeros(2, 2), C_pa = [800.0, 800.0]))
-    C = [2e-3 * 1000 * 900 + 0.04 * 1000 * 0.03, 4e-3 * 1000 * 900 + 0.04 * 1000 * 0.03]
+    state = merge(gas, (C_pg = [30.0, 30.0], SolidVolume = [2e-3, 4e-3],
+        AdsorbentDensity = [1000.0], AdsorbentHeatCapacity = [900.0], AdsorbedConcentration = zeros(2, 2), C_pa = [24.0, 24.0]))
+    C = [2e-3 * 1000 * 900 + 0.04 * 30.0, 4e-3 * 1000 * 900 + 0.04 * 30.0]
     e = crit(:energy_column, state, [5.0 -20.0])
     @test e.ΔT.errors ≈ [max(5.0 * 2 / C[1], 20.0 * 2 / C[2])]
 end

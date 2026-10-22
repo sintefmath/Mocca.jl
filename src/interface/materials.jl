@@ -150,8 +150,10 @@ An adsorbent material:
 - `density` [kg/m³] and `heat_capacity` [J/(kg·K)] of the adsorbent;
 - `particle_diameter` [m], `particle_porosity` and `tortuosity`, which set the
   macropore diffusion of the default linear driving force;
-- `adsorbed_heat_capacity` [J/(kg·K)] of the adsorbed phase, per component (a
-  vector in gas order or by name); by default the gas heat capacities;
+- `adsorbed_heat_capacity` [J/(kg·K)] of the adsorbed phase, constant, per
+  component (a vector in gas order or by name; components not named take the
+  gas heat capacity at 25 °C); by default the heat capacities of the gas,
+  following its thermodynamics;
 - `mass_transfer`: an [`AbstractMassTransfer`](@ref); by default a
   [`LinearDrivingForce`](@ref) from the particle properties and the gas
   diffusivity;
@@ -196,8 +198,12 @@ function mass_transfer(adsorbent::Adsorbent, gas::Gas)
     return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
 end
 
-adsorbed_heat_capacities(adsorbent::Adsorbent, gas::Gas) =
-    _by_component(gas.names, adsorbent.adsorbed_heat_capacity, gas.heat_capacities, "adsorbed_heat_capacity")
+"Thermodynamics of the phase adsorbed on `adsorbent` from `gas`, for its heat capacities."
+function adsorbed_thermodynamics(adsorbent::Adsorbent, gas::Gas)
+    isnothing(adsorbent.adsorbed_heat_capacity) && return gas.thermodynamics
+    C = _by_component(gas.names, adsorbent.adsorbed_heat_capacity, gas.heat_capacities, "adsorbed_heat_capacity")
+    return IdealGasConstantCp(; molar_masses = gas.molar_masses, heat_capacities = C)
+end
 
 """
     equilibrium_loading(adsorbent, gas; pressure, temperature, composition) → Vector
@@ -208,7 +214,7 @@ total `pressure` [Pa], `temperature` [K] and gas `composition` (see
 """
 function equilibrium_loading(adsorbent::Adsorbent, gas::Gas; pressure, temperature, composition)
     y = Interface.composition(gas, composition)
-    c = y .* pressure ./ (GAS_CONSTANT * temperature)
+    c = y .* molar_concentration(gas.thermodynamics, pressure, temperature)
     q = compute_equilibrium(isotherm(adsorbent, gas), c, temperature)
     return collect(q) ./ adsorbent.density
 end
@@ -226,7 +232,7 @@ function isotherm_table(adsorbent::Adsorbent, gas::Gas, name; pressures, tempera
     N = number_of_components(gas)
     return [begin
         c = zeros(N)
-        c[i] = P / (GAS_CONSTANT * T)
+        c[i] = molar_concentration(gas.thermodynamics, P, T)
         compute_equilibrium(iso, c, T)[i] / adsorbent.density
     end for P in pressures, T in temperatures]
 end

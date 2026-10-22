@@ -13,7 +13,7 @@ const MU = Mocca
 struct _GasTank{TS} <: MU.DistributedUnit
     component_names::Vector{String}
     molecular_masses::Vector{Float64}
-    heat_capacity_gas::Vector{Float64}
+    thermodynamics::MU.IdealGasConstantCp{2, Float64}
     thermal::MU.Isothermal{Float64}
 end
 
@@ -56,7 +56,7 @@ function _gas_tank_model(gas, temperature; volume, length = 1.0, time_scale = tr
     domain[:diffusion_coefficient, MU.Unit()] = 1e-5
     domain[:fluid_viscosity, MU.Unit()] = 1.8e-5
     domain[:dx] = fill(length / 2, 2)
-    system = _GasTank{time_scale}(gas.names, gas.molar_masses, gas.heat_capacities, MU.Isothermal(temperature))
+    system = _GasTank{time_scale}(gas.names, gas.molar_masses, gas.thermodynamics, MU.Isothermal(temperature))
     return Jutul.SimulationModel(domain, system; general_ad = true)
 end
 

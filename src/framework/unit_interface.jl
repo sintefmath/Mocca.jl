@@ -6,8 +6,9 @@
 # - `ports(model)`: named ports, each the index of the cell a stream enters or
 #   leaves through (see networks/ports.jl);
 # - the variables the port cross terms read at a port cell: `Pressure`,
-#   `Temperature` and `y`; and, for streams into an energy balance, the
-#   system's `heat_capacity_gas` and `molecular_masses`;
+#   `Temperature` and `y`; and, for streams into an energy balance, the gas
+#   molar heat capacity `C_pg` and the system's `thermodynamics` (an
+#   AbstractGasThermodynamics);
 # - the `TimeScale` parameter, used through `_scaled_dt` in every time
 #   derivative, for gradients with respect to stage durations;
 # - [`stream_equations`](@ref): the equations a stream adds to;

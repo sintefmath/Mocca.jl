@@ -42,6 +42,28 @@ composition
 Feed
 ```
 
+The heat capacities of a gas come from its thermodynamics model: constant by
+default, as given by `heat_capacities` per mass, or changing with temperature
+with `thermodynamics = :shomate`:
+
+```julia
+gas = Gas(["CO2", "N2", "H2O"]; thermodynamics = :shomate)
+molar_heat_capacity(gas.thermodynamics, [0.15, 0.82, 0.03], 350.0)  # J/(mol·K)
+```
+
+```@docs
+AbstractGasThermodynamics
+IdealGasConstantCp
+IdealGasShomate
+molar_heat_capacity
+molar_enthalpy
+molar_concentration
+heat_capacity_ratio
+component_heat_capacities
+component_enthalpies
+THERMODYNAMIC_REFERENCE_TEMPERATURE
+```
+
 ## Isotherms, adsorbents and columns
 
 Isotherm parameters are given by component name, so an adsorbent does not
@@ -103,6 +125,7 @@ initial_state
 stages
 cyclic_steady_state
 performance
+pump_heat_capacity_ratio
 validate
 MoccaInputError
 ```

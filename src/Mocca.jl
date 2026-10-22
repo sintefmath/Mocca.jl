@@ -32,6 +32,9 @@ export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
 export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
+
+export AbstractGasThermodynamics, IdealGasConstantCp, IdealGasShomate, component_heat_capacities,
+    component_enthalpies, molar_heat_capacity, molar_enthalpy, molar_concentration, heat_capacity_ratio
 export compute_permeability, compute_dispersion
 
 # User interface

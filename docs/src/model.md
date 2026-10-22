@@ -379,21 +379,40 @@ Written in terms of temperature and pressure:
 + \varepsilon\,\frac{\tilde c_{pg}}{R}\frac{\partial P}{\partial t}
 + \frac{\tilde c_{pg}}{R}\frac{\partial (uP)}{\partial z}
 - \frac{\partial}{\partial z}\left(K_z \frac{\partial T}{\partial z}\right) \\
-&\qquad + (1-\varepsilon)\sum_i \left(\tilde c_{pa} T + \Delta H_i\right)\frac{\partial q_i}{\partial t}
+&\qquad + (1-\varepsilon)\sum_i \left(\tilde c_{pg} T + \Delta h_i + \Delta H_i\right)\frac{\partial q_i}{\partial t}
 + \frac{2 h_{in}}{r_{in}}\left(T - T_w\right) = 0,
 \end{aligned}
 ```
 
-with molar heat capacities of the gas and the adsorbed phase from the
-per-mass values of each component,
+with the molar heat capacities [J/(mol·K)] of the gas, the mole average of
+those of its components, and of the adsorbed phase, weighted by the loadings:
 
 ```math
-\tilde c_{pg} = \bar M \sum_i y_i\, c_{pg,i},
+\tilde c_{pg} = \sum_i y_i\, \tilde c_{pg,i}(T),
 \qquad
-\tilde c_{pa} = \bar M \sum_i y_i\, c_{pa,i},
+\tilde c_{pa} = \frac{\sum_i q_i\, \tilde c_{pa,i}(T)}{\sum_i q_i},
 \qquad
-\bar M = \sum_i y_i M_i.
+\tilde c_{pg,i} = M_i\, c_{pg,i}.
 ```
+
+The component heat capacities come from the thermodynamics of the
+[`Gas`](@ref): constant, or changing with temperature (see
+[`AbstractGasThermodynamics`](@ref)). The adsorbed phase has those of the gas
+unless the [`Adsorbent`](@ref) gives `adsorbed_heat_capacity`.
+
+With ``P = CRT`` the pressure terms are
+``\tilde c_{pg}\,(\varepsilon C\,\partial T/\partial t + uC\,\partial T/\partial z)``
+plus ``\tilde c_{pg} T`` for every mole the gas gains. The term
+``\tilde c_{pg} T\,\partial q_i/\partial t`` gives that back for the moles
+taken up, and the streams through the ends do the same for theirs (see
+[Flow devices and boundary conditions](@ref)). What is left is the heat of
+sorption ``\Delta H_i`` and ``\Delta h_i``, the enthalpy of adsorbed component
+``i`` less that of the gas component, which is zero when the adsorbed phase has
+the heat capacities of the gas and ``(\tilde c_{pa,i} - \tilde c_{pg,i})T``
+for other constant ones. The balance is thus the temperature form of the
+enthalpy balance, valid for heat capacities that change with temperature and
+composition, and for ideal gases. With constant heat capacities equal for all
+components it is the energy balance of Haghpanah et al. (2013).
 
 ``\Delta H_i < 0``, so adsorption heats the bed.
 
@@ -426,8 +445,16 @@ molar flow ``F`` [mol/s], positive from inlet to outlet. The port attached to
 the bed takes the pressure, temperature and composition of the end cell. The
 other port is either another bed (a link) or a boundary at a prescribed
 pressure, temperature and composition. The flow enters or leaves the bed's
-end cell carrying the composition and enthalpy ``F\,\tilde c_{pg} T`` of the
-upstream port.
+end cell carrying the composition and the temperature of the upstream port. A
+stream leaving the cell takes ``F\,\tilde c_{pg} T`` with it, which leaves
+the temperature of the cell as it is; a stream entering brings that of the
+cell and the heat to bring its gas from the cell's temperature to its own,
+
+```math
+F\left[\tilde c_{pg} T + \sum_i y_{up,i}\left(h_i(T_{up}) - h_i(T)\right)\right],
+\qquad
+h_i(T) = \int_{T_{ref}}^{T} \tilde c_{pg,i}\, dT.
+```
 
 In each step of the cycle every device is closed, a valve or a flow
 controller:
@@ -517,7 +544,9 @@ E = \int \frac{F R T}{\eta}\,\frac{\gamma}{\gamma - 1}
 
 reported in kWh per tonne of key component. ``P_{amb}``, ``\eta`` and
 ``\gamma`` are the `ambient_pressure` (101325 Pa), `pump_efficiency` (0.72) and
-`heat_capacity_ratio` (1.4) of the [`Process`](@ref). Haghpanah et al. count
+`heat_capacity_ratio` of the [`Process`](@ref). By default ``\gamma =
+\tilde c_{pg}/(\tilde c_{pg} - R)`` of the feed at its temperature; the
+presets set 1.4, as their papers do. Haghpanah et al. count
 the vacuum pumps only; [`vacuum_pump_energy`](@ref) gives the energy of one
 device, to report it their way.
 
@@ -547,6 +576,7 @@ optimisation come from the adjoint of the same discrete equations.
 | ``c_i,\ C`` | Gas concentration of component ``i``, total | mol/m³ | state |
 | ``c_{pa,i}`` | Heat capacity of adsorbed component ``i`` | J/(kg·K) | [`Adsorbent`](@ref) `adsorbed_heat_capacity` |
 | ``c_{pg,i}`` | Heat capacity of gas component ``i`` | J/(kg·K) | [`Gas`](@ref) `heat_capacities` |
+| ``\tilde c_{pa},\ \tilde c_{pg}`` | Molar heat capacity of the adsorbed phase and the gas; ``\tilde c_{pg,i}`` of component ``i`` | J/(mol·K) | [`Gas`](@ref) `thermodynamics` |
 | ``c_{ps}`` | Heat capacity of the adsorbent | J/(kg·K) | [`Adsorbent`](@ref) `heat_capacity` |
 | ``c_{pw}`` | Heat capacity of the wall | J/(kg·K) | [`Wall`](@ref) `heat_capacity` |
 | ``C_v`` | Valve conductance | m³/(s·Pa) | step `conductance` |
@@ -554,6 +584,7 @@ optimisation come from the adjoint of the same discrete equations.
 | ``D_L`` | Axial dispersion coefficient | m²/s | computed, or [`add_bed!`](@ref) `dispersion` |
 | ``D_m`` | Molecular diffusivity | m²/s | [`Gas`](@ref) `diffusivity` |
 | ``F`` | Molar flow through a device | mol/s | state |
+| ``h_i`` | Molar enthalpy of gas component ``i`` above ``T_{ref}`` = 298.15 K | J/mol | [`Gas`](@ref) `thermodynamics` |
 | ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
 | ``K_z`` | Axial thermal conductivity of the bed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
@@ -568,6 +599,8 @@ optimisation come from the adjoint of the same discrete equations.
 | ``T,\ T_w,\ T_a`` | Gas and sorbent, wall and ambient temperature | K | state; [`Column`](@ref) `ambient_temperature` |
 | ``u,\ v`` | Superficial and interstitial velocity | m/s | state; step `velocity` |
 | ``y_i`` | Gas mole fraction | – | state |
+| ``\Delta h_i`` | Enthalpy of adsorbed component ``i`` less that of the gas | J/mol | computed |
+| ``\Delta H_i`` | Isosteric heat of adsorption of component ``i`` | J/mol | isotherm |
 | ``\Delta U_b, \Delta U_d`` | Internal energy of adsorption, sites b and d | J/mol | isotherm `ΔUb`, `ΔUd` |
 | ``\varepsilon`` | Bed porosity (void fraction between particles) | – | [`Column`](@ref) `porosity` |
 | ``\varepsilon_p`` | Particle porosity | – | [`Adsorbent`](@ref) `particle_porosity` |

@@ -103,13 +103,13 @@ end
     device(F, y_in, T_in, y_out, T_out; P_in = 1e5) = (MolarFlow = [F],
         InletComposition = reshape(y_in, :, 1), InletTemperature = [T_in], InletPressure = [P_in],
         OutletComposition = reshape(y_out, :, 1), OutletTemperature = [T_out], OutletPressure = [0.5e5])
-    cell(T, y) = (Temperature = fill(T, 3), y = repeat(y, 1, 3))
-    function term(ct, eq, target, dev)
+    cp(y, T = 300.0) = Mocca.molar_heat_capacity(sys.thermodynamics, y, T)
+    cell(T, y) = (Temperature = fill(T, 3), y = repeat(y, 1, 3), C_pg = fill(cp(y, T), 3))
+    function term(ct, eq, target, dev; model = bed)
         out = zeros(eq isa typeof(eq_m) ? 2 : 1)
-        Jutul.update_cross_term_in_entity!(out, 1, target, target, dev, dev, bed, nothing, ct, eq, 1.0)
+        Jutul.update_cross_term_in_entity!(out, 1, target, target, dev, dev, model, nothing, ct, eq, 1.0)
         return out
     end
-    cp(y) = sum(y .* sys.heat_capacity_gas) * sum(y .* sys.molecular_masses)
     # A link from the top of bed A (cell 3) to the bottom of bed B (cell 1),
     # whose cells differ in temperature and composition
     yA, TA, yB, TB = [0.3, 0.7], 320.0, [0.05, 0.95], 300.0
@@ -117,18 +117,40 @@ end
     for F in (0.02, -0.03)
         dev = device(F, yA, TA, yB, TB)
         y_up, T_up = F > 0 ? (yA, TA) : (yB, TB)
-        # What leaves one bed enters the other, component by component and in
-        # enthalpy, which is that of the upstream port
+        # What leaves one bed enters the other, component by component
         @test term(Mocca.StreamCT(3, 1), eq_m, A, dev) ≈ -term(Mocca.StreamCT(1, 2), eq_m, B, dev)
-        @test term(Mocca.StreamCT(3, 1), eq_e, A, dev) ≈ -term(Mocca.StreamCT(1, 2), eq_e, B, dev)
-        @test term(Mocca.StreamCT(1, 2), eq_e, B, dev)[1] ≈ -F * cp(y_up) * T_up
+        # The bed it leaves takes C_pg·T, which leaves its temperature as it
+        # is, and the bed it enters gets C_pg·T of its own gas and the heat to
+        # bring the stream to its temperature
+        (Tl, cl, Te, ce, out, in) = F > 0 ? (TA, A, TB, B, Mocca.StreamCT(3, 1), Mocca.StreamCT(1, 2)) : (TB, B, TA, A, Mocca.StreamCT(1, 2), Mocca.StreamCT(3, 1))
+        @test term(out, eq_e, cl, dev)[1] ≈ abs(F) * cl.C_pg[1] * Tl
+        @test term(in, eq_e, ce, dev)[1] ≈ -abs(F) * (ce.C_pg[1] * Te + cp(y_up) * (T_up - Te))
     end
-    # A stream from a boundary brings its own enthalpy, whatever its pressure
-    # and the state of the cell it enters
+    # A stream from a boundary brings the same, whatever its pressure; the
+    # molar heat capacities of the constants are nearly equal (30.7 J/(mol·K)),
+    # so nearly its own c_p·T
     feed = [0.15, 0.85]
-    e1 = term(Mocca.StreamCT(1, 2), eq_e, cell(300.0, [1e-10, 1 - 1e-10]), device(0.1, feed, 298.15, feed, 298.15))
-    e2 = term(Mocca.StreamCT(1, 2), eq_e, cell(350.0, [0.5, 0.5]), device(0.1, feed, 298.15, feed, 298.15; P_in = 0.1e5))
-    @test e1 ≈ e2 ≈ [-0.1 * cp(feed) * 298.15]
+    for (T, y, P) in ((300.0, [1e-10, 1 - 1e-10], 1e5), (350.0, [0.5, 0.5], 0.1e5))
+        c = cell(T, y)
+        e = term(Mocca.StreamCT(1, 2), eq_e, c, device(0.1, feed, 298.15, feed, 298.15; P_in = P))
+        @test e ≈ [-0.1 * (c.C_pg[1] * T + cp(feed) * (298.15 - T))]
+        @test e ≈ [-0.1 * cp(feed) * 298.15] rtol = 1e-4
+    end
+
+    # With heat capacities that change with temperature the stream brings the
+    # integral of the heat capacity, not the difference of c_p·T
+    k = Mocca.convert_constants(haghpanah_constants())
+    gas = Gas(["CO2", "N2"]; molar_masses = k.gas.molar_masses, thermodynamics = :shomate)
+    hot = Mocca.fixed_bed_model(gas, k.feed, k.adsorbent, k.column; ncells = 3, dispersion_velocity = k.dispersion_velocity)
+    th = hot.system.thermodynamics
+    Tc, Tin = 360.0, 298.15
+    st = (Temperature = fill(Tc, 3), y = repeat(feed, 1, 3), C_pg = fill(Mocca.molar_heat_capacity(th, feed, Tc), 3))
+    e = term(Mocca.StreamCT(1, 2), hot.equations[:energy_column], st, device(0.1, feed, Tin, feed, Tin); model = hot)
+    # Trapezoidal integral of the heat capacity from the stream's temperature to the cell's
+    Ts = range(Tin, Tc, length = 2001)
+    ∫cp = sum(Mocca.molar_heat_capacity(th, feed, T) for T in Ts[2:end-1]) * step(Ts) +
+        (Mocca.molar_heat_capacity(th, feed, Tin) + Mocca.molar_heat_capacity(th, feed, Tc)) * step(Ts) / 2
+    @test e[1] ≈ -0.1 * (st.C_pg[1] * Tc - ∫cp) rtol = 1e-8
 end
 
 # State at the end of the step finishing at time t

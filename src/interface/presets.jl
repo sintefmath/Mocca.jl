@@ -40,7 +40,7 @@ to `P_L` [Pa].
     extract ──V_vacuum──┘
 
 As in the paper, vacuum pumps discharge at, and the feed compressor takes gas
-from, 1 bar.
+from, 1 bar, with a heat capacity ratio of 1.4.
 """
 function four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40.0), P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5,
         velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping(), name = "four-stage VSA", initial_state = Dict{Symbol, Any}(),
@@ -58,7 +58,8 @@ function four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40
         Blowdown(t_blow; to = P_I),
         Evacuate(t_evac; to = P_L),
     ])
-    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5)
+    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5,
+        heat_capacity_ratio = 1.4)
 end
 
 """
@@ -122,7 +123,8 @@ function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_tim
         Concurrent(Adsorb(tf; bed = :B, velocity = velocity), evacuate(:A, tf, P_mid)),
         Equalise(te; beds = (:B, :A), conductance = equalisation_conductance),
     ])
-    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5)
+    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state, ambient_pressure = 1e5,
+        heat_capacity_ratio = 1.4)
 end
 
 # ------------------------------------------------------------------------------
@@ -182,7 +184,8 @@ function lpp_vsa_process(; ncells = 30, velocity = 0.45, t_lpp = 20.0, t_ads = 7
         Blowdown(t_bd; to = P_I),
         Evacuate(t_evac; to = P_L),
     ])
-    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state)
+    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state,
+        heat_capacity_ratio = 1.4)
 end
 
 """
@@ -230,5 +233,6 @@ function dual_adsorbent_vsa_process(; ncells = 30, silica_gel_length = 0.41, zeo
             Adsorb(t_ads; bed = :Zeolite),
             Blowdown(x.t_bd; bed = :Zeolite, to = x.P_I),
             Evacuate(x.t_evac; bed = :Zeolite, to = x.P_L)])
-    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state)
+    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state,
+        heat_capacity_ratio = 1.4)
 end
