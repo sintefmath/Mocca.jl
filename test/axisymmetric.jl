@@ -165,8 +165,6 @@ _radial_column(; kw...) = Column(; length = 1.0, radius = 0.1445, outer_radius =
     add_variable!(p, :D_r, (:parameter, :Bed, :RadialDispersion))
     p[:D_r] = 3e-4
     @test only(p.parameters[:Bed][:RadialDispersion]) == 3e-4
-    # Grid sequencing interpolates along the column only, so it is left out
-    @test isnothing(Mocca.Interface._coarse_copy(p, 2))
 
     # Written to a file and read back, the bed is the same
     q = four_stage_vsa_process(ncells = 6, radial_cells = 3, column = _radial_column(), durations = (5.0, 5.0, 5.0, 5.0))
@@ -212,4 +210,56 @@ end
     for k in (:purity, :recovery, :specific_energy, :productivity)
         @test g.gradients[k][:D_r] ≈ (up[k] - down[k]) / 2h rtol = 1e-3
     end
+end
+
+@testset "The steady state of a radial bed starts from one radial cell" begin
+    I = Mocca.Interface
+    c = _radial_column()
+    p = four_stage_vsa_process(ncells = 20, radial_cells = 3, column = c)
+    add_variable!(p, :D_r, (:parameter, :Bed, :RadialDispersion))
+    p[:D_r] = 3e-4
+    # One radial cell on as many cells along the column, then halving as for
+    # any bed; the settings of parameters only the radial bed has are left out
+    grids = I._coarse_grids(p, 5)
+    @test [(g.flowsheet.specs[:Bed].ncells, g.flowsheet.specs[:Bed].radial_cells) for g in grids] == [(5, 1), (10, 1), (20, 1)]
+    q = last(grids)
+    @test !haskey(q.parameters[:Bed], :RadialDispersion) && p.flowsheet.specs[:Bed].radial_cells == 3
+    # The 1D bed has the wall coefficient that gives the radial bed's mean
+    # temperature
+    @test only(q.parameters[:Bed][:InnerHeatTransferCoeff]) ≈ 1 / (1 / c.wall_heat_transfer + c.radius / (4 * c.radial_conductivity))
+
+    # Spread over the rings, with the wall temperature of the gas inside the
+    # outer ring
+    x = Mocca.initial_state(q)
+    x[:Bed][:Pressure] .= 1e5 .* (1 .+ ((1:20) .- 0.5) ./ 20)
+    x[:Bed][:Temperature] .= 300 .+ (1:20)
+    x[:Bed][:WallTemperature] .= 290.0
+    xf = I._interpolate_state(p, x, q)
+    for j in 1:3
+        @test xf[:Bed][:Pressure][(1:20) .+ 20(j - 1)] ≈ x[:Bed][:Pressure]
+    end
+    @test xf[:Bed][:WallTemperature][41:60] ≈ fill(290.0, 20)
+    @test xf[:Bed][:WallTemperature][1:40] ≈ xf[:Bed][:Temperature][1:40]
+    @test vec(sum(xf[:Bed][:y]; dims = 1)) ≈ ones(60)
+    # From rings to more rings, a field linear along the column and across
+    # the radius is kept inside the bed
+    p6 = four_stage_vsa_process(ncells = 20, radial_cells = 6, column = c)
+    p3 = four_stage_vsa_process(ncells = 10, radial_cells = 3, column = c)
+    f(m) = [m.data_domain[:cell_centroids][1, k] + 3 * m.data_domain[:cell_centroids][2, k] for k in 1:Jutul.number_of_cells(m.domain)]
+    x3 = Mocca.initial_state(p3)
+    x3[:Bed][:Temperature] .= 300 .+ f(p3.flowsheet[:Bed])
+    T6 = I._interpolate_state(p6, x3, p3)[:Bed][:Temperature]
+    inside = [i + 20(j - 1) for j in 2:5 for i in 2:19]
+    @test T6[inside] .- 300 ≈ f(p6.flowsheet[:Bed])[inside]
+
+    # Through the 1D bed to the same steady state as from the initial state
+    small() = four_stage_vsa_process(ncells = 8, radial_cells = 2, column = c)
+    io = IOBuffer()
+    r = cyclic_steady_state(small(); coarse_cells = 4, progress = io)
+    out = String(take!(io))
+    @test r.converged
+    @test contains(out, "8 × 2 cells: Newton's method from the steady state on 8 cells")
+    cold = cyclic_steady_state(small(); coarse_cells = nothing, progress = false)
+    @test cold.converged
+    @test Mocca.cycle_change(small().model, r.state0, cold.state0) < 1e-8
 end

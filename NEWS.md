@@ -21,8 +21,11 @@
   place of `inner_heat_transfer`. The radial dispersion is
   `0.7 D_m + 0.1 v d_p` (`compute_radial_dispersion`, `bed_radial_dispersion`)
   at the same velocity as the axial one, unless given. Process files read and
-  write these settings. Grid sequencing of the cyclic steady state is left out
-  for such beds for now.
+  write these settings. `cyclic_steady_state` starts such a process from its
+  steady state on one radial cell (and coarser grids along the column, as for
+  any bed), spread over the rings; the bed of one radial cell takes the wall
+  coefficient `1/(1/h_w + r/(4λ_r))` that gives the radial bed's mean
+  temperature.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
