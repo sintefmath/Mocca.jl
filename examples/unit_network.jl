@@ -73,7 +73,7 @@ Mocca.set_boundary!(net, :V_vacuum, :outlet, condition(0.1bar, y_feed))
 # Each stage gives the settings of the devices it opens; the others stay
 # closed. Valves have the conductance of the half cell at the bed end they are
 # attached to, and pressures follow exponential ramps at 0.5 s⁻¹.
-C_in, C_out = Mocca.port_conductance(bed_model, 1), Mocca.port_conductance(bed_model, ncells)
+C_in, C_out = Mocca.port_conductance(bed_model, :bottom), Mocca.port_conductance(bed_model, :top)
 ramp(from, to) = Mocca.ExponentialRamp(from, to, 0.5)
 rate = Mocca.interstitial_flow_rate(bed_model, 1.0)
 stages = [
@@ -112,8 +112,8 @@ runs = [
 
 # The two describe the same flowsheet and give the same results, at the
 # outlet and at the feed end:
-f_outlet_comparison = Mocca.plot_cell_comparison(runs, bed, ncells)
-f_inlet_comparison = Mocca.plot_cell_comparison(runs, bed, 1)
+f_outlet_comparison = Mocca.plot_cell_comparison(runs, bed, :top)
+f_inlet_comparison = Mocca.plot_cell_comparison(runs, bed, :bottom)
 
 # and along the bed at the end of the simulation:
 f_column_comparison = Mocca.plot_state_comparison(

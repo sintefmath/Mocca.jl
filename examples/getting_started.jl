@@ -174,4 +174,4 @@ Mocca.cycle_change(process.model, result.state0, result_cycles.states[end])
 
 # The top of the bed, where the nitrogen product leaves, over the three cycles:
 bed_states = [s[:Bed] for s in result_cycles.states]
-f_outlet = Mocca.plot_cell(bed_states, bed, result_cycles.timesteps, 30)
+f_outlet = Mocca.plot_cell(bed_states, bed, result_cycles.timesteps, :top)

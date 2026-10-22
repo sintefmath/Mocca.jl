@@ -25,7 +25,13 @@
   steady state on one radial cell (and coarser grids along the column, as for
   any bed), spread over the rings; the bed of one radial cell takes the wall
   coefficient `1/(1/h_w + r/(4λ_r))` that gives the radial bed's mean
-  temperature.
+  temperature. `write_results` adds `bed_fields.csv`, every cell of such beds
+  with its ring and radius, and the summary their radial heat transfer and
+  the largest temperature difference across the radius over the last cycle.
+  `plot_bed_section` draws a cut through a bed along its axis, with the wall,
+  and `plot_radial_profiles` profiles across the radius. `plot_cell` and
+  `plot_cell_comparison` take a port (`:top`, `:bottom`), the mean over its
+  cross-section, or a cell `(i, j)` along the column and across the radius.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,

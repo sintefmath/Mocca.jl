@@ -29,6 +29,7 @@ export mocca_domain
 export column_mesh
 
 export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams, plot_profiles
+export plot_bed_section, plot_radial_profiles
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 

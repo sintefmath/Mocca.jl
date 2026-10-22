@@ -142,7 +142,7 @@ process
 # bed.
 result = Mocca.simulate(process; cycles = 5)
 bed_states = [s[:Bed] for s in result.states]
-f_outlet = Mocca.plot_cell(bed_states, fs[:Bed], result.timesteps, 50)
+f_outlet = Mocca.plot_cell(bed_states, fs[:Bed], result.timesteps, :top)
 
 # and the state along the bed at the end:
 f_column = Mocca.plot_state(bed_states[end], fs[:Bed])

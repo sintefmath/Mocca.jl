@@ -165,17 +165,19 @@ environment (see [Installation](@ref)) and use `save`:
 using CairoMakie
 bed = process.flowsheet[:Bed]
 bed_states = [s[:Bed] for s in result.states]
-f = plot_cell(bed_states, bed, result.timesteps, 30)   # history of cell 30, the top of a 30-cell bed
+f = plot_cell(bed_states, bed, result.timesteps, :top)   # history of the top of the bed
 save("bed_top.png", f)
 ```
 
 | Function | Shows |
 |---|---|
-| [`plot_cell`](@ref) | Every variable of one cell through time, such as the outlet |
+| [`plot_cell`](@ref) | Every variable of one cell, or of one end of the bed, through time |
 | [`plot_state`](@ref) | Every variable along the bed at one time |
 | [`plot_profiles`](@ref) | Mole fractions and loadings along the bed at several times, such as the end of each step |
 | [`plot_flowsheet_streams`](@ref) | Flow and composition through each device, with the steps shaded |
 | [`plot_cell_comparison`](@ref), [`plot_state_comparison`](@ref) | Several simulations of the same bed overlaid |
+| [`plot_bed_section`](@ref) | A cut through a bed meshed across its radius, along its axis, at one time |
+| [`plot_radial_profiles`](@ref) | Profiles across the radius at several positions and times |
 
 The figures below are for the steady cycle of the four-step VSA of Mocca's
 library, read with `process = read_process("haghpanah_2013_four_stage_vsa")`
@@ -183,11 +185,11 @@ and run with `result = cyclic_steady_state(process)`.
 
 ### One cell through time
 
-[`plot_cell`](@ref) shows every variable of one cell through the cycle. At the
-top of the bed (cell 30 of 30), the light product end:
+[`plot_cell`](@ref) shows every variable of one cell, or of one end of the
+bed, through the cycle. At the top of the bed, the light product end:
 
 ```@example results
-Mocca.plot_cell(bed_states, bed, result.timesteps, 30)
+Mocca.plot_cell(bed_states, bed, result.timesteps, :top)
 ```
 
 ### Along the bed at one time
@@ -224,8 +226,8 @@ Mocca.plot_flowsheet_streams(result.states, process.model, result.timesteps; sta
 
 [`plot_cell_comparison`](@ref) and [`plot_state_comparison`](@ref) overlay
 several simulations of the same bed. Here the evacuation pressure is lowered
-from 0.1 to 0.05 bar, and the feed end of the bed (cell 1) compared through
-the cycle:
+from 0.1 to 0.05 bar, and the feed end of the bed (`:bottom`) compared
+through the cycle:
 
 ```@example results
 low = Mocca.read_process("haghpanah_2013_four_stage_vsa")
@@ -233,7 +235,7 @@ low[:P_L] = 0.05bar
 result_low = Mocca.cyclic_steady_state(low; progress = false)
 runs = ["P_L = 0.1 bar" => (bed_states, result.timesteps),
         "P_L = 0.05 bar" => ([s[:Bed] for s in result_low.states], result_low.timesteps)]
-Mocca.plot_cell_comparison(runs, bed, 1)
+Mocca.plot_cell_comparison(runs, bed, :bottom)
 ```
 
 and along the bed at the end of the cycle:
@@ -251,6 +253,8 @@ plot_profiles
 plot_flowsheet_streams
 plot_cell_comparison
 plot_state_comparison
+plot_bed_section
+plot_radial_profiles
 axial_profile
 axial_positions
 cross_section_mean

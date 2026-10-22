@@ -263,3 +263,70 @@ end
     @test cold.converged
     @test Mocca.cycle_change(small().model, r.state0, cold.state0) < 1e-8
 end
+
+@testset "Results of a bed meshed across its radius" begin
+    I = Mocca.Interface
+    p = four_stage_vsa_process(ncells = 6, radial_cells = 3, column = _radial_column(), durations = (5.0, 5.0, 5.0, 5.0))
+    r = simulate(p; cycles = 2)
+    bed = p.flowsheet[:Bed]
+    # Every cell at every snapshot of the profiles, with its ring
+    fields = I._bed_field_table(r)
+    snaps = I._snapshots(r)
+    @test length(fields.rows) == length(snaps) * 18
+    col(name) = findfirst(==(name), fields.header)
+    row(snapshot, i, j) = only(filter(x -> x[1] == snapshot && x[col("Cell")] == i && x[col("Ring")] == j, fields.rows))
+    s0 = r.state0[:Bed]
+    @test row("start of cycle", 2, 3)[col("Pressure [bara]")] ≈ s0[:Pressure][2 + 12] / 1e5
+    @test row("start of cycle", 2, 3)[col("Relative radius [-]")] ≈ 5 / 6
+    # The wall surrounds the outer ring only
+    Tw = col("Wall temperature [degC]")
+    @test isnan(row("start of cycle", 4, 1)[Tw]) && isnan(row("start of cycle", 4, 2)[Tw])
+    @test row("start of cycle", 4, 3)[Tw] ≈ s0[:WallTemperature][4 + 12] - 273.15
+    # The profiles are the means over the rings, weighted by their volume
+    label = last(snaps)[1]
+    profiles = I._bed_profile_table(r)
+    prof = only(filter(x -> x[1] == label && x[4] == 5, profiles.rows))
+    T = col("Temperature [degC]")
+    w = Mocca.port_weights(bed, Mocca.axial_layers(bed)[5])
+    @test prof[profiles.header .== "Temperature [degC]"][1] ≈ sum(w[j] * row(label, 5, j)[T] for j in 1:3)
+    # Written only for beds meshed across their radius
+    dir = mktempdir()
+    @test "bed_fields.csv" in basename.(write_results(dir, r))
+    @test isnothing(I._bed_field_table(simulate(four_stage_vsa_process(ncells = 6, durations = (5.0, 5.0, 5.0, 5.0)))))
+
+    # The summary gives the cells, the radial heat transfer and the largest
+    # difference in temperature across the radius
+    summary = I._summary_table(r).rows
+    value(q) = only(x[3] for x in summary if x[2] == q)
+    @test value("Bed cells") == "6 × 3"
+    @test value("Bed radial conductivity") == 0.5 && value("Bed wall heat transfer coefficient") == 30.0
+    ΔT = [s[:Bed][:Temperature][i] - s[:Bed][:Temperature][i + 12] for s in r.states[I._last_cycle(r)] for i in 1:6]
+    @test value("Bed largest radial temperature difference (centre minus wall ring)") == ΔT[argmax(abs.(ΔT))]
+
+    # Plots of a port, of a cell by its place, and of the field
+    s = r.states[end][:Bed]
+    P = Mocca.Plotting
+    @test P._at_cell(bed, s[:Temperature], :top) ≈ Mocca.port_state(bed, s, :top).temperature
+    @test P._at_cell(bed, s[:y], (2, 3)) == s[:y][:, 2 + 12]
+    @test P._at_cell(bed, s[:Pressure], (6, 1)) == s[:Pressure][6]
+    @test_throws ArgumentError P._at_cell(bed, s[:Pressure], (7, 1))
+    bed_states = [x[:Bed] for x in r.states]
+    @test plot_cell(bed_states, bed, r.timesteps, :top) isa P.Figure
+    @test plot_cell(bed_states, bed, r.timesteps, (3, 2)) isa P.Figure
+    @test plot_cell_comparison(["a" => (bed_states, r.timesteps)], bed, :bottom) isa P.Figure
+    for v in (:Temperature, :Pressure, :y, :AdsorbedConcentration)
+        @test plot_bed_section(s, bed; variable = v) isa P.Figure
+    end
+    @test plot_bed_section(r.states[end], bed; unit = :Bed, radial_scale = 2) isa P.Figure
+    @test plot_radial_profiles(r.states, r.timesteps, bed, [10.0, 20.0]; unit = :Bed) isa P.Figure
+    @test plot_radial_profiles(bed_states, r.timesteps, bed, [10.0]; variable = :y, positions = [0.5]) isa P.Figure
+    # A bed of one radial cell, and uneven rings
+    one = four_stage_vsa_process(ncells = 6, durations = (5.0, 5.0, 5.0, 5.0))
+    r1 = simulate(one)
+    @test plot_bed_section(r1.states[end][:Bed], one.flowsheet[:Bed]) isa P.Figure
+    @test plot_radial_profiles(r1.states, r1.timesteps, one.flowsheet[:Bed], [10.0]; unit = :Bed) isa P.Figure
+    uneven = haghpanah_radial_bed(; ncells = 4, radial_cells = 3, radii = [0.0, 0.05, 0.12, haghpanah_constants().r_in])
+    @test P._ring_edges(uneven) ≈ [0.0, 0.05, 0.12, haghpanah_constants().r_in]
+    st = Mocca.setup_unit_state(uneven; pressure = 1e5, temperature = 300.0, composition = [0.15, 0.85])
+    @test plot_bed_section(st, uneven) isa P.Figure
+end
