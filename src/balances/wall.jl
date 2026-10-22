@@ -24,9 +24,34 @@ Jutul.associated_entity(::WallTransmissibilities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::WallTransmissibilities, symb)
     nc = Jutul.number_of_cells(Jutul.physical_representation(data_domain))
-    # Transmissibilities for a unit conductivity are A/d, with A the face area
-    return Jutul.compute_face_trans(data_domain, ones(nc)) ./ data_domain[:areas]
+    # Transmissibilities for a unit conductivity are A/d, with A the face area.
+    # The wall runs along the axis, past the cells it touches.
+    G = Jutul.compute_face_trans(data_domain, ones(nc)) ./ data_domain[:areas]
+    N = data_domain[:neighbors]
+    w, ax = _wall_cell_mask(data_domain), _axial_faces(data_domain)
+    return [ax[f] && w[N[1, f]] && w[N[2, f]] ? G[f] : 0.0 for f in eachindex(G)]
 end
+
+"""
+    WallCells
+
+1 for a cell the wall touches and 0 for one it does not, in a column meshed
+across its radius, where the wall touches the outer ring. Without it, as in a
+1D column, every cell touches the wall.
+"""
+struct WallCells <: Jutul.ScalarVariable end
+Jutul.minimum_value(::WallCells) = 0.0
+Jutul.maximum_value(::WallCells) = 1.0
+
+function Jutul.default_parameter_values(data_domain, model, ::WallCells, symb)
+    return Float64.(_wall_cell_mask(data_domain))
+end
+
+# Whether the wall touches `cell`, as a number
+@inline _at_wall(state, cell) = _state_has(state, :WallCells) ? state.WallCells[cell] : true
+
+# The heat capacity [J/K] of the wall around `cell`, if the wall touched it
+@inline _wall_heat_capacity(state, cell) = state.WallCrossSectionArea[1] * state.CellDx[cell] * state.WallDensity[1] * state.WallHeatCapacity[1]
 
 Jutul.@jutul_secondary function update_wall_conserved_energy!(wall_energy, tv::WallEnergy, model::DistributedUnitModel, WallTemperature, ix)
     for cell in ix
@@ -74,7 +99,7 @@ function Jutul.update_equation_in_entity!(
     C_pw = state.WallHeatCapacity[1]
     ρ_w = state.WallDensity[1]
     A_w = state.WallCrossSectionArea[1]
-    wall_volume = A_w * Δx
+    wall_volume = A_w * Δx * _at_wall(state, self_cell)
 
     src = sum_terms(wall_source, wall_source_terms(model.system), model, state, state0, self_cell, Δt)
 
@@ -115,7 +140,21 @@ struct WallEndConduction <: AbstractSourceTerm end
     i = mod1(cell, n)
     n_ends = (i == 1) + (i == n)
     trans_wall = calc_bc_wall_trans(model, state, cell)
-    return -n_ends * trans_wall * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+    return -n_ends * _at_wall(state, cell) * trans_wall * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+end
+
+"""
+In a column meshed across its radius the wall touches the outer ring only; the
+wall temperature of a cell inside, which no wall surrounds, follows the gas
+temperature, `(C_w/Δt)·(T − T_w)` with `C_w` the heat capacity the wall would
+have there, so that it stays determined. The residual is then the difference
+in K, as the convergence check of the wall reads it.
+"""
+struct WallTie <: AbstractSourceTerm end
+
+@inline function Framework.wall_source(::WallTie, model, state, state0, cell, Δt)
+    _state_has(state, :WallCells) || return false
+    return (1 - state.WallCells[cell]) * _wall_heat_capacity(state, cell) / Δt * (state.Temperature[cell] - state.WallTemperature[cell])
 end
 
 """

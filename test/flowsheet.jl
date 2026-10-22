@@ -185,11 +185,13 @@ end
 @testset "A bed in equal channels is the bed" begin
     # Split side by side into two equal channels, a bed fed evenly across its
     # end behaves as one channel
-    one = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic())
-    two = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic(),
+    # A short first step keeps the two on the same time steps (see
+    # axisymmetric.jl)
+    one = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic(), first_dt = 0.1)
+    two = haghpanah_vsa(; ncells = 10, thermal = Mocca.Adiabatic(), first_dt = 0.1,
         bed_model = haghpanah_channel_bed(; ncells = 10, channels = 2))
     r1, r2 = simulate(one), simulate(two)
-    @test length(r1.states) == length(r2.states)
+    @test r2.timesteps ≈ r1.timesteps
     bed2 = two.flowsheet[:Bed]
     s1, s2 = r1.states[end], r2.states[end]
     for k in (:Pressure, :Temperature, :y, :AdsorbedConcentration)

@@ -72,6 +72,12 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     if has_wall(sys)
         S[:WallTransmissibilities] = WallTransmissibilities()
     end
+    # Across the radius of an axisymmetric column
+    if _is_axisymmetric(model.data_domain)
+        S[:RadialDispersion] = RadialDispersion()
+        S[:RadialDispersionTransmissibilities] = RadialDispersionTransmissibilities()
+        has_wall(sys) && (S[:WallCells] = WallCells())
+    end
 
     # Unit-entity parameters (single scalars)
     S[:AxialDispersion] = AxialDispersion()

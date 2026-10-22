@@ -8,6 +8,7 @@ module FixedBeds
 import Jutul
 using StaticArrays
 using ..Framework, ..Physics, ..Balances
+using ..Balances: _is_axisymmetric
 
 export AdsorptionModel, AdsorptionSystem, compute_dispersion, compute_permeability, FixedBed,
     FixedBedModel

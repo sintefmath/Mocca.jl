@@ -74,6 +74,12 @@ setup_unit_state
 setup_unit_parameters
 holds_sorbent
 AxialDispersion
+RadialDispersion
+WallTransmissibilities
+WallCells
+wall_cells
+column_mesh
+mocca_domain
 ```
 
 ## Devices, schedules and steady states

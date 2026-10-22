@@ -29,6 +29,12 @@ function Jutul.default_parameter_values(data_domain, model, param::ThermalConduc
         K = first(data_domain[:thermal_conductivity, Unit()])
         nc = Jutul.number_of_cells(Jutul.physical_representation(data_domain))
         T = Jutul.compute_face_trans(data_domain, fill(K, nc))
+        if _is_axisymmetric(data_domain)
+            # The radial conductivity on the faces at a radius
+            K_r = first(data_domain[:radial_thermal_conductivity, Unit()])
+            ax = _axial_faces(data_domain)
+            T = T .* ax .+ Jutul.compute_face_trans(data_domain, fill(K_r, nc)) .* .!ax
+        end
     else
         error(":thermal_conductivity on Unit() must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end

@@ -26,6 +26,10 @@ include("haghpanah_cases.jl")
         include("flowsheet.jl")
     end
 
+    @testset "Axisymmetric beds" begin
+        include("axisymmetric.jl")
+    end
+
     @testset "Process metrics and cyclic steady state" begin
         include("process.jl")
     end

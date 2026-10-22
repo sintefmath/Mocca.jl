@@ -108,7 +108,15 @@ function _state_or_domain(state, model, symb::Symbol, key::Symbol, entity = Jutu
     end
 end
 
-_state_has(state::AbstractDict, k) = haskey(state, k)
-_state_has(state, k) = hasproperty(state, k)
+# Whether `state` holds `k`. The states Jutul passes to equations wrap the
+# state they evaluate (LocalStateAD and the like), whose fields are not its
+# variables, so those are looked up in what they wrap. For a NamedTuple, as the
+# states of an equation are, the answer is known when compiling, so a branch on
+# it costs nothing.
+@inline _state_has(state::NamedTuple, k) = hasproperty(state, k)
+@inline _state_has(state::AbstractDict, k) = haskey(state, k)
+@inline _state_has(state::Union{Jutul.LocalStateAD, Jutul.MultiModelLocalStateAD, Jutul.ValueStateAD}, k) =
+    _state_has(getfield(state, :data), k)
+@inline _state_has(state, k) = hasproperty(state, k)
 _state_get(state::AbstractDict, k) = state[k]
 _state_get(state, k) = getproperty(state, k)

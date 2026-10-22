@@ -65,4 +65,4 @@ end
 function Framework.energy_source_terms(sys::FixedBed)
     return has_wall(sys) ? (HeatOfSorption(), WallExchange()) : (HeatOfSorption(),)
 end
-Framework.wall_source_terms(::FixedBed) = (WallExchange(), AmbientLoss(), WallEndConduction())
+Framework.wall_source_terms(::FixedBed) = (WallExchange(), AmbientLoss(), WallEndConduction(), WallTie())

@@ -1,3 +1,58 @@
+# ------------------------------------------------------------------------------
+# Axisymmetric columns
+# ------------------------------------------------------------------------------
+
+# Volumes and face areas of the cells of the (z, r) plane of a column (see
+# column_mesh) as rings of the cylinder: a cell from r_i to r_o and Δz long
+# holds π(r_o² − r_i²)·Δz, a face across the axis is the ring's cross-section,
+# and a face at radius r is 2π·r·Δz. The centroids stay in the plane, so the
+# two-point fluxes run over distances along z and r.
+function _axisymmetric_geometry!(domain, mesh, r_in)
+    nz, nr, nk = Jutul.grid_dims_ijk(mesh)
+    nk == 1 || throw(ArgumentError("an axisymmetric column has a mesh of one cell in z, got $nk"))
+    radii = [0.0; cumsum(collect(mesh.deltas[2]))]
+    last(radii) ≈ r_in || throw(ArgumentError("the mesh reaches r = $(last(radii)), not the column radius $r_in"))
+    dz = domain[:dx]
+    ring(c) = (j = cld(c, nz); π * (radii[j + 1]^2 - radii[j]^2))
+    domain[:volumes] = [ring(c) * dz[c] for c in 1:(nz * nr)]
+    N, n, fc = domain[:neighbors], domain[:normals], domain[:face_centroids]
+    domain[:areas, Jutul.Faces()] = [abs(n[1, f]) > 0.5 ? ring(N[1, f]) : 2π * fc[2, f] * dz[N[1, f]] for f in axes(N, 2)]
+    bn, bc, bnb = domain[:boundary_normals], domain[:boundary_centroids], domain[:boundary_neighbors]
+    domain[:boundary_areas, Jutul.BoundaryFaces()] = [abs(bn[1, f]) > 0.5 ? ring(bnb[f]) :
+        (abs(bn[2, f]) > 0.5 ? 2π * bc[2, f] * dz[bnb[f]] : 0.0) for f in eachindex(bnb)]
+    domain[:radial_cells, Unit()] = nr
+    return domain
+end
+
+# Whether a data domain is the (z, r) plane of a column, set up by mocca_domain
+# with axisymmetric = true
+_is_axisymmetric(data_domain) = haskey(data_domain, :radial_cells, Unit())
+
+# Whether each face lies across the axis, between two cells along it
+_axial_faces(data_domain) = abs.(data_domain[:normals][1, :]) .> 0.5
+
+# The cells the wall touches: the outer ring of an axisymmetric column, and
+# every cell otherwise
+function _wall_cell_mask(data_domain)
+    nc = Jutul.number_of_cells(Jutul.physical_representation(data_domain))
+    _is_axisymmetric(data_domain) || return trues(nc)
+    nr = Int(first(data_domain[:radial_cells, Unit()]))
+    nz = nc ÷ nr
+    return [cld(c, nz) == nr for c in 1:nc]
+end
+
+"""
+    wall_cells(model) → Vector{Int}
+
+The cells of a distributed unit that its wall touches: the outer ring of a
+column meshed across its radius, and every cell of one that is not.
+"""
+wall_cells(model) = findall(_wall_cell_mask(model.data_domain))
+
+# ------------------------------------------------------------------------------
+
+# Inner or outer surface [m²] of the wall around each cell; zero for the cells
+# inside an axisymmetric column, which the wall does not touch
 struct WallArea{T} <: Jutul.ScalarVariable end
 
 function Jutul.default_parameter_values(data_domain, model, param::WallArea{T}, symb) where T
@@ -8,7 +63,7 @@ function Jutul.default_parameter_values(data_domain, model, param::WallArea{T}, 
         @assert T == :out
         r = first(data_domain[:r_out, Unit()])
     end
-    return 2π .* r .* dx  # Lateral surface area of cylindrical shell
+    return 2π .* r .* dx .* _wall_cell_mask(data_domain)  # Lateral surface area of cylindrical shell
 end
 
 struct CellDx <: Jutul.ScalarVariable end

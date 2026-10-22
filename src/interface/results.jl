@@ -262,10 +262,11 @@ function _bed_header(gas)
 end
 
 # Values of a bed state at `cells`, averaged over them (see
-# cross_section_mean), with the loading per kg of adsorbent
+# cross_section_mean), with the loading per kg of adsorbent. The wall
+# temperature is that of the cells the wall touches.
 function _bed_values(model, s, cells, density)
     m(v) = cross_section_mean(model, v, cells)
-    Tw = haskey(s, :WallTemperature) ? _degC(m(s[:WallTemperature])) : NaN
+    Tw = haskey(s, :WallTemperature) ? _degC(cross_section_mean(model, s[:WallTemperature], intersect(cells, wall_cells(model)))) : NaN
     return vcat(Any[_bara(m(s[:Pressure])), _degC(m(s[:Temperature])), Tw],
         _percent.(m(s[:y])), m(s[:AdsorbedConcentration]) ./ density)
 end

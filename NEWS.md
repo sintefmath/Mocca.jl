@@ -4,6 +4,17 @@
 
 ### New
 
+- **Axisymmetric beds.** A fixed bed can be meshed in the (z, r) plane of its
+  column: `column_mesh(ncells, L, r_in; radial_cells, radii)` and
+  `mocca_domain(mesh; axisymmetric = true, radial_diffusion_coefficient,
+  radial_thermal_conductivity, ...)` give cells that are rings of the
+  cylinder, with their volumes and face areas. The gas disperses and conducts
+  across the radius with its own coefficients (the `RadialDispersion`
+  parameter and the radial conductivity), and the wall touches the outer ring
+  only (`WallCells`, `wall_cells`); inside it the wall temperature follows the
+  gas. The ports are the end rings, so the bed connects to devices as a
+  column does, and a bed without radial gradients gives the column's results.
+  `add_bed!` does not build one yet.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -37,6 +48,12 @@
   and conduction along the wall from its own face parameter,
   `WallTransmissibilities`. A column gives the same results as before, to
   round-off.
+- **Parameters read in equations.** An equation that checks whether its
+  unit has a parameter, such as the `TimeScale` of the stage-duration
+  gradients, now finds it in the states Jutul evaluates equations on, whose
+  fields are not the state's variables. Before, the time scale was missed
+  when the equations were assembled with their derivatives; it is 1 in a
+  simulation, so results do not change.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a
