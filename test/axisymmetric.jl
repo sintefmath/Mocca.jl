@@ -2,6 +2,8 @@
 # dispersion and conduction across the radius, and the wall around the outer
 # ring.
 
+using Mocca.Units
+
 @testset "Axisymmetric column geometry" begin
     c = haghpanah_constants()
     radii = [0.0, 0.05, 0.11, c.r_in]
@@ -127,4 +129,87 @@ end
     n_in = Mocca.stream_totals(r.states, r.timesteps, :V_feed)
     n_out = Mocca.stream_totals(r.states, r.timesteps, :V_product) .+ Mocca.stream_totals(r.states, r.timesteps, :V_vacuum)
     @test held(r.states[end]) .- held(state0) ≈ n_in .- n_out rtol = 1e-7 atol = 1e-8 * sum(n_in)
+end
+
+# A column with the heat transfer a bed meshed across its radius needs; the
+# values are for testing, not from a source
+_radial_column(; kw...) = Column(; length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
+    axial_conductivity = 0.0903, radial_conductivity = 0.5, wall_heat_transfer = 30.0, kw...)
+
+@testset "Beds meshed across their radius in a flowsheet" begin
+    gas = Mocca.haghpanah_2013_gas()
+    a = load_adsorbent("zeolite_13x_haghpanah_2013")
+    fs = Flowsheet(gas, Feed(gas; composition = [0.15, 0.85], pressure = 1bar))
+    # The column must give the heat transfer across the radius
+    @test_throws MoccaInputError add_bed!(fs, :B, a, Mocca.haghpanah_2013_column(); ncells = 4, radial_cells = 3)
+    @test_throws MoccaInputError add_bed!(fs, :B, a, _radial_column(wall_heat_transfer = nothing); ncells = 4, radial_cells = 3)
+    add_bed!(fs, :B, a, _radial_column(wall_heat_transfer = nothing); ncells = 4, radial_cells = 3, thermal = Adiabatic())
+    @test_throws MoccaInputError add_bed!(fs, :C, a, _radial_column(); ncells = 4, radial_cells = 3, radii = [0.0, 0.1445])
+    @test_throws MoccaInputError add_bed!(fs, :C, a, _radial_column(); ncells = 4, radii = [0.0, 0.1445])
+    @test_throws MoccaInputError _radial_column(radial_conductivity = -1.0)
+
+    p = four_stage_vsa_process(ncells = 6, radial_cells = 3, column = _radial_column(), durations = (5.0, 5.0, 5.0, 5.0))
+    bed = p.flowsheet[:Bed]
+    @test length(Mocca.port_cells(bed, :bottom)) == 3
+    prm = p.parameters[:Bed]
+    # The wall coefficient is that of the gas next to the wall
+    @test only(prm[:InnerHeatTransferCoeff]) == 30.0
+    # The dispersion across the radius follows the adsorption velocity as the
+    # dispersion along it does
+    v, d_p = p.flowsheet.specs[:Bed].velocity_used, a.particle_diameter
+    @test only(prm[:RadialDispersion]) ≈ Mocca.compute_radial_dispersion(Mocca.axial_diffusivity(gas), v, d_p)
+    @test only(prm[:AxialDispersion]) ≈ Mocca.compute_dispersion(Mocca.axial_diffusivity(gas), v, d_p)
+    @test only(prm[:RadialDispersion]) < only(prm[:AxialDispersion])
+    @test contains(sprint(Mocca.print_flowsheet_diagram, p.flowsheet), "6 × 3 cells")
+    # A design variable can set it
+    add_variable!(p, :D_r, (:parameter, :Bed, :RadialDispersion))
+    p[:D_r] = 3e-4
+    @test only(p.parameters[:Bed][:RadialDispersion]) == 3e-4
+    # Grid sequencing interpolates along the column only, so it is left out
+    @test isnothing(Mocca.Interface._coarse_copy(p, 2))
+
+    # Written to a file and read back, the bed is the same
+    q = four_stage_vsa_process(ncells = 6, radial_cells = 3, column = _radial_column(), durations = (5.0, 5.0, 5.0, 5.0))
+    d = Mocca.process_to_dict(q)
+    @test d["units"][1]["radial_cells"] == 3
+    @test d["columns"][d["units"][1]["column"]]["wall_heat_transfer"] == 30.0
+    path = tempname() * ".json"
+    write_process(path, q)
+    q2 = read_process(path)
+    s1, s2 = q.flowsheet.specs[:Bed], q2.flowsheet.specs[:Bed]
+    @test s2.radial_cells == 3 && s2.column.radial_conductivity == 0.5 && s2.column.wall_heat_transfer == 30.0
+    @test all(q2.parameters[:Bed][k] ≈ q.parameters[:Bed][k] for k in keys(q.parameters[:Bed]))
+    @test performance(simulate(q2)).recovery ≈ performance(simulate(q)).recovery
+    # Uneven rings and a fixed radial dispersion are kept too
+    fs2 = Flowsheet(gas, Feed(gas; composition = [0.15, 0.85], pressure = 1bar))
+    add_bed!(fs2, :Bed, a, _radial_column(); ncells = 4, radial_cells = 2, radii = [0.0, 0.1, 0.1445], radial_dispersion = 1e-4)
+    add_device!(fs2, :V_feed, :feed; at = (:Bed, :bottom))
+    add_device!(fs2, :V_product, :product; at = (:Bed, :top))
+    p2 = Process(fs2, Cycle([Pressurise(5.0), Adsorb(5.0; velocity = 0.5)]))
+    @test only(p2.parameters[:Bed][:RadialDispersion]) == 1e-4
+    write_process(path, p2)
+    s = read_process(path).flowsheet.specs[:Bed]
+    @test s.radii == [0.0, 0.1, 0.1445] && s.radial_dispersion == 1e-4
+    # A bed of one radial cell writes nothing new
+    @test !haskey(Mocca.process_to_dict(four_stage_vsa_process(ncells = 6))["units"][1], "radial_cells")
+end
+
+@testset "Gradient with respect to the radial dispersion" begin
+    p = four_stage_vsa_process(ncells = 4, radial_cells = 2, column = _radial_column(), durations = (10.0, 15.0, 20.0, 25.0),
+        P_H = 1.1bar, timestepping = TimeStepping(max_dt = 1.0, first_dt = 0.05))
+    add_variable!(p, :D_r, (:parameter, :Bed, :RadialDispersion))
+    g = performance_gradient(p; progress = false)
+    @test g.steady_state.converged
+    # The radial dispersion changes the performance little, so the finite
+    # difference takes a large step to rise above the tolerance of the steady
+    # state
+    value() = performance(cyclic_steady_state(p; tol = 1e-11, progress = false))
+    x0 = p[:D_r]
+    h = 1e-2 * x0
+    p[:D_r] = x0 + h; up = value()
+    p[:D_r] = x0 - h; down = value()
+    p[:D_r] = x0
+    for k in (:purity, :recovery, :specific_energy, :productivity)
+        @test g.gradients[k][:D_r] ≈ (up[k] - down[k]) / 2h rtol = 1e-3
+    end
 end

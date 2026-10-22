@@ -33,7 +33,7 @@ export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
 export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
-export compute_permeability, compute_dispersion
+export compute_permeability, compute_dispersion, compute_radial_dispersion
 
 # User interface
 export Units, MoccaInputError, validate

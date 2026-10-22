@@ -69,6 +69,10 @@ valve size, tells the steps which device to open, and tells
 ```@docs
 Flowsheet
 add_bed!
+bed_dispersion
+bed_radial_dispersion
+compute_dispersion
+compute_radial_dispersion
 add_device!
 DEVICE_ROLES
 print_flowsheet_diagram

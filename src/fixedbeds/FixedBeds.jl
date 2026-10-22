@@ -10,8 +10,8 @@ using StaticArrays
 using ..Framework, ..Physics, ..Balances
 using ..Balances: _is_axisymmetric
 
-export AdsorptionModel, AdsorptionSystem, compute_dispersion, compute_permeability, FixedBed,
-    FixedBedModel
+export AdsorptionModel, AdsorptionSystem, compute_dispersion, compute_permeability,
+    compute_radial_dispersion, FixedBed, FixedBedModel
 
 include("system.jl")
 include("correlations.jl")

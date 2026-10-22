@@ -14,7 +14,15 @@
   only (`WallCells`, `wall_cells`); inside it the wall temperature follows the
   gas. The ports are the end rings, so the bed connects to devices as a
   column does, and a bed without radial gradients gives the column's results.
-  `add_bed!` does not build one yet.
+  `add_bed!(fs, name, adsorbent, column; radial_cells, radii,
+  radial_dispersion)` builds one, as do the presets with `radial_cells`; the
+  column then gives its `radial_conductivity` and `wall_heat_transfer`, the
+  coefficient between the gas next to the wall and the wall, which takes the
+  place of `inner_heat_transfer`. The radial dispersion is
+  `0.7 D_m + 0.1 v d_p` (`compute_radial_dispersion`, `bed_radial_dispersion`)
+  at the same velocity as the axial one, unless given. Process files read and
+  write these settings. Grid sequencing of the cyclic steady state is left out
+  for such beds for now.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,

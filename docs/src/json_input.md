@@ -87,8 +87,8 @@ The sections:
 | `gas` | The [`Gas`](@ref): its `components` in order (the first is the one to capture), and optional overrides. |
 | `feed` | The [`Feed`](@ref): `composition`, `temperature`, `pressure` and optionally `light_product`. |
 | `adsorbents` | By name: an adsorbent object (as in an adsorbent file), the name of a library adsorbent, or the path of an adsorbent file relative to the process file. |
-| `columns` | By name: [`Column`](@ref) objects. |
-| `units` | Beds, in order, as in [`add_bed!`](@ref). `thermal` is `"with_wall"`, `"adiabatic"` or `{"type": "isothermal", "temperature": ...}`. |
+| `columns` | By name: [`Column`](@ref) objects. A column for beds meshed across the radius also has `radial_conductivity` and `wall_heat_transfer`. |
+| `units` | Beds, in order, as in [`add_bed!`](@ref). `thermal` is `"with_wall"`, `"adiabatic"` or `{"type": "isothermal", "temperature": ...}`. A bed meshed across the radius has `radial_cells`, and optionally `radii` (the ring edges, from 0 to the column radius) and `radial_dispersion`. |
 | `devices` | Devices, in order, as in [`add_device!`](@ref): a `role`, and `at` (a `[unit, port]` pair) or, for a link, `from` and `to`. An optional `boundary` sets `pressure`, `temperature` and `composition`. |
 | `cycle` | `steps`, a list of steps; or `sequences`, a list of `{"label": ..., "steps": [...]}` run side by side, and an optional `cycle_time`. |
 | `time_stepping` | See [`TimeStepping`](@ref). |

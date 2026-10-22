@@ -100,7 +100,9 @@ function _process_parameters(p::Process)
     fs = p.flowsheet
     prm = setup_flowsheet_parameters(fs)
     for b in beds(fs)
-        get(fs.specs, b, nothing) isa BedSpec && (prm[b][:AxialDispersion] .= bed_dispersion(fs, b))
+        get(fs.specs, b, nothing) isa BedSpec || continue
+        prm[b][:AxialDispersion] .= bed_dispersion(fs, b)
+        haskey(prm[b], :RadialDispersion) && (prm[b][:RadialDispersion] .= bed_radial_dispersion(fs, b))
     end
     for (u, d) in p.parameter_settings
         haskey(prm, u) || input_error("parameters", String(u), "$u is not a unit of the flowsheet")
@@ -504,14 +506,14 @@ function _coarse_copy(p::Process, coarse_cells)
     fs = p.flowsheet
     bs = beds(fs)
     (isempty(bs) || !all(b -> haskey(fs.specs, b), bs)) && return nothing
+    # _interpolate_state interpolates along the column only
+    any(b -> fs.specs[b].radial_cells > 1, bs) && return nothing
     maximum(b -> fs.specs[b].ncells, bs) > coarse_cells || return nothing
     coarse = deepcopy(fs)
     for b in bs
         spec = coarse.specs[b]
         spec.ncells = max(cld(spec.ncells, 2), 2)
-        network(coarse).units[b] = fixed_bed_model(coarse.gas, coarse.feed, spec.adsorbent, spec.column; ncells = spec.ncells,
-            thermal = spec.thermal, dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion,
-            permeability = spec.permeability)
+        network(coarse).units[b] = _bed_model(coarse, spec)
     end
     o = p.options
     q = try
@@ -542,10 +544,10 @@ function _coarse_grids(p::Process, coarse_cells)
 end
 
 function _cells_text(p::Process)
-    n = [p.flowsheet.specs[b].ncells for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
+    n = [_cells_of(p.flowsheet.specs[b]) for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
     isempty(n) && return "the grid"
     allequal(n) && return "$(first(n)) cells" * (length(n) > 1 ? " per bed" : "")
-    return join(["$b $(p.flowsheet.specs[b].ncells)" for b in beds(p.flowsheet)], ", ") * " cells"
+    return join(["$b $(_cells_of(p.flowsheet.specs[b]))" for b in beds(p.flowsheet)], ", ") * " cells"
 end
 
 # The state `x` of the same process on another grid (see _coarse_copy), as a

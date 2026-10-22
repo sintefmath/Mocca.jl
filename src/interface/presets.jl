@@ -1,7 +1,9 @@
 # Ready-made processes from the literature, built on the user interface layer.
 # Each is a short composition of a gas, a feed, library adsorbents, columns,
 # devices with roles and a cycle of step templates, and serves as a template
-# for new processes.
+# for new processes. Each takes `radial_cells` for beds meshed across their
+# radius (see add_bed!), which need columns that give their radial heat
+# transfer; the library columns do not.
 
 # ------------------------------------------------------------------------------
 # Haghpanah et al. (2013): CO2/N2 on zeolite 13X
@@ -26,7 +28,7 @@ haghpanah_2013_column(; length = 1.0) = Column(; length = length, radius = 0.144
     inner_heat_transfer = 8.6, outer_heat_transfer = 2.5, ambient_temperature = 298.15)
 
 """
-    four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40.0),
+    four_stage_vsa_process(; ncells = 30, radial_cells = 1, durations = (15.0, 15.0, 30.0, 40.0),
         P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
         timestepping = TimeStepping(), name = "four-stage VSA")
 
@@ -40,14 +42,16 @@ to `P_L` [Pa].
     extract ──V_vacuum──┘
 
 As in the paper, vacuum pumps discharge at, and the feed compressor takes gas
-from, 1 bar.
+from, 1 bar. With `radial_cells` above 1 the bed is meshed across its radius
+(see [`add_bed!`](@ref)), and `column` must give its `radial_conductivity` and
+`wall_heat_transfer`.
 """
-function four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40.0), P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5,
+function four_stage_vsa_process(; ncells = 30, radial_cells = 1, durations = (15.0, 15.0, 30.0, 40.0), P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5,
         velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping(), name = "four-stage VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
     feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
     fs = Flowsheet(gas, feed)
-    add_bed!(fs, :Bed, adsorbent, column; ncells = ncells)
+    add_bed!(fs, :Bed, adsorbent, column; ncells = ncells, radial_cells = radial_cells)
     add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
     add_device!(fs, :V_product, :product; at = (:Bed, :top))
     add_device!(fs, :V_vacuum, :extract; at = (:Bed, :bottom))
@@ -62,7 +66,7 @@ function four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40
 end
 
 """
-    two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0,
+    two_bed_vsa_process(; ncells = 30, radial_cells = 1, feed_time = 15.0, pressurisation_time = 15.0,
         equalisation_time = 10.0, equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5,
         velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping())
 
@@ -92,14 +96,14 @@ After equalising, a bed is taken to be midway between the high and low
 pressures, where its pressurisation or evacuation starts. A bed evacuates
 through two stages, along one ramp to `P_L`.
 """
-function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_time = 15.0, equalisation_time = 10.0,
+function two_bed_vsa_process(; ncells = 30, radial_cells = 1, feed_time = 15.0, pressurisation_time = 15.0, equalisation_time = 10.0,
         equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
         timestepping = TimeStepping(), name = "two-bed VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
     feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
     fs = Flowsheet(gas, feed)
     for b in (:A, :B)
-        add_bed!(fs, b, adsorbent, column; ncells = ncells)
+        add_bed!(fs, b, adsorbent, column; ncells = ncells, radial_cells = radial_cells)
     end
     for b in (:A, :B)
         add_device!(fs, Symbol(:V_feed_, b), :feed; at = (b, :bottom))
@@ -155,7 +159,7 @@ const WET_FLUE_GAS_FEED = [0.15, 0.82, 0.03]
 _wet_feed(gas, P) = Feed(gas; composition = WET_FLUE_GAS_FEED, temperature = 298.15, pressure = P, light_product = (N2 = 1.0,))
 
 """
-    lpp_vsa_process(; ncells = 30, velocity = 0.45, t_lpp = 20.0, t_ads = 78.4, t_bd = 37.9,
+    lpp_vsa_process(; ncells = 30, radial_cells = 1, velocity = 0.45, t_lpp = 20.0, t_ads = 78.4, t_bd = 37.9,
         t_evac = 111.6, P_H = 101325.0, P_I = 0.08e5, P_L = 0.03e5, ramp_rate = 0.5,
         timestepping = TimeStepping())
 
@@ -167,11 +171,11 @@ operating conditions of its section 3.1. The light product is nitrogen.
                    bottom   Bed   top ──┤
     CO2 ◄─V_vacuum─┘                    └──V_lpp────── light product
 """
-function lpp_vsa_process(; ncells = 30, velocity = 0.45, t_lpp = 20.0, t_ads = 78.4, t_bd = 37.9, t_evac = 111.6,
+function lpp_vsa_process(; ncells = 30, radial_cells = 1, velocity = 0.45, t_lpp = 20.0, t_ads = 78.4, t_bd = 37.9, t_evac = 111.6,
         P_H = 101325.0, P_I = 0.08e5, P_L = 0.03e5, ramp_rate = 0.5, timestepping = TimeStepping(), name = "LPP VSA, wet flue gas", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_krishnamurthy_2014"), column = krishnamurthy_2014_column(), gas = krishnamurthy_2014_gas())
     fs = Flowsheet(gas, _wet_feed(gas, P_H))
-    add_bed!(fs, :Bed, adsorbent, column; ncells = ncells)
+    add_bed!(fs, :Bed, adsorbent, column; ncells = ncells, radial_cells = radial_cells)
     add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
     add_device!(fs, :V_product, :product; at = (:Bed, :top))
     add_device!(fs, :V_lpp, :light_inlet; at = (:Bed, :top))
@@ -186,7 +190,7 @@ function lpp_vsa_process(; ncells = 30, velocity = 0.45, t_lpp = 20.0, t_ads = 7
 end
 
 """
-    dual_adsorbent_vsa_process(; ncells = 30, silica_gel_length = 0.41, zeolite_length = 1.0,
+    dual_adsorbent_vsa_process(; ncells = 30, radial_cells = 1, silica_gel_length = 0.41, zeolite_length = 1.0,
         velocity = 0.70, t_press = 20.0, t_ads = 46.20,
         silica_gel = (t_bd = 42.21, t_evac = 46.02, P_I = 0.48e5, P_L = 0.30e5),
         zeolite = (t_bd = 56.30, t_evac = 101.20, P_I = 0.07e5, P_L = 0.03e5),
@@ -203,15 +207,15 @@ runs one sequence per bed side by side.
     H2O ◄─V_waste──┘                                 │                   └──V_lpp────── light product
                                           CO2 ◄─V_vacuum┘
 """
-function dual_adsorbent_vsa_process(; ncells = 30, silica_gel_length = 0.41, zeolite_length = 1.0, velocity = 0.70,
+function dual_adsorbent_vsa_process(; ncells = 30, radial_cells = 1, silica_gel_length = 0.41, zeolite_length = 1.0, velocity = 0.70,
         t_press = 20.0, t_ads = 46.20,
         silica_gel = (t_bd = 42.21, t_evac = 46.02, P_I = 0.48e5, P_L = 0.30e5),
         zeolite = (t_bd = 56.30, t_evac = 101.20, P_I = 0.07e5, P_L = 0.03e5),
         P_H = 101325.0, ramp_rate = 0.5, timestepping = TimeStepping(), name = "dual-adsorbent VSA, wet flue gas", initial_state = Dict{Symbol, Any}(),
         gas = krishnamurthy_2014_gas())
     fs = Flowsheet(gas, _wet_feed(gas, P_H))
-    add_bed!(fs, :SilicaGel, load_adsorbent("silica_gel_krishnamurthy_2014"), krishnamurthy_2014_column(; length = silica_gel_length); ncells = ncells)
-    add_bed!(fs, :Zeolite, load_adsorbent("zeolite_13x_krishnamurthy_2014"), krishnamurthy_2014_column(; length = zeolite_length); ncells = ncells)
+    add_bed!(fs, :SilicaGel, load_adsorbent("silica_gel_krishnamurthy_2014"), krishnamurthy_2014_column(; length = silica_gel_length); ncells = ncells, radial_cells = radial_cells)
+    add_bed!(fs, :Zeolite, load_adsorbent("zeolite_13x_krishnamurthy_2014"), krishnamurthy_2014_column(; length = zeolite_length); ncells = ncells, radial_cells = radial_cells)
     add_device!(fs, :V_feed, :feed; at = (:SilicaGel, :bottom))
     add_device!(fs, :V_waste, :waste; at = (:SilicaGel, :bottom))
     add_device!(fs, :V_link, :link; from = (:SilicaGel, :top), to = (:Zeolite, :bottom))

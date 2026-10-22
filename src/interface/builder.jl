@@ -13,6 +13,9 @@ mutable struct BedSpec
     dispersion::Union{Nothing, Float64}
     permeability::Union{Nothing, Float64}
     velocity_used::Float64
+    radial_cells::Int
+    radii::Union{Nothing, Vector{Float64}}
+    radial_dispersion::Union{Nothing, Float64}
 end
 
 """
@@ -53,20 +56,44 @@ end
 
 """
     fixed_bed_model(gas, feed, adsorbent, column; ncells = 30, thermal = WithWall(),
-        dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing)
+        dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing,
+        radial_cells = 1, radii = nothing, radial_dispersion = nothing)
 
 The model of a fixed bed of `adsorbent` packed in `column`, for `gas`, on
-`ncells` cells. The permeability (Kozeny–Carman, from the bed porosity and
-particle size) and the axial dispersion (`0.7 D_m + 0.5 v d_p`, at the
-interstitial `dispersion_velocity` [m/s]) are computed unless given. The gas
-viscosity defaults to that of the `feed`; see [`Gas`](@ref).
+`ncells` cells along the column. The permeability (Kozeny–Carman, from the
+bed porosity and particle size) and the axial dispersion (`0.7 D_m + 0.5 v
+d_p`, at the interstitial `dispersion_velocity` [m/s]) are computed unless
+given. The gas viscosity defaults to that of the `feed`; see [`Gas`](@ref).
+
+With `radial_cells` above 1, each of the cells along the column is split into
+rings, uniform in radius unless `radii` gives their edges from 0 to the
+column radius, and the gas disperses and conducts across the radius as well
+(see [`column_mesh`](@ref) and [`mocca_domain`](@ref)). The radial dispersion
+is `0.7 D_m + 0.1 v d_p` (see [`compute_radial_dispersion`](@ref)) unless
+`radial_dispersion` gives it, and the column must give its
+`radial_conductivity` and, for a bed with a wall, its `wall_heat_transfer`,
+which takes the place of `inner_heat_transfer` (see [`Column`](@ref)).
 """
 function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
-        dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing)
+        dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing,
+        radial_cells = 1, radii = nothing, radial_dispersion = nothing)
     loc = isempty(adsorbent.name) ? "bed" : "bed of $(adsorbent.name)"
     ncells >= 2 || input_error(loc, "ncells", "needs at least 2 cells, got $ncells")
+    radial_cells >= 1 || input_error(loc, "radial_cells", "needs at least 1 cell, got $radial_cells")
     thermal isa WithWall && column.outer_radius <= column.radius &&
         input_error(loc, "column", "a bed with a wall needs the column's outer_radius; use thermal = Adiabatic() for a bed without one")
+    radial = radial_cells > 1
+    if radial
+        has_energy_balance_ = !(thermal isa Isothermal)
+        has_energy_balance_ && isnothing(column.radial_conductivity) &&
+            input_error(loc, "column", "a bed with radial_cells needs the column's radial_conductivity")
+        thermal isa WithWall && isnothing(column.wall_heat_transfer) &&
+            input_error(loc, "column", "a bed with radial_cells and a wall needs the column's wall_heat_transfer")
+        isnothing(radii) || length(radii) == radial_cells + 1 ||
+            input_error(loc, "radii", "needs radial_cells + 1 = $(radial_cells + 1) ring edges, got $(length(radii))")
+    else
+        isnothing(radii) || input_error(loc, "radii", "are only used with radial_cells above 1")
+    end
     system = FixedBed(;
         isotherm = isotherm(adsorbent, gas),
         mass_transfer = mass_transfer(adsorbent, gas),
@@ -77,8 +104,14 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         thermal = thermal)
     perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
     disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas), dispersion_velocity, adsorbent.particle_diameter) : dispersion
-    mesh = column_mesh(ncells, column.length, column.radius)
-    domain = mocca_domain(mesh;
+    mesh = radial ? column_mesh(ncells, column.length, column.radius; radial_cells = radial_cells, radii = radii) :
+        column_mesh(ncells, column.length, column.radius)
+    radial_kw = radial ? (axisymmetric = true,
+        radial_diffusion_coefficient = isnothing(radial_dispersion) ?
+            compute_radial_dispersion(axial_diffusivity(gas), dispersion_velocity, adsorbent.particle_diameter) : radial_dispersion,
+        radial_thermal_conductivity = something(column.radial_conductivity, column.axial_conductivity)) : (;)
+    h_in = radial && thermal isa WithWall ? column.wall_heat_transfer : column.inner_heat_transfer
+    domain = mocca_domain(mesh; radial_kw...,
         porosity = column.porosity, permeability = perm,
         r_in = column.radius, r_out = column.outer_radius,
         diffusion_coefficient = disp, thermal_conductivity = column.axial_conductivity,
@@ -88,7 +121,7 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         wall_heat_capacity = column.wall.heat_capacity,
         wall_conductivity = column.wall.conductivity,
         fluid_viscosity = gas_viscosity(gas, feed.composition),
-        inner_htc = column.inner_heat_transfer,
+        inner_htc = h_in,
         outer_htc = column.outer_heat_transfer,
         ambient_temperature = column.ambient_temperature)
     return setup_process_model(system, domain)
@@ -96,7 +129,8 @@ end
 
 """
     add_bed!(fs, name, adsorbent, column; ncells = 30, thermal = WithWall(),
-        dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing)
+        dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing,
+        radial_cells = 1, radii = nothing, radial_dispersion = nothing)
 
 Add a fixed bed of `adsorbent` in `column` to the flowsheet under `name`. Its
 ports are `:bottom` and `:top`.
@@ -107,22 +141,46 @@ of the bed's adsorption step when a [`Process`](@ref) is built, or the largest
 adsorption velocity in the cycle for a bed fed from another; it then stays
 fixed as settings change. Give a velocity [m/s], or the `dispersion` [m²/s]
 itself, to fix it. It is the bed's `AxialDispersion` parameter, so it can also
-be set through `parameters` of a `Process` or a design variable. See
+be set through `parameters` of a `Process` or a design variable.
+
+With `radial_cells` above 1 the bed is meshed across its radius too, in rings
+from the axis to the wall, and resolves the gradients across it: the column
+must then give its `radial_conductivity` and `wall_heat_transfer` (see
+[`Column`](@ref)). Its ports are the end rings, so the devices, steps and
+results are those of a bed of one radial cell. The radial dispersion follows
+the same velocity as the axial one, unless `radial_dispersion` [m²/s] fixes
+it, and is the bed's `RadialDispersion` parameter. See
 [`fixed_bed_model`](@ref) for the other keywords.
 """
 function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
-        dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing)
+        dispersion_velocity = :adsorption, dispersion = nothing, permeability = nothing,
+        radial_cells = 1, radii = nothing, radial_dispersion = nothing)
     dispersion_velocity isa Symbol && dispersion_velocity != :adsorption &&
         input_error("bed $name", "dispersion_velocity", "use :adsorption or a velocity in m/s, got $dispersion_velocity")
     v = dispersion_velocity isa Symbol ? 1.0 : Float64(dispersion_velocity)
     model = _at(() -> fixed_bed_model(fs.gas, fs.feed, adsorbent, column; ncells = ncells, thermal = thermal,
-        dispersion_velocity = v, dispersion = dispersion, permeability = permeability), "bed $name")
+        dispersion_velocity = v, dispersion = dispersion, permeability = permeability,
+        radial_cells = radial_cells, radii = radii, radial_dispersion = radial_dispersion), "bed $name")
     add_unit!(fs, name, model)
     fs.specs[name] = BedSpec(adsorbent, column, ncells, thermal,
         dispersion_velocity isa Symbol ? dispersion_velocity : Float64(dispersion_velocity),
-        isnothing(dispersion) ? nothing : Float64(dispersion), isnothing(permeability) ? nothing : Float64(permeability), v)
+        isnothing(dispersion) ? nothing : Float64(dispersion), isnothing(permeability) ? nothing : Float64(permeability), v,
+        radial_cells, isnothing(radii) ? nothing : collect(Float64, radii),
+        isnothing(radial_dispersion) ? nothing : Float64(radial_dispersion))
     return fs
 end
+
+# The bed as add_bed! built it from `spec`, on `ncells` cells along the column
+# and `radial_cells` across it
+function _bed_model(fs::Flowsheet, spec::BedSpec; ncells = spec.ncells, radial_cells = spec.radial_cells)
+    radii = radial_cells == spec.radial_cells ? spec.radii : nothing
+    return fixed_bed_model(fs.gas, fs.feed, spec.adsorbent, spec.column; ncells = ncells, thermal = spec.thermal,
+        dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion, permeability = spec.permeability,
+        radial_cells = radial_cells, radii = radii, radial_dispersion = spec.radial_dispersion)
+end
+
+# The cells of a bed, as in "30" or "30 × 4" for one meshed across its radius
+_cells_of(spec::BedSpec) = spec.radial_cells > 1 ? "$(spec.ncells) × $(spec.radial_cells)" : "$(spec.ncells)"
 
 """
     bed_dispersion(fs, name) → Float64
@@ -134,6 +192,19 @@ function bed_dispersion(fs::Flowsheet, name::Symbol)
     spec = fs.specs[name]
     isnothing(spec.dispersion) || return spec.dispersion
     return compute_dispersion(axial_diffusivity(fs.gas), spec.velocity_used, spec.adsorbent.particle_diameter)
+end
+
+"""
+    bed_radial_dispersion(fs, name) → Float64
+
+Radial dispersion [m²/s] of bed `name`, added with [`add_bed!`](@ref) with
+`radial_cells` above 1: the `radial_dispersion` given, or
+`0.7 D_m + 0.1 v d_p` at the velocity the axial dispersion was set for.
+"""
+function bed_radial_dispersion(fs::Flowsheet, name::Symbol)
+    spec = fs.specs[name]
+    isnothing(spec.radial_dispersion) || return spec.radial_dispersion
+    return compute_radial_dispersion(axial_diffusivity(fs.gas), spec.velocity_used, spec.adsorbent.particle_diameter)
 end
 
 "Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."
@@ -297,7 +368,7 @@ print_flowsheet_diagram(fs::AbstractFlowsheet) = print_flowsheet_diagram(stdout,
 function print_flowsheet_diagram(io::IO, fs::AbstractFlowsheet)
     for u in holdup_units(fs)
         spec = _unit_spec(fs, u)
-        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells" : string(nameof(typeof(fs[u].system)))
+        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(_cells_of(spec)) cells" : string(nameof(typeof(fs[u].system)))
         println(io, "  ", u, ": ", desc)
         for p in keys(ports(fs[u]))
             ds = devices_at(fs, u, p)
