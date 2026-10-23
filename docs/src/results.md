@@ -131,6 +131,7 @@ Markdown.parse(join([line(rows[1]); "|" * repeat(" --- |", length(cols)); line.(
 | `stream_history.csv` | Flow, composition, temperature and pressures of every device at every time step |
 | `bed_history.csv` | Pressure, temperatures, gas composition and loading at both ends of each bed at every time step |
 | `bed_profiles.csv` | The same along each bed, at the start of the cycle and the end of each stage |
+| `bed_fields.csv` | The same for every cell of the beds meshed across their radius, with the radius of its ring; only for such beds |
 | `process.json` | The process, to read back with [`read_process`](@ref) |
 
 The time series have one row per time step and device (or bed end), with the
@@ -243,6 +244,49 @@ and along the bed at the end of the cycle:
 ```@example results
 Mocca.plot_state_comparison([label => first(r)[end] for (label, r) in runs], bed)
 ```
+
+### Across the radius
+
+For a bed meshed across its radius (see
+[Beds meshed across their radius](@ref)), the plots along the bed and the bed
+ends show means over the cross-section, and two more show the field across
+it. Here the first cycle of the four-step VSA, from a bed of nitrogen, in a
+column of low radial conductivity, on 20 × 6 cells:
+
+```@example results
+column = Mocca.Column(; length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
+    radial_conductivity = 0.2, wall_heat_transfer = 30.0)
+radial = Mocca.four_stage_vsa_process(ncells = 20, radial_cells = 6, column = column)
+result_radial = Mocca.simulate(radial)
+radial_bed = radial.flowsheet[:Bed]
+nothing # hide
+```
+
+[`plot_bed_section`](@ref) cuts through the bed along its axis, mirrored
+about it, with the wall on either side. At the end of adsorption, 30 s into
+the cycle, the heat of adsorption has warmed the bottom of the bed, and the
+wall has begun to cool the outer ring:
+
+```@example results
+k = findlast(<=(30.0), cumsum(result_radial.timesteps))
+Mocca.plot_bed_section(result_radial.states[k], radial_bed; unit = :Bed, radial_scale = 2)
+```
+
+[`plot_radial_profiles`](@ref) draws the profiles from the axis to the wall,
+at positions along the bed and at times, with the wall temperature as a
+square:
+
+```@example results
+Mocca.plot_radial_profiles(result_radial.states, result_radial.timesteps, radial_bed, [15.0, 30.0, 60.0, 100.0];
+    unit = :Bed, positions = [0.1, 0.25],
+    labels = ["end of pressurisation", "end of adsorption", "end of blowdown", "end of evacuation"])
+```
+
+[`write_results`](@ref) adds `bed_fields.csv`, with every cell of the bed and
+the radius of its ring, and the summary gives the largest temperature
+difference across the radius over the last cycle. [`plot_cell`](@ref) takes a
+port, such as `:top`, for the mean over that end of the bed, or a cell
+`(i, j)`, `i`-th along the column and in ring `j` from the axis.
 
 ```@docs
 ProcessResult

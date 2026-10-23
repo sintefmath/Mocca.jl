@@ -32,6 +32,12 @@
   and `plot_radial_profiles` profiles across the radius. `plot_cell` and
   `plot_cell_comparison` take a port (`:top`, `:bottom`), the mean over its
   cross-section, or a cell `(i, j)` along the column and across the radius.
+  The wall exchanges heat with the outer ring through the film and the half
+  of the ring between its centre and the wall (`RingWallResistance`), which
+  makes the cooling of a bed by conduction alone match the series solution to
+  second order in the width of the rings. The manual describes the model, its
+  discretisation and its verification, and the example "A column with a
+  cooled wall, across its radius" compares such a bed with a 1D one.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,

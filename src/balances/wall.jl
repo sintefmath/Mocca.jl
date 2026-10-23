@@ -47,6 +47,27 @@ function Jutul.default_parameter_values(data_domain, model, ::WallCells, symb)
     return Float64.(_wall_cell_mask(data_domain))
 end
 
+"""
+    RingWallResistance
+
+In a column meshed across its radius, the resistance [m²·K/W], per unit area
+of the inner wall surface, of conduction across the bed from the centre of a
+cell of the outer ring to the wall, `r_in·ln(r_in/r_c)/λ_r`, in series with
+the wall coefficient `h_w`: the gas exchanges `A_in·(T − T_w)/(1/h_w + R)`
+with the wall. It is zero in the cells inside the ring. Without it, as in a
+1D column, whose wall coefficient lumps the resistance of the whole
+cross-section, the coefficient applies to the cell's temperature.
+"""
+struct RingWallResistance <: Jutul.ScalarVariable end
+Jutul.minimum_value(::RingWallResistance) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, ::RingWallResistance, symb)
+    r_in = first(data_domain[:r_in, Unit()])
+    λ_r = first(data_domain[:radial_thermal_conductivity, Unit()])
+    r_c = data_domain[:cell_centroids][2, :]
+    return [w ? r_in * log(r_in / r_c[c]) / λ_r : 0.0 for (c, w) in enumerate(_wall_cell_mask(data_domain))]
+end
+
 # Whether the wall touches `cell`, as a number
 @inline _at_wall(state, cell) = _state_has(state, :WallCells) ? state.WallCells[cell] : true
 
@@ -110,13 +131,16 @@ function Jutul.update_equation_in_entity!(
 end
 
 """
-Heat exchange between the gas and the inner wall surface, `A_in·h_in·(T − T_w)`.
-It cools the gas and heats the wall.
+Heat exchange between the gas and the inner wall surface, `A_in·h_in·(T − T_w)`,
+or, in a column meshed across its radius, `A_in·(T − T_w)/(1/h_in + R)` with
+`R` the [`RingWallResistance`](@ref). It cools the gas and heats the wall.
 """
 struct WallExchange <: AbstractSourceTerm end
 
 @inline function _wall_exchange(state, cell)
-    return state.WallAreaIn[cell] * state.InnerHeatTransferCoeff[1] * (state.Temperature[cell] - state.WallTemperature[cell])
+    h = state.InnerHeatTransferCoeff[1]
+    U = _state_has(state, :RingWallResistance) ? h / (1 + h * state.RingWallResistance[cell]) : h
+    return state.WallAreaIn[cell] * U * (state.Temperature[cell] - state.WallTemperature[cell])
 end
 
 @inline Framework.energy_source(::WallExchange, model, state, state0, cell, Δt) = -_wall_exchange(state, cell)

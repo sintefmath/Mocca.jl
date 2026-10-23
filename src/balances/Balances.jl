@@ -20,12 +20,12 @@ export AdsorbedConcentration, AdsorbedLoading, AdsorbedPhaseHeatCapacity, Adsorb
     compute_column_face_area, ConservedPressure, DispersionTransmissibilities,
     EnthalpyChange, FluidViscosity, FluidVolume, HeatOfSorption, InnerHeatTransferCoeff,
     mocca_domain, MolarConcentration, OuterHeatTransferCoeff, Permeability,
-    RadialDispersion, RadialDispersionTransmissibilities, setup_process_model,
-    setup_process_parameters, setup_process_state, SolidHeatCapacity, SorptionUptake,
-    SpecificHeatCapacityAdsorbent, SpecificHeatCapacityFluid, ThermalConductivities,
-    TimeScale, TotalMolarConcentration, wall_cells, WallArea, WallCells, WallConductivity,
-    WallCrossSectionArea, WallDensity, WallEndConduction, WallEnergy, WallExchange,
-    WallHeatCapacity, WallTie, WallTransmissibilities
+    RadialDispersion, RadialDispersionTransmissibilities, RingWallResistance,
+    setup_process_model, setup_process_parameters, setup_process_state, SolidHeatCapacity,
+    SorptionUptake, SpecificHeatCapacityAdsorbent, SpecificHeatCapacityFluid,
+    ThermalConductivities, TimeScale, TotalMolarConcentration, wall_cells, WallArea,
+    WallCells, WallConductivity, WallCrossSectionArea, WallDensity, WallEndConduction,
+    WallEnergy, WallExchange, WallHeatCapacity, WallTie, WallTransmissibilities
 
 include("geometry.jl")
 include("unit_parameters.jl")

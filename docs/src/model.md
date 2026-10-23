@@ -5,7 +5,9 @@ CurrentModule = Mocca
 # Model equations
 
 A fixed bed in Mocca is a one-dimensional, axially dispersed plug flow model
-of a packed column, as in Haghpanah et al. (2013). The gas is ideal, flow
+of a packed column, as in Haghpanah et al. (2013), or, with `radial_cells`,
+one that also resolves the column's radius (see
+[Beds meshed across their radius](@ref)). The gas is ideal, flow
 follows Darcy's law, mass transfer to the sorbent is a linear driving force,
 and the energy balance covers the gas, the sorbent and the column wall. The
 beds are connected to the feed, products and each other through flow devices
@@ -418,6 +420,100 @@ The `thermal` keyword of [`add_bed!`](@ref) chooses the energy model:
 | `Adiabatic()` | Column energy balance without the wall term (``h_{in} = 0``) |
 | `Isothermal(T)` | Temperature fixed at `T`, no energy balance |
 
+## Beds meshed across their radius
+
+With `radial_cells` in [`add_bed!`](@ref), the bed resolves the gradients
+across its radius as well as along it: the variables depend on ``z`` and the
+radius ``r``, and the bed is symmetric about its axis. This matters where
+heat leaves or enters through the wall faster than it crosses the bed, which
+the Biot number of the cross-section measures,
+
+```math
+\mathrm{Bi} = \frac{h_w\, r_{in}}{K_r}.
+```
+
+Well below 1 the temperature is nearly flat across the radius and the 1D bed
+is enough; around 1 and above, the centre and the wall differ. Large columns,
+beds of low conductivity and strong heat exchange at the wall raise it.
+
+### Balances
+
+The component mass balance gains dispersion and flow across the radius,
+
+```math
+\varepsilon \frac{\partial c_i}{\partial t}
++ \frac{\partial (u_z c_i)}{\partial z}
++ \frac{1}{r}\frac{\partial (r\, u_r c_i)}{\partial r}
+- \frac{\partial}{\partial z}\left(\varepsilon D_L C \frac{\partial y_i}{\partial z}\right)
+- \frac{1}{r}\frac{\partial}{\partial r}\left(r\, \varepsilon D_R C \frac{\partial y_i}{\partial r}\right)
++ (1-\varepsilon)\frac{\partial q_i}{\partial t} = 0,
+```
+
+with Darcy's law in both directions, ``u_z = -(k/\mu)\,\partial P/\partial z``
+and ``u_r = -(k/\mu)\,\partial P/\partial r``. The radial dispersion is
+
+```math
+D_R = 0.7\, D_m + 0.1\, v_0\, d_p,
+```
+
+the form of the axial dispersion with a radial Péclet number ``v_0 d_p / D_R``
+of 10 at high velocity instead of 2 (see
+[`compute_radial_dispersion`](@ref)); give `radial_dispersion` to
+[`add_bed!`](@ref) to set it yourself. The energy balance of the column gains
+conduction across the radius, ``\frac{1}{r}\frac{\partial}{\partial r}\left(r
+K_r \frac{\partial T}{\partial r}\right)``, and the flow of enthalpy across it,
+and loses the wall term, which becomes a boundary condition.
+
+### The wall
+
+The wall surrounds the bed at ``r = r_{in}``, where the heat conducted to it
+crosses a film at the wall,
+
+```math
+-K_r \frac{\partial T}{\partial r}\bigg|_{r_{in}} = h_w \left(T(r_{in}) - T_w\right),
+```
+
+and the wall energy balance is that of the 1D bed with ``h_w`` and the gas
+temperature at the wall in place of ``h_{in}`` and ``T``. At the axis the
+gradients vanish. ``h_w`` (`wall_heat_transfer` of [`Column`](@ref)) is the
+coefficient of the film alone: the ``h_{in}`` of a 1D bed (`inner_heat_transfer`)
+also lumps the resistance of the bed across its radius. For heat released
+evenly in the bed, the 1D bed whose mean temperature is that of the bed
+across its radius has
+
+```math
+\frac{1}{h_{in}} = \frac{1}{h_w} + \frac{r_{in}}{4 K_r},
+```
+
+which [`cyclic_steady_state`](@ref) uses for the 1D bed it starts a radial
+bed's steady state from.
+
+### Discretisation
+
+Each of the `ncells` cells along the column is split into `radial_cells`
+rings, uniform in radius unless `radii` gives their edges. A ring from
+``r_1`` to ``r_2`` holds ``\pi (r_2^2 - r_1^2)\,\Delta z``; the face between
+two rings at radius ``r`` has the area ``2\pi r\, \Delta z``, and the face
+between two cells along the column the ring's cross-section. The fluxes are
+two-point, as along the column, over the distances between the centres of
+the rings.
+
+- The ports are the rings at each end. A stream into the bed is shared
+  between them as their cross-sections are; a stream out of it takes each
+  ring's own gas, and the device sees the rings mixed, at the mixing-cup
+  temperature, so that every component and the enthalpy are conserved.
+- The wall exchanges heat with the outer ring only, through the film and the
+  half of the ring between its centre and the wall,
+  ``1/h = 1/h_w + r_{in} \ln(r_{in}/r_c)/K_r`` for the ring's centre ``r_c``
+  ([`RingWallResistance`](@ref)). Without the half ring the error would be
+  first order in the width of the rings; with it, the cooling of a bed by
+  conduction alone matches the series solution to second order (see
+  [Conduction across the radius](@ref)).
+- The cells inside the outer ring have no wall: their wall temperature
+  follows their gas temperature, and has no meaning.
+
+A bed of one radial cell is the 1D bed of the sections above.
+
 ## Flow devices and boundary conditions
 
 Each end of a bed (`:bottom` at ``z = 0``, `:top` at ``z = L``) connects to one
@@ -530,8 +626,9 @@ end, ``\Phi(x)``. Performance is measured at the cyclic steady state,
 
 ## Numerical method
 
-Each bed is divided into `ncells` equal cells (30 by default). Fluxes between
-cells are two-point, with upwinded advection, and time stepping is fully
+Each bed is divided into `ncells` equal cells (30 by default), and each of
+those into `radial_cells` rings for a bed meshed across its radius. Fluxes
+between cells are two-point, with upwinded advection, and time stepping is fully
 implicit (backward Euler), solved by Newton's method with exact derivatives
 from automatic differentiation. Each step of the cycle starts with time steps
 of `first_dt` that double up to `max_dt` (see [`TimeStepping`](@ref)), which
@@ -552,11 +649,14 @@ optimisation come from the adjoint of the same discrete equations.
 | ``C_v`` | Valve conductance | m³/(s·Pa) | step `conductance` |
 | ``d_p`` | Particle diameter | m | [`Adsorbent`](@ref) `particle_diameter` |
 | ``D_L`` | Axial dispersion coefficient | m²/s | computed, or [`add_bed!`](@ref) `dispersion` |
+| ``D_R`` | Radial dispersion coefficient | m²/s | computed, or [`add_bed!`](@ref) `radial_dispersion` |
 | ``D_m`` | Molecular diffusivity | m²/s | [`Gas`](@ref) `diffusivity` |
 | ``F`` | Molar flow through a device | mol/s | state |
 | ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
+| ``h_w`` | Heat transfer coefficient of the film at the wall, for a bed meshed across its radius | W/(m²·K) | [`Column`](@ref) `wall_heat_transfer` |
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
 | ``K_z`` | Axial thermal conductivity of the bed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
+| ``K_r`` | Radial thermal conductivity of the bed | W/(m·K) | [`Column`](@ref) `radial_conductivity` |
 | ``K_w`` | Thermal conductivity of the wall | W/(m·K) | [`Wall`](@ref) `conductivity` |
 | ``L`` | Column length | m | [`Column`](@ref) `length` |
 | ``M_i`` | Molar mass | kg/mol | [`Gas`](@ref) `molar_masses` |
@@ -564,9 +664,11 @@ optimisation come from the adjoint of the same discrete equations.
 | ``q_i,\ q_i^*`` | Loading and equilibrium loading | mol/m³ adsorbent | state |
 | ``q_{sb}, q_{sd}`` | Saturation capacity, sites b and d | mol/m³ adsorbent | isotherm `qsb`, `qsd` |
 | ``r_{in}, r_{out}`` | Inner and outer radius of the column wall | m | [`Column`](@ref) `radius`, `outer_radius` |
+| ``r`` | Radius, from the axis of the column | m | |
 | ``R`` | Gas constant, 8.314 | J/(mol·K) | |
 | ``T,\ T_w,\ T_a`` | Gas and sorbent, wall and ambient temperature | K | state; [`Column`](@ref) `ambient_temperature` |
 | ``u,\ v`` | Superficial and interstitial velocity | m/s | state; step `velocity` |
+| ``u_z,\ u_r`` | Superficial velocity along the column and across its radius | m/s | state |
 | ``y_i`` | Gas mole fraction | – | state |
 | ``\Delta U_b, \Delta U_d`` | Internal energy of adsorption, sites b and d | J/mol | isotherm `ΔUb`, `ΔUd` |
 | ``\varepsilon`` | Bed porosity (void fraction between particles) | – | [`Column`](@ref) `porosity` |

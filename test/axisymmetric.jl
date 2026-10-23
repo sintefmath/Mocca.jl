@@ -330,3 +330,51 @@ end
     st = Mocca.setup_unit_state(uneven; pressure = 1e5, temperature = 300.0, composition = [0.15, 0.85])
     @test plot_bed_section(st, uneven) isa P.Figure
 end
+
+@testset "Transient conduction across the radius" begin
+    # A bed of argon, which the sorbent does not take up (CO2 and N2 in
+    # traces, for the isotherm), at 320 K inside a wall held at 300 K by a
+    # large heat capacity and wall coefficient, without flow: it cools by
+    # conduction across the radius alone, as the series solution
+    #   θ = Σ 2/(β J1(β)) J0(β r/R) exp(−β² Fo),   J0(β) = 0
+    # Bessel functions from their integrals, which the trapezoidal rule
+    # converges fast on
+    J(n, x; m = 400) = sum(cos(n * τ - x * sin(τ)) for τ in range(0, π, length = m + 1)[1:(end - 1)] .+ π / 2m) / m
+    β = map(1:8) do k
+        x = (k - 0.25) * π
+        for _ in 1:20
+            x += J(0, x) / J(1, x)
+        end
+        x
+    end
+    θ(r, Fo) = sum(2 / (b * J(1, b)) * J(0, b * r) * exp(-b^2 * Fo) for b in β)
+    gas = Gas(["CO2", "N2", "Ar"])
+    y = [1e-9, 1e-9, 1 - 2e-9]
+    λ_r, R, t_end = 5.0, 0.1445, 300.0
+    function error_at_end(nr; resistance = true)
+        col = Column(; length = 0.2, radius = R, outer_radius = 0.162, porosity = 0.37, radial_conductivity = λ_r,
+            wall_heat_transfer = 1e6, wall = Wall(density = 1e6, heat_capacity = 1e4), outer_heat_transfer = 0.0)
+        fs = Flowsheet(gas, Feed(gas; composition = y, pressure = 1bar))
+        add_bed!(fs, :Bed, load_adsorbent("zeolite_13x_haghpanah_2013"), col; ncells = 2, radial_cells = nr, dispersion_velocity = 1.0)
+        add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+        add_device!(fs, :V_product, :product; at = (:Bed, :top))
+        p = Process(fs, Cycle([Idle(t_end)]); timestepping = TimeStepping(max_dt = 2.0, first_dt = 2.0),
+            initial_state = Dict(:Bed => (pressure = 1bar, temperature = 320.0, wall_temperature = 300.0, composition = y)))
+        resistance || (p.parameters[:Bed][:RingWallResistance] .= 0.0)
+        s = simulate(p).states[end][:Bed]
+        bed, prm = p.flowsheet[:Bed], p.parameters[:Bed]
+        # The heat capacity of the sorbent; that of the gas is a thousandth of it
+        C = prm[:SolidVolume][1] * prm[:AdsorbentDensity][1] * prm[:AdsorbentHeatCapacity][1] / bed.data_domain[:volumes][1]
+        Fo = λ_r / C * t_end / R^2
+        r_c = bed.data_domain[:cell_centroids][2, 1:2:end]
+        return maximum(abs.(s[:Temperature][1:2:end] .- (300 .+ 20 .* θ.(r_c ./ R, Fo)))) / 20
+    end
+    e4, e8 = error_at_end(4), error_at_end(8)
+    # Second order across the radius, with the conduction across the half
+    # ring between the outer ring's centre and the wall
+    @test e8 < 0.01
+    @test e4 / e8 > 3
+    # Without it the wall takes the heat as if the outer ring were at the
+    # wall, and the error is first order and larger
+    @test error_at_end(8; resistance = false) > 5 * e8
+end

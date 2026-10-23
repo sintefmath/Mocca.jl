@@ -555,7 +555,7 @@ end
 
 # Parameters of a bed meshed across its radius that a bed of one radial cell
 # does not have
-const RADIAL_PARAMETERS = (:RadialDispersion, :RadialDispersionTransmissibilities, :WallCells)
+const RADIAL_PARAMETERS = (:RadialDispersion, :RadialDispersionTransmissibilities, :WallCells, :RingWallResistance)
 
 # The wall coefficient [W/(m²·K)] of a bed of one radial cell whose mean
 # temperature is that of the bed across its radius, for heat released evenly

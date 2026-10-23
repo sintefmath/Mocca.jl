@@ -18,7 +18,7 @@ layers underneath are open for new units, steps and physics.
 | **Interface** | `Mocca.Interface` | `src/interface` | Describe a process in process terms, in SI units. Every part can be saved to and read from JSON, and a library holds the published processes. | `Gas`, `Feed`, `Adsorbent`, `Column`, `Flowsheet`, `add_bed!`, `add_device!`, `Cycle`, `Pressurise`, `Adsorb`, `Evacuate`, `Equalise`, `Process`, `add_variable!`, `optimise!` |
 | **Process** | `Mocca.Operation` | `src/operation` | Stages and time steps, cyclic steady state, performance metrics, and adjoint gradients, including at cyclic steady state. | `Stage`, `setup_schedule`, `parallel_stages`, `newton_cyclic_steady_state`, `force_gradients`, `purity`, `recovery` |
 | **Flowsheet** | `Mocca.Networks` | `src/networks` | A network of named units, the connections between their ports and the boundary conditions, turned into one Jutul `MultiModel`. Connections become cross terms. | `UnitNetwork`, `connect!`, `StreamConnection`, `PortStateCT`, `StreamCT` |
-| **Units** | `Mocca.FixedBeds`, `Mocca.Devices` | `src/fixedbeds`, `src/devices` | One module per kind of unit. A fixed bed is a 1-D column of cells with holdup. Flow devices are one-cell models that own the molar flow between two ports. | `FixedBed`, `FlowDevice`, `LinearValve`, `VolumetricFlow`, `PortCondition`, `ExponentialRamp` |
+| **Units** | `Mocca.FixedBeds`, `Mocca.Devices` | `src/fixedbeds`, `src/devices` | One module per kind of unit. A fixed bed is a column of cells with holdup, along its axis and optionally in rings across its radius. Flow devices are one-cell models that own the molar flow between two ports. | `FixedBed`, `FlowDevice`, `LinearValve`, `VolumetricFlow`, `PortCondition`, `ExponentialRamp` |
 | **Balances** | `Mocca.Balances` | `src/balances` | Shared material and energy balances: gas mass, adsorbed loading, gas energy, wall energy. Each unit adds its physics as a tuple of source terms. Scale-free convergence checks, and the setup every bed of sorbent shares. | `SorptionUptake`, `HeatOfSorption`, `WallExchange`, `setup_process_state` |
 | **Physics** | `Mocca.Physics` | `src/physics` | Pluggable material models behind small interfaces. | `AbstractIsotherm`, `DualSiteLangmuir`, `AbstractMassTransfer`, `LinearDrivingForce` |
 | **Core** | `Mocca.Framework` | `src/framework` | The system hierarchy, the core variables, thermal models, and the functions every unit implements. | `MoccaSystem`, `SorbentBed`, `ports`, `stream_equations`, `WithWall`, `Adiabatic`, `Isothermal` |
@@ -56,6 +56,10 @@ of the same name, whose methods are never called.
   boundary conditions; it connects through devices, as wells couple to a
   reservoir in JutulDarcy. Each component and the stream enthalpy are conserved
   across every connection.
+- **A port is a layer of cells.** A unit meshed across its cross-section,
+  such as a bed in rings, connects through the same devices as a column: the
+  stream is shared between the cells of the port by their cross-section, and
+  each gives up its own gas, mixed in the device.
 - **Boundary conditions are device settings.** The fixed set of stage
   boundary-condition types is gone. A stage is a valve law plus the pressure,
   temperature and composition at a device's open port.
