@@ -118,6 +118,88 @@ end
 # the mean hides, such as the hottest sorbent at the centre, or the cooler and
 # more loaded sorbent next to the wall.
 
+# # Against an exact solution
+# Conduction across the rings can be checked against the exact solution for a
+# cylinder that cools through its wall. A bed of argon, which the sorbent does
+# not take up (CO₂ and N₂ are there in traces, for the isotherm), starts at
+# ``T_0`` = 320 K with no flow, inside a wall held at ``T_w`` = 300 K by a very
+# large heat capacity and wall coefficient. It then cools by conduction across
+# its radius alone, and its temperature is the series
+#
+# ```math
+# \frac{T - T_w}{T_0 - T_w} = \sum_n \frac{2}{\beta_n J_1(\beta_n)}\,
+# J_0\!\left(\beta_n \frac{r}{r_{in}}\right) e^{-\beta_n^2 \mathrm{Fo}},
+# \qquad J_0(\beta_n) = 0,
+# \qquad \mathrm{Fo} = \frac{K_r t}{C r_{in}^2},
+# ```
+#
+# with ``C`` the heat capacity of the bed per volume, almost all of it the
+# sorbent's. The Bessel functions from their integral form, which the
+# trapezoidal rule converges fast on, and the first zeros of ``J_0`` by
+# Newton's method:
+J(n, x; m = 400) = sum(cos(n * τ - x * sin(τ)) for τ in range(0, π, length = m + 1)[1:(end - 1)] .+ π / 2m) / m
+β = map(1:8) do k
+    x = (k - 0.25) * π
+    for _ in 1:20
+        x += J(0, x) / J(1, x)
+    end
+    x
+end
+θ(ρ, Fo) = sum(2 / (b * J(1, b)) * J(0, b * ρ) * exp(-b^2 * Fo) for b in β)
+
+# The bed, 0.2 m long on 2 cells along it, as the column has no gradient along
+# its length, on 8 rings, cooling for 600 s:
+K_r = 5.0
+argon = Mocca.Gas(["CO2", "N2", "Ar"])
+y_ar = [1e-9, 1e-9, 1 - 2e-9]
+cooled = Mocca.Column(; length = 0.2, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
+    radial_conductivity = K_r, wall_heat_transfer = 1e6, wall = Mocca.Wall(density = 1e6, heat_capacity = 1e4),
+    outer_heat_transfer = 0.0)
+fs_ar = Mocca.Flowsheet(argon, Mocca.Feed(argon; composition = y_ar, pressure = 1bar))
+Mocca.add_bed!(fs_ar, :Bed, adsorbent, cooled; ncells = 2, radial_cells = 8, dispersion_velocity = 1.0)
+Mocca.add_device!(fs_ar, :V_feed, :feed; at = (:Bed, :bottom))
+Mocca.add_device!(fs_ar, :V_product, :product; at = (:Bed, :top))
+conduction = Mocca.Process(fs_ar, Mocca.Cycle([Mocca.Idle(600.0)]);
+    timestepping = Mocca.TimeStepping(max_dt = 2.0, first_dt = 2.0),
+    initial_state = Dict(:Bed => (pressure = 1bar, temperature = 320.0, wall_temperature = 300.0, composition = y_ar)))
+cooling = Mocca.simulate(conduction)
+nothing #hide
+
+# The Fourier number of each time follows from the heat capacity of the bed:
+ar_bed, ar_prm = conduction.flowsheet[:Bed], conduction.parameters[:Bed]
+C = ar_prm[:SolidVolume][1] * ar_prm[:AdsorbentDensity][1] * ar_prm[:AdsorbentHeatCapacity][1] / ar_bed.data_domain[:volumes][1]
+Fo(t) = K_r * t / (C * 0.1445^2)
+
+# The temperature of the rings (points) and the exact solution (lines), from
+# the axis to the wall:
+r_rings = ar_bed.data_domain[:cell_centroids][2, 1:2:end]
+ρ = range(0, 1, length = 101)
+f_exact = Figure(size = (650, 420))
+ax = Axis(f_exact[1, 1], xlabel = "r / r_in", ylabel = "T [K]")
+t_cool = cumsum(cooling.timesteps)
+for (k, t) in enumerate((60.0, 200.0, 600.0))
+    color = Makie.wong_colors()[k]
+    lines!(ax, ρ, 300 .+ 20 .* θ.(ρ, Fo(t)), color = color, label = "t = $(Int(t)) s, Fo = $(round(Fo(t), digits = 3))")
+    s = cooling.states[findfirst(≈(t), t_cool)][:Bed]
+    scatter!(ax, r_rings ./ 0.1445, s[:Temperature][1:2:end], color = color)
+end
+axislegend(ax, position = :lb)
+f_exact
+
+# The rings follow the exact solution. The largest difference, as a share of
+# the initial 20 K, is largest early on, when the wall has cooled only a thin
+# layer next to it, and falls as the profile spreads across the bed:
+for t in (60.0, 200.0, 600.0)
+    s = cooling.states[findfirst(≈(t), t_cool)][:Bed]
+    e = maximum(abs.(s[:Temperature][1:2:end] .- (300 .+ 20 .* θ.(r_rings ./ 0.1445, Fo(t))))) / 20
+    println("t = ", rpad(Int(t), 4), " s: ", round(100e, digits = 2), "%")
+end
+
+# Halving the width of the rings divides the error by about four (see
+# [Conduction across the radius](@ref)): the rings are second order across the
+# radius, including the half of the outer ring between its centre and the
+# wall, through which the wall takes the heat.
+
 # # A cycle on rings
 # A bed meshed across its radius works in any process. The four-step VSA of
 # Haghpanah et al. (2013) on 20 × 4 cells, to its cyclic steady state, which
