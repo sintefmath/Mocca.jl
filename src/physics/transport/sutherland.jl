@@ -10,19 +10,24 @@ Transport properties of a mixture of ideal gases from component data:
   `kᵢ = k₀ᵢ·(T/T₀)^nᵢ`, mixed by Wassiljewa's equation with the coefficients of
   Mason and Saxena, `k = Σᵢ yᵢ kᵢ / Σⱼ yⱼ Φᵢⱼ`, with
   `Φᵢⱼ = [1 + (μᵢ/μⱼ)^(1/2) (Mⱼ/Mᵢ)^(1/4)]² / [8 (1 + Mᵢ/Mⱼ)]^(1/2)`;
-- diffusivity in the pores from molecular and Knudsen diffusion in series
+- diffusivity growing with temperature as `T^m`, with `m = 1.75` as in the
+  correlation of Fuller, Schettler and Giddings. That is molecular diffusion
+  at a fixed pressure, the default. With `pressure_dependent = true` it also
+  follows the pressure, from molecular and Knudsen diffusion in series
   (Bosanquet), `1/D ∝ P·(T₀/T)^m + P_K·(T₀/T)^(1/2)`: molecular diffusion goes
-  as `T^m/P`, with `m = 1.75` as in the correlation of Fuller, Schettler and
-  Giddings, and Knudsen diffusion as `T^(1/2)`, whatever the pressure. `P_K`
+  as `T^m/P`, and Knudsen diffusion as `T^(1/2)`, whatever the pressure. `P_K`
   [Pa] is the pressure at which the two are equal at `T₀`, where the mean free
   path of the gas is about the pore diameter (some 0.1 bar for pores of
-  0.5 μm). With `P_K = 0`, the default, the diffusion is molecular.
+  0.5 μm); with `P_K = 0` the diffusion is molecular. Diffusion that follows
+  the pressure makes mass transfer at 0.03 bar some 30 times faster than at
+  1 bar, which the cyclic steady state of the wet flue gas processes does not
+  converge with.
 
 `T₀` is [`THERMODYNAMIC_REFERENCE_TEMPERATURE`](@ref) (298.15 K).
 
     SutherlandTransport(; viscosity, sutherland, thermal_conductivity,
         conductivity_exponent, molar_masses, diffusivity_exponent = 1.75,
-        knudsen_pressure = 0.0)
+        knudsen_pressure = 0.0, pressure_dependent = knudsen_pressure > 0)
 
 with one value per component of each: viscosity [Pa·s] and thermal
 conductivity [W/(m·K)] at 298.15 K, Sutherland constant [K], conductivity
@@ -36,17 +41,20 @@ struct SutherlandTransport{N, T} <: AbstractGasTransport
     M::SVector{N, T}      # Molar mass [kg/mol]
     m::T                  # Exponent of the temperature in molecular diffusion
     P_K::T                # Pressure at which Knudsen and molecular diffusion are equal at T₀ [Pa]
+    pressure_dependent::Bool  # Whether the diffusivity follows the pressure
 end
 
 function SutherlandTransport(; viscosity, sutherland, thermal_conductivity, conductivity_exponent, molar_masses,
-        diffusivity_exponent = 1.75, knudsen_pressure = 0.0)
+        diffusivity_exponent = 1.75, knudsen_pressure = 0.0, pressure_dependent = knudsen_pressure > 0)
     knudsen_pressure >= 0 || throw(ArgumentError("knudsen_pressure must not be negative"))
+    pressure_dependent || iszero(knudsen_pressure) ||
+        throw(ArgumentError("a Knudsen pressure needs a diffusivity that depends on pressure"))
     N = length(viscosity)
     all(length(x) == N for x in (sutherland, thermal_conductivity, conductivity_exponent, molar_masses)) ||
         throw(ArgumentError("SutherlandTransport needs one value per component of each property"))
     v(x) = SVector{N}(float.(x))
     return SutherlandTransport(v(viscosity), v(sutherland), v(thermal_conductivity), v(conductivity_exponent), v(molar_masses),
-        float(diffusivity_exponent), float(knudsen_pressure))
+        float(diffusivity_exponent), float(knudsen_pressure), pressure_dependent)
 end
 
 "Viscosity [Pa·s] of each component of `model` at temperature `T` [K]."
@@ -89,5 +97,6 @@ end
 
 function diffusivity_scale(model::SutherlandTransport, T, P)
     θ = THERMODYNAMIC_REFERENCE_TEMPERATURE / T
+    model.pressure_dependent || return 1 / θ^model.m + zero(P)
     return 1 / (P * θ^model.m + model.P_K * sqrt(θ))
 end

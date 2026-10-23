@@ -149,10 +149,10 @@ components by name, such as `heat_capacities = (CO2 = 697.6,)`:
   values at the feed with the temperature, pressure and composition of each
   cell (see [`AbstractGasTransport`](@ref)). `:constant` (the default) keeps
   them; `:sutherland` uses the viscosities, Sutherland constants and thermal
-  conductivities of the components ([`SutherlandTransport`](@ref), with
-  molecular diffusion; see [`sutherland_transport`](@ref) to add Knudsen
-  diffusion); or give an [`AbstractGasTransport`](@ref) model for the
-  components in gas order.
+  conductivities of the components ([`SutherlandTransport`](@ref), with the
+  diffusivity following the temperature; see [`sutherland_transport`](@ref)
+  to let it follow the pressure too); or give an
+  [`AbstractGasTransport`](@ref) model for the components in gas order.
 
 `gas.heat_capacities` holds the heat capacities [J/(kg·K)] per component at
 25 °C, `gas.thermodynamics` the thermodynamics model and `gas.transport` the
@@ -197,23 +197,29 @@ function _gas_transport(names, comps, M, transport)
 end
 
 """
-    sutherland_transport(names; molar_masses = nothing, knudsen_pressure = 0.0,
-        diffusivity_exponent = 1.75) → SutherlandTransport
+    sutherland_transport(names; molar_masses = nothing, diffusivity_exponent = 1.75,
+        knudsen_pressure = 0.0, pressure_dependent = knudsen_pressure > 0) → SutherlandTransport
 
 The [`SutherlandTransport`](@ref) of the named components from their data (see
 [`Component`](@ref)), what `Gas(names; transport = :sutherland)` uses; give it
-to `Gas` as `transport` to set the Knudsen pressure or the exponent of the
-diffusivity.
+to `Gas` as `transport` to set the exponent of the diffusivity, or to let it
+follow the pressure as well as the temperature (`pressure_dependent = true`,
+with Knudsen diffusion in series above zero `knudsen_pressure`).
 """
-function sutherland_transport(names::AbstractVector; molar_masses = nothing, knudsen_pressure = 0.0, diffusivity_exponent = 1.75)
+function sutherland_transport(names::AbstractVector; molar_masses = nothing, knudsen_pressure = 0.0, diffusivity_exponent = 1.75,
+        pressure_dependent = knudsen_pressure > 0)
     names = String.(names)
     comps = component.(names)
     M = _by_component(names, molar_masses, [c.molar_mass for c in comps], "molar_masses")
     knudsen_pressure >= 0 || input_error("gas", "knudsen_pressure", "must not be negative, got $knudsen_pressure")
-    return sutherland_transport(comps, M; knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent)
+    pressure_dependent || iszero(knudsen_pressure) ||
+        input_error("gas", "knudsen_pressure", "needs a diffusivity that depends on pressure (pressure_dependent = true)")
+    return sutherland_transport(comps, M; knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent,
+        pressure_dependent = pressure_dependent)
 end
 
-function sutherland_transport(comps::AbstractVector{Component}, M; knudsen_pressure = 0.0, diffusivity_exponent = 1.75)
+function sutherland_transport(comps::AbstractVector{Component}, M; knudsen_pressure = 0.0, diffusivity_exponent = 1.75,
+        pressure_dependent = knudsen_pressure > 0)
     for (field, what) in ((:sutherland, "Sutherland constant"), (:thermal_conductivity, "thermal conductivity"),
             (:conductivity_exponent, "conductivity exponent"))
         missing_ = [c.name for c in comps if isnothing(getfield(c, field))]
@@ -221,7 +227,8 @@ function sutherland_transport(comps::AbstractVector{Component}, M; knudsen_press
     end
     return SutherlandTransport(; viscosity = [c.viscosity for c in comps], sutherland = [c.sutherland for c in comps],
         thermal_conductivity = [c.thermal_conductivity for c in comps], conductivity_exponent = [c.conductivity_exponent for c in comps],
-        molar_masses = M, knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent)
+        molar_masses = M, knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent,
+        pressure_dependent = pressure_dependent)
 end
 
 # The thermodynamics model of a gas from the keywords of Gas

@@ -359,17 +359,26 @@ when the solid conducts much better. With [`SutherlandTransport`](@ref)
 \quad
 k_i = k_{0,i}\left(\frac{T}{T_0}\right)^{n_i},
 \qquad
-\frac{1}{\hat D} = P\left(\frac{T_0}{T}\right)^{1.75} + P_K\left(\frac{T_0}{T}\right)^{1/2},
+\hat D = T^{1.75},
 ```
 
 with ``\Phi_{ij}`` of Mason and Saxena and ``T_0`` = 298.15 K. The diffusivity
-is that of molecular diffusion (``T^{1.75}/P``) in series with Knudsen
+follows the temperature as molecular diffusion at a fixed pressure does. With
+`pressure_dependent = true` in [`sutherland_transport`](@ref) it follows the
+pressure too, as molecular diffusion (``T^{1.75}/P``) in series with Knudsen
 diffusion (``T^{1/2}``), which takes over in pores finer than the mean free
-path of the gas, at low pressure. ``P_K`` is the pressure at which the two
-are equal, about 0.1 bar for pores of 0.5 μm; it is 0 by default, which
-leaves molecular diffusion and makes mass transfer ten times faster at
-0.1 bar than at 1 bar (see [`sutherland_transport`](@ref) to set it). The
-wall's conductivity and the heat transfer coefficients stay as given.
+path of the gas, at low pressure:
+
+```math
+\frac{1}{\hat D} = P\left(\frac{T_0}{T}\right)^{1.75} + P_K\left(\frac{T_0}{T}\right)^{1/2},
+```
+
+where ``P_K`` (`knudsen_pressure`, 0 by default) is the pressure at which the
+two are equal, about 0.1 bar for pores of 0.5 μm. That is not the default:
+mass transfer then runs some 30 times faster at 0.03 bar than at 1 bar, and
+the cyclic steady state of the wet flue gas processes, which evacuate to
+0.03 bar, does not converge. The wall's conductivity and the heat transfer
+coefficients stay as given.
 
 ### Isotherm: dual-site Langmuir
 

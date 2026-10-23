@@ -286,9 +286,11 @@ function _gas_transport_to_dict(gas::Gas)
     t = gas.transport
     t isa ConstantTransport && return nothing
     if t isa SutherlandTransport
-        made = sutherland_transport(component.(gas.names), gas.molar_masses; knudsen_pressure = t.P_K, diffusivity_exponent = t.m)
-        t == made && t.P_K == 0 && t.m == 1.75 && return "sutherland"
-        t == made && return _obj("type" => "sutherland", "knudsen_pressure" => t.P_K, "diffusivity_exponent" => t.m)
+        made = sutherland_transport(component.(gas.names), gas.molar_masses; knudsen_pressure = t.P_K, diffusivity_exponent = t.m,
+            pressure_dependent = t.pressure_dependent)
+        t == made && t.m == 1.75 && !t.pressure_dependent && return "sutherland"
+        t == made && return _obj("type" => "sutherland", "diffusivity_exponent" => t.m, "pressure_dependent" => t.pressure_dependent,
+            "knudsen_pressure" => t.P_K)
     end
     input_error("gas", "transport", "a transport model of type $(typeof(gas.transport)) not made from the components cannot be written to a file")
 end
@@ -297,10 +299,13 @@ end
 function _transport_from_dict(t)
     t isa AbstractString && t in ("constant", "sutherland") && return Symbol(t)
     t isa AbstractDict || input_error("gas", "transport", "expected \"constant\", \"sutherland\" or an object with a \"type\", got $(repr(t))")
-    _check_keys(t, ("type", "knudsen_pressure", "diffusivity_exponent"), "gas transport")
+    _check_keys(t, ("type", "knudsen_pressure", "diffusivity_exponent", "pressure_dependent"), "gas transport")
     get(t, "type", "") == "sutherland" || input_error("gas", "transport", "only the \"sutherland\" type takes options")
-    return (knudsen_pressure = something(_optnum(t, "knudsen_pressure", "gas transport"), 0.0),
-        diffusivity_exponent = something(_optnum(t, "diffusivity_exponent", "gas transport"), 1.75))
+    P_K = something(_optnum(t, "knudsen_pressure", "gas transport"), 0.0)
+    pd = get(t, "pressure_dependent", P_K > 0)
+    pd isa Bool || input_error("gas transport", "pressure_dependent", "expected true or false, got $(repr(pd))")
+    return (knudsen_pressure = P_K, diffusivity_exponent = something(_optnum(t, "diffusivity_exponent", "gas transport"), 1.75),
+        pressure_dependent = pd)
 end
 
 # The heat capacities of a gas, as keys of its JSON object

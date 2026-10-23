@@ -20,9 +20,9 @@
   values at the feed with the temperature, pressure and composition of each
   cell: Sutherland viscosities mixed by Herning and Zipperer, conductivities
   as powers of temperature mixed by Wassiljewa, Mason and Saxena (the bed
-  conductivity scaled with that of the gas), and diffusivity as `T^1.75/P`,
-  with optional Knudsen diffusion in series (`sutherland_transport(names;
-  knudsen_pressure)`).
+  conductivity scaled with that of the gas), and diffusivity as `T^1.75`; or,
+  with `sutherland_transport(names; pressure_dependent = true)`, as
+  `T^1.75/P` with optional Knudsen diffusion in series (`knudsen_pressure`).
   The common components carry Sutherland constants and conductivities fitted
   to the NIST Chemistry WebBook. The parameters (`FluidViscosity`,
   `ThermalConductivities`) stay the values at the feed, so design variables

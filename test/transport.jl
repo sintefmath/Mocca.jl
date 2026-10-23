@@ -25,10 +25,15 @@ Mocca.diffusivity_scale(::_FixedTransport, T, P) = one(T / P)
     @test mixture_viscosity(t, y, 298.15) == Mocca.gas_viscosity(Gas(["CO2", "N2", "H2O"]), y)
     # One component: its own conductivity
     @test mixture_thermal_conductivity(t, [1.0, 0.0, 0.0], 350.0) ≈ Mocca.Physics.component_thermal_conductivities(t, 350.0)[1]
-    # Viscosity and conductivity rise with temperature; diffusivity as T^1.75/P
+    # Viscosity and conductivity rise with temperature; diffusivity as T^1.75,
+    # or with the pressure too as T^1.75/P
     @test mixture_viscosity(t, y, 350.0) > mixture_viscosity(t, y, 300.0)
     @test mixture_thermal_conductivity(t, y, 350.0) > mixture_thermal_conductivity(t, y, 300.0)
-    @test Mocca.diffusivity_scale(t, 400.0, 0.5e5) / Mocca.diffusivity_scale(t, 300.0, 1e5) ≈ (4 / 3)^1.75 * 2
+    @test !t.pressure_dependent
+    @test Mocca.diffusivity_scale(t, 400.0, 0.5e5) / Mocca.diffusivity_scale(t, 300.0, 1e5) ≈ (4 / 3)^1.75
+    tp = sutherland_transport(["CO2", "N2", "H2O"]; pressure_dependent = true)
+    @test Mocca.diffusivity_scale(tp, 400.0, 0.5e5) / Mocca.diffusivity_scale(tp, 300.0, 1e5) ≈ (4 / 3)^1.75 * 2
+    @test_throws MoccaInputError sutherland_transport(["CO2"]; knudsen_pressure = 1e4, pressure_dependent = false)
     # With Knudsen diffusion in series: molecular at high pressure, and at low
     # pressure independent of it and going as √T
     PK = 0.2e5
@@ -59,7 +64,7 @@ end
     r = TransportReference(t, y, T, P)
     @test Mocca.viscosity_factor(r, y, T) == 1 && Mocca.conductivity_factor(r, y, T) == 1 && Mocca.diffusivity_factor(r, T, P) == 1
     @test Mocca.viscosity_factor(r, y, 350.0) ≈ mixture_viscosity(t, y, 350.0) / mixture_viscosity(t, y, T)
-    @test Mocca.diffusivity_factor(r, 350.0, 0.5e5) ≈ (350 / 298.15)^1.75 * 2
+    @test Mocca.diffusivity_factor(r, 350.0, 0.5e5) ≈ (350 / 298.15)^1.75
     c = TransportReference(ConstantTransport())
     @test Mocca.is_constant_transport(c) && !Mocca.is_constant_transport(r)
     @test TransportReference(ConstantTransport(), y, T, P) == c
