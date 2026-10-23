@@ -16,7 +16,7 @@ result.converged || error("the cyclic steady state did not converge")
 perf = Mocca.performance(result)
 
 bed = process.flowsheet[:Bed]
-z = bed.data_domain[:cell_centroids][1, :]
+z = Mocca.axial_positions(bed)
 z = z ./ maximum(z)
 t = cumsum(result.timesteps)
 t_cycle = t[end]
@@ -26,7 +26,7 @@ t_cycle = t[end]
 nframes = 160
 frames = unique([findfirst(>=(t_cycle * (k - 0.5) / nframes), t) for k in 1:nframes])
 bed_states = [result.states[k][:Bed] for k in frames]
-q = [s[:AdsorbedConcentration][1, :] for s in bed_states]
+q = [Mocca.axial_profile(bed, s[:AdsorbedConcentration])[1, :] for s in bed_states]
 q_max = maximum(maximum.(q))
 
 num(x) = @sprintf("%.4g", x)
@@ -60,7 +60,7 @@ open(joinpath(@__DIR__, "src", "assets", "home_cycle.json"), "w") do io
     println(io, "  \"t\": ", vec_json(t[frames]), ",")
     println(io, "  \"pressure_valve_bar\": ", vec_json([valve_pressure(k) / bar for k in frames]), ",")
     println(io, "  \"loading\": [", join([vec_json(qk ./ q_max) for qk in q], ",\n    "), "],")
-    println(io, "  \"y_co2\": [", join([vec_json(s[:y][1, :]) for s in bed_states], ",\n    "), "]")
+    println(io, "  \"y_co2\": [", join([vec_json(Mocca.axial_profile(bed, s[:y])[1, :]) for s in bed_states], ",\n    "), "]")
     println(io, "}")
 end
 println("purity $(perf.purity), recovery $(perf.recovery), cycle $(t_cycle) s, $(length(stages)) stages")

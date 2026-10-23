@@ -253,11 +253,13 @@ function _column_to_dict(c::Column)
         "axial_conductivity" => c.axial_conductivity,
         "wall" => _obj("density" => c.wall.density, "heat_capacity" => c.wall.heat_capacity, "conductivity" => c.wall.conductivity),
         "inner_heat_transfer" => c.inner_heat_transfer, "outer_heat_transfer" => c.outer_heat_transfer,
-        "ambient_temperature" => c.ambient_temperature)
+        "ambient_temperature" => c.ambient_temperature,
+        "radial_conductivity" => c.radial_conductivity, "wall_heat_transfer" => c.wall_heat_transfer)
 end
 
 function _column_from_dict(d, loc)
-    keys_ = ("length", "radius", "outer_radius", "porosity", "axial_conductivity", "wall", "inner_heat_transfer", "outer_heat_transfer", "ambient_temperature")
+    keys_ = ("length", "radius", "outer_radius", "porosity", "axial_conductivity", "wall", "inner_heat_transfer", "outer_heat_transfer",
+        "ambient_temperature", "radial_conductivity", "wall_heat_transfer")
     _check_keys(d, keys_, loc)
     kw = Dict{Symbol, Any}()
     for k in keys_
@@ -314,9 +316,10 @@ function process_to_dict(p::Process)
         ka = key_of(adsorbents, spec.adsorbent, spec.adsorbent.name, "adsorbent")
         kc = key_of(columns, spec.column, "", "column")
         push!(units, _obj("name" => String(u), "type" => "fixed_bed", "adsorbent" => ka, "column" => kc,
-            "ncells" => spec.ncells, "thermal" => _thermal_to_json(spec.thermal),
+            "ncells" => spec.ncells, "radial_cells" => spec.radial_cells > 1 ? spec.radial_cells : nothing, "radii" => spec.radii,
+            "thermal" => _thermal_to_json(spec.thermal),
             "dispersion_velocity" => spec.dispersion_velocity isa Symbol ? String(spec.dispersion_velocity) : spec.dispersion_velocity,
-            "dispersion" => spec.dispersion, "permeability" => spec.permeability))
+            "dispersion" => spec.dispersion, "radial_dispersion" => spec.radial_dispersion, "permeability" => spec.permeability))
     end
     o["adsorbents"] = _obj((k => adsorbent_to_dict(a; gas = gas) for (k, a) in adsorbents)...)
     o["columns"] = _obj((k => _column_to_dict(c) for (k, c) in columns)...)
@@ -440,7 +443,8 @@ function process_from_dict(d; base_dir = pwd())
     fs = Flowsheet(gas, feed)
     for u in _require(d, "units", "process")
         loc = "unit $(get(u, "name", "?"))"
-        _check_keys(u, ("name", "type", "adsorbent", "column", "ncells", "thermal", "dispersion_velocity", "dispersion", "permeability"), loc)
+        _check_keys(u, ("name", "type", "adsorbent", "column", "ncells", "thermal", "dispersion_velocity", "dispersion", "permeability",
+            "radial_cells", "radii", "radial_dispersion"), loc)
         get(u, "type", "fixed_bed") == "fixed_bed" || input_error(loc, "type", "only \"fixed_bed\" units are known")
         a = String(_require(u, "adsorbent", loc))
         a_ = haskey(adsorbents, a) ? adsorbents[a] : load_adsorbent(a)
@@ -450,7 +454,10 @@ function process_from_dict(d; base_dir = pwd())
         add_bed!(fs, Symbol(_require(u, "name", loc)), a_, columns[c]; ncells = Int(get(u, "ncells", 30)),
             thermal = _thermal_from_json(get(u, "thermal", "with_wall"), loc),
             dispersion_velocity = dv isa AbstractString && dv == "adsorption" ? :adsorption : _num(dv, loc, "dispersion_velocity"),
-            dispersion = _optnum(u, "dispersion", loc), permeability = _optnum(u, "permeability", loc))
+            dispersion = _optnum(u, "dispersion", loc), permeability = _optnum(u, "permeability", loc),
+            radial_cells = Int(get(u, "radial_cells", 1)),
+            radii = haskey(u, "radii") ? [_num(x, loc, "radii") for x in u["radii"]] : nothing,
+            radial_dispersion = _optnum(u, "radial_dispersion", loc))
     end
     pair(x, loc, key) = (x isa AbstractVector && length(x) == 2) ? (Symbol(x[1]), Symbol(x[2])) : input_error(loc, key, "expected [unit, port], got $(repr(x))")
     for e in _require(d, "devices", "process")

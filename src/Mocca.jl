@@ -7,7 +7,8 @@ export FixedBed, FixedBedModel, AdsorptionSystem, AdsorptionModel
 export AbstractThermalModel, WithWall, Adiabatic, Isothermal
 export AbstractSourceTerm
 export FlowDevice, setup_device_model, AbstractDeviceLaw, Closed, LinearValve, VolumetricFlow
-export PortCondition, ExponentialRamp, port_conductance
+export PortCondition, ExponentialRamp, port_conductance, port_cells
+export axial_profile, axial_positions
 export Flowsheet, UnitNetwork, add_unit!, connect!, set_boundary!, setup_flowsheet_model
 export AbstractConnection, StreamConnection, PortRef
 export setup_flowsheet_state, setup_flowsheet_parameters
@@ -28,11 +29,12 @@ export mocca_domain
 export column_mesh
 
 export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams, plot_profiles
+export plot_bed_section, plot_radial_profiles
 
 export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir
 
 export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
-export compute_permeability, compute_dispersion
+export compute_permeability, compute_dispersion, compute_radial_dispersion
 
 # User interface
 export Units, MoccaInputError, validate

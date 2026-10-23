@@ -14,6 +14,9 @@ const NO_FLOW_FRACTION = 1e-6
 const RESULT_FILES = ("summary.csv", "streams.csv", "stage_streams.csv", "stream_history.csv",
     "bed_history.csv", "bed_profiles.csv")
 
+# Written only for a process with a bed meshed across its radius
+const FIELD_FILE = "bed_fields.csv"
+
 """
     write_results(dir, r::ProcessResult; sigdigits = 8, delim = ',', decimal = '.') → Vector{String}
 
@@ -31,6 +34,11 @@ The files hold, with the units in the column headers:
 | `stream_history.csv` | time step and device | Flow, composition, temperature and pressures through time |
 | `bed_history.csv` | time step, bed and end | Pressure, temperatures, gas composition and loadings at the bottom and top of each bed |
 | `bed_profiles.csv` | snapshot, bed and cell | The same along each bed, at the start of the last cycle and the end of each of its stages |
+| `bed_fields.csv` | snapshot, bed, cell and ring | The same for every cell of the beds meshed across their radius, with the radius of the ring; written only if there are such beds |
+
+For a bed meshed across its radius, the bed ends and the profiles are means
+over the cross-section, weighted by the volume of the rings, and the wall
+temperature is that of the wall around the outer ring.
 
 Pressures are absolute, in bar (bara); temperatures in °C; compositions in
 mol%; loadings in mol per kg of adsorbent; normal volumes (Nm³) at 0 °C and
@@ -49,10 +57,13 @@ function write_results(dir::AbstractString, r::ProcessResult; sigdigits = 8, del
     decimal in ('.', ',') || input_error("write_results", "decimal", "use '.' or ',', got '$decimal'")
     delim == decimal && input_error("write_results", "delim", "the delimiter and the decimal mark are both '$delim'; use delim = ';' with decimal = ','")
     mkpath(dir)
-    tables = (_summary_table(r), _stream_table(r), _stage_stream_table(r), _stream_history_table(r),
-        _bed_history_table(r), _bed_profile_table(r))
+    tables = Any[_summary_table(r), _stream_table(r), _stage_stream_table(r), _stream_history_table(r),
+        _bed_history_table(r), _bed_profile_table(r)]
+    files = collect(RESULT_FILES)
+    fields = _bed_field_table(r)
+    isnothing(fields) || (push!(tables, fields); push!(files, FIELD_FILE))
     paths = [_write_csv(joinpath(dir, f), t; sigdigits = sigdigits, delim = delim, decimal = decimal)
-             for (f, t) in zip(RESULT_FILES, tables)]
+             for (f, t) in zip(files, tables)]
     json = joinpath(dir, "process.json")
     try
         push!(paths, write_process(json, r.process))
@@ -261,11 +272,15 @@ function _bed_header(gas)
         ["y $c [mol%]" for c in gas.names], ["q $c [mol/kg]" for c in gas.names])
 end
 
-# Values of `cell` of a bed state, with the loading per kg of adsorbent
-function _bed_values(s, cell, density)
-    Tw = haskey(s, :WallTemperature) ? _degC(s[:WallTemperature][cell]) : NaN
-    return vcat(Any[_bara(s[:Pressure][cell]), _degC(s[:Temperature][cell]), Tw],
-        _percent.(s[:y][:, cell]), s[:AdsorbedConcentration][:, cell] ./ density)
+# Values of a bed state at `cells`, averaged over them (see
+# cross_section_mean), with the loading per kg of adsorbent. The wall
+# temperature is that of those of the cells the wall touches, and NaN if it
+# touches none.
+function _bed_values(model, s, cells, density; walled = intersect(cells, wall_cells(model)))
+    m(v) = cross_section_mean(model, v, cells)
+    Tw = haskey(s, :WallTemperature) && !isempty(walled) ? _degC(cross_section_mean(model, s[:WallTemperature], walled)) : NaN
+    return vcat(Any[_bara(m(s[:Pressure])), _degC(m(s[:Temperature])), Tw],
+        _percent.(m(s[:y])), m(s[:AdsorbedConcentration]) ./ density)
 end
 
 _density(p::Process, b) = first(p.parameters[b][:AdsorbentDensity])
@@ -275,37 +290,86 @@ function _bed_history_table(r::ProcessResult)
     fs = p.flowsheet
     info = _step_times(r)
     rows = Vector{Any}[]
-    for (k, s) in enumerate(r.states), b in beds(fs), (port, cell) in pairs(ports(fs[b]))
+    for (k, s) in enumerate(r.states), b in beds(fs), port in keys(ports(fs[b]))
         push!(rows, vcat(Any[info[k].cycle, info[k].time, info[k].time_in_cycle, info[k].stage, string(b), string(port)],
-            _bed_values(s[b], cell, _density(p, b))))
+            _bed_values(fs[b], s[b], port_cells(fs[b], port), _density(p, b))))
     end
     header = vcat(["Cycle", "Time [s]", "Time in cycle [s]", "Stage", "Bed", "End"], _bed_header(fs.gas))
     return (header = header, rows = rows)
 end
 
-function _bed_profile_table(r::ProcessResult)
-    p = r.process
-    fs = p.flowsheet
+# The states of the beds at the start of the last cycle and the end of each of
+# its stages, as (label, time in the cycle, state)
+function _snapshots(r::ProcessResult)
     w = _last_cycle(r)
     t = cumsum(r.timesteps)
     t0 = _start_of_last_cycle(r)
     snapshots = Any[("start of cycle", 0.0, r.state0)]
     stage_end = 0.0
-    for st in stages(p)
+    for st in stages(r.process)
         stage_end += st.duration
         k = findlast(k -> t[k] <= t0 + stage_end + 1e-6, collect(w))
         isnothing(k) || push!(snapshots, ("end of $(st.name)", stage_end, r.states[w[k]]))
     end
+    return snapshots
+end
+
+function _bed_profile_table(r::ProcessResult)
+    p = r.process
+    fs = p.flowsheet
     rows = Vector{Any}[]
-    for (label, tc, s) in snapshots, b in beds(fs)
-        x = fs[b].data_domain[:cell_centroids][1, :]
-        L = sum(fs[b].data_domain[:dx])
-        for cell in eachindex(x)
-            push!(rows, vcat(Any[label, tc, string(b), cell, x[cell], x[cell] / L], _bed_values(s[b], cell, _density(p, b))))
+    for (label, tc, s) in _snapshots(r), b in beds(fs)
+        layers = axial_layers(fs[b])
+        x = axial_positions(fs[b])
+        L = sum(fs[b].data_domain[:dx][first(l)] for l in layers)
+        for (i, cells) in enumerate(layers)
+            push!(rows, vcat(Any[label, tc, string(b), i, x[i], x[i] / L], _bed_values(fs[b], s[b], cells, _density(p, b))))
         end
     end
     header = vcat(["Snapshot", "Time in cycle [s]", "Bed", "Cell", "Position [m]", "Relative position [-]"], _bed_header(fs.gas))
     return (header = header, rows = rows)
+end
+
+# Every cell of the beds meshed across their radius, at the snapshots of the
+# profiles: cell along the column and ring from the axis. Nothing if no bed
+# is meshed across its radius.
+function _bed_field_table(r::ProcessResult)
+    p = r.process
+    fs = p.flowsheet
+    radial = [b for b in beds(fs) if last(_grid_shape(fs[b])) > 1]
+    isempty(radial) && return nothing
+    rows = Vector{Any}[]
+    for (label, tc, s) in _snapshots(r), b in radial
+        m = fs[b]
+        nz, nr = _grid_shape(m)
+        z, L = axial_positions(m), _column_length(m)
+        rc, R = _ring_centres(m), first(m.data_domain[:r_in, Unit()])
+        walled = Set(wall_cells(m))
+        for j in 1:nr, i in 1:nz
+            c = i + (j - 1) * nz
+            push!(rows, vcat(Any[label, tc, string(b), i, j, z[i], z[i] / L, rc[j], rc[j] / R],
+                _bed_values(m, s[b], [c], _density(p, b); walled = c in walled ? [c] : Int[])))
+        end
+    end
+    header = vcat(["Snapshot", "Time in cycle [s]", "Bed", "Cell", "Ring", "Position [m]", "Relative position [-]",
+        "Radius [m]", "Relative radius [-]"], _bed_header(fs.gas))
+    return (header = header, rows = rows)
+end
+
+# The largest difference in gas temperature [K] across the radius of bed `b`
+# over the last cycle of `r`, centre ring minus outer ring, with the time step
+# and the cell along the column where it is
+function _radial_temperature_difference(r::ProcessResult, b)
+    nz, nr = _grid_shape(r.process.flowsheet[b])
+    best = (ΔT = 0.0, step = first(_last_cycle(r)), cell = 1)
+    for k in _last_cycle(r)
+        T = r.states[k][b][:Temperature]
+        for i in 1:nz
+            d = T[i] - T[i + (nr - 1) * nz]
+            abs(d) > abs(best.ΔT) && (best = (ΔT = d, step = k, cell = i))
+        end
+    end
+    return best
 end
 
 function _summary_table(r::ProcessResult)
@@ -387,7 +451,18 @@ function _summary_table(r::ProcessResult)
         add("Beds", "$b bed porosity", spec.column.porosity, "-")
         add("Beds", "$b particle diameter", spec.adsorbent.particle_diameter * 1e3, "mm")
         add("Beds", "$b adsorbent mass", sorbent_mass(fs[b], p.parameters[b]), "kg")
-        add("Beds", "$b cells", spec.ncells)
+        add("Beds", "$b cells", _cells_of(spec))
+        spec.radial_cells > 1 || continue
+        c = spec.column
+        isnothing(c.radial_conductivity) || add("Beds", "$b radial conductivity", c.radial_conductivity, "W/(m.K)")
+        isnothing(c.wall_heat_transfer) || add("Beds", "$b wall heat transfer coefficient", c.wall_heat_transfer, "W/(m2.K)")
+        add("Beds", "$b radial dispersion", first(p.parameters[b][:RadialDispersion]), "m2/s")
+        d = _radial_temperature_difference(r, b)
+        info = _step_times(r)[d.step]
+        add("Beds", "$b largest radial temperature difference (centre minus wall ring)", d.ΔT, "K")
+        add("Beds", "$b largest radial temperature difference: stage", info.stage)
+        add("Beds", "$b largest radial temperature difference: time in cycle", info.time_in_cycle, "s")
+        add("Beds", "$b largest radial temperature difference: relative position", axial_positions(fs[b])[d.cell] / _column_length(fs[b]), "-")
     end
     return (header = ["Section", "Quantity", "Value", "Unit"], rows = rows)
 end

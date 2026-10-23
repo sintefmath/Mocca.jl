@@ -67,6 +67,21 @@ The coarser grids only give the start; the steady state is that of the
 process as set up. If Newton's method does not converge from a coarser
 grid's steady state, the fine grid is started from its initial state.
 
+A bed meshed across its radius (see [Beds meshed across their radius](@ref))
+starts instead from the steady state of the same bed with one radial cell,
+on as many cells along the column, found as above, and spread over the
+rings. That 1D bed takes the wall coefficient
+``1/(1/h_w + r_{in}/(4 K_r))``, which gives it the radial bed's mean
+temperature. The 1D bed has the axial fronts almost right, and the radial
+profiles, which the slow conduction of heat across the bed takes many cycles
+to build, are left to Newton's method on the rings, which then needs few
+iterations. For the four-step VSA, from cold:
+
+| Grid | From one radial cell | From the initial state |
+|---|---|---|
+| 30 × 4 cells (480 variables, full Jacobian) | 12 s, 2 Newton iterations on the rings | 35 s, 20 iterations |
+| 60 × 6 cells (2,520 variables, GMRES) | 27 s, 3 iterations and 111 GMRES products on the rings | 60 s, 10 iterations and 363 products |
+
 ## Options
 
 | Keyword | Default | Meaning |

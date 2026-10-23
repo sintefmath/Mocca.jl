@@ -164,3 +164,49 @@ captures the CO₂. Library name `"krishnamurthy_2014_dual_adsorbent_vsa"`.
 
 The [Wet flue gas: dual-adsorbent, two-bed VSA](@ref) example runs it and
 follows the water into the 13X bed.
+
+## Conduction across the radius
+
+No process in the library is meshed across its radius, so a bed that is
+(see [Beds meshed across their radius](@ref)) is checked against an exact
+solution instead. A bed of argon, which the sorbent does not take up, starts
+at 320 K inside a wall held at 300 K, with no flow, and cools by conduction
+across its radius alone. Its temperature then follows the series solution of
+transient conduction in a cylinder,
+
+```math
+\frac{T - T_w}{T_0 - T_w} = \sum_n \frac{2}{\beta_n J_1(\beta_n)}\,
+J_0\!\left(\beta_n \frac{r}{r_{in}}\right) e^{-\beta_n^2\, \mathrm{Fo}},
+\qquad J_0(\beta_n) = 0,
+\qquad \mathrm{Fo} = \frac{K_r\, t}{\rho_s c_{ps} (1-\varepsilon)\, r_{in}^2}.
+```
+
+The largest difference from it, relative to the initial 20 K, at
+``\mathrm{Fo} = 0.094`` (``K_r`` = 5 W/(m·K), 300 s, time steps of 2 s):
+
+| Rings | 4 | 8 | 16 |
+|---|---|---|---|
+| Mocca | 3.0% | 0.78% | 0.29% |
+| Without the half ring at the wall | 18% | 9.0% | 4.5% |
+
+Each halving of the rings divides the error by about 4, as for a second-order
+method, until the error of the time steps (about 0.2%) is reached. Without
+the conduction across the half of the outer ring between its centre and the
+wall ([`RingWallResistance`](@ref)), the wall would take the heat as if the
+outer ring were at the wall, and the error would be first order: this is why
+Mocca includes it. The test suite runs this comparison.
+
+In a process the fronts are sharper. For a breakthrough of the four-step VSA's
+feed (15% CO₂ at 1 bar and 0.5 m/s) into a 1 m column of 10 cells along its
+length, with ``K_r`` = 0.5 W/(m·K) and ``h_w`` = 30 W/(m²·K), the peak mean
+temperature 0.15 m up the bed over 300 s changes as the rings are refined:
+
+| Rings | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|
+| Peak temperature [K] | 351.40 | 351.00 | 350.79 | 350.71 |
+| Without the half ring [K] | 350.04 | 350.20 | 350.38 | 350.51 |
+
+Both converge to about 350.7 K, from either side. The changes from one grid to
+the next shrink by 1.9 and then 2.9 times, approaching second order as the
+rings become thin against the layer the wall cools; 8 rings are about 0.3 K
+from it, in a front 52 K above the feed.

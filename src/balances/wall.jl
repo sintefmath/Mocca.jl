@@ -1,11 +1,78 @@
 # Wall block: energy balance for a cylindrical wall around a distributed unit,
 #
-#   R = V_w·ρ_w·C_pw·∂T_w/∂t − A_w·∇·(K_w∇T_w)/Δx − Σ wall sources
+#   R = V_w·ρ_w·C_pw·∂T_w/∂t − ∇·(A_w·K_w·G·∇T_w) − Σ wall sources
+#
+# with V_w = A_w·Δx the wall volume of a cell and G the WallTransmissibilities
+# of the faces along the wall.
 #
 # and the heat exchange terms that couple it to the gas and the surroundings.
 # Used when the unit's thermal model is WithWall.
 
 struct WallEnergy <: Energy end
+
+"""
+    WallTransmissibilities
+
+Face transmissibilities [1/m] of the wall per unit of its cross-section and
+conductivity: the heat conducted along the wall through a face is
+`WallCrossSectionArea·WallConductivity·WallTransmissibilities·ΔT_w`, one over
+the distance between the centres of the cells on either side.
+"""
+struct WallTransmissibilities <: Jutul.ScalarVariable end
+Jutul.minimum_value(::WallTransmissibilities) = 0.0
+Jutul.associated_entity(::WallTransmissibilities) = Jutul.Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::WallTransmissibilities, symb)
+    nc = Jutul.number_of_cells(Jutul.physical_representation(data_domain))
+    # Transmissibilities for a unit conductivity are A/d, with A the face area.
+    # The wall runs along the axis, past the cells it touches.
+    G = Jutul.compute_face_trans(data_domain, ones(nc)) ./ data_domain[:areas]
+    N = data_domain[:neighbors]
+    w, ax = _wall_cell_mask(data_domain), _axial_faces(data_domain)
+    return [ax[f] && w[N[1, f]] && w[N[2, f]] ? G[f] : 0.0 for f in eachindex(G)]
+end
+
+"""
+    WallCells
+
+1 for a cell the wall touches and 0 for one it does not, in a column meshed
+across its radius, where the wall touches the outer ring. Without it, as in a
+1D column, every cell touches the wall.
+"""
+struct WallCells <: Jutul.ScalarVariable end
+Jutul.minimum_value(::WallCells) = 0.0
+Jutul.maximum_value(::WallCells) = 1.0
+
+function Jutul.default_parameter_values(data_domain, model, ::WallCells, symb)
+    return Float64.(_wall_cell_mask(data_domain))
+end
+
+"""
+    RingWallResistance
+
+In a column meshed across its radius, the resistance [m²·K/W], per unit area
+of the inner wall surface, of conduction across the bed from the centre of a
+cell of the outer ring to the wall, `r_in·ln(r_in/r_c)/λ_r`, in series with
+the wall coefficient `h_w`: the gas exchanges `A_in·(T − T_w)/(1/h_w + R)`
+with the wall. It is zero in the cells inside the ring. Without it, as in a
+1D column, whose wall coefficient lumps the resistance of the whole
+cross-section, the coefficient applies to the cell's temperature.
+"""
+struct RingWallResistance <: Jutul.ScalarVariable end
+Jutul.minimum_value(::RingWallResistance) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, ::RingWallResistance, symb)
+    r_in = first(data_domain[:r_in, Unit()])
+    λ_r = first(data_domain[:radial_thermal_conductivity, Unit()])
+    r_c = data_domain[:cell_centroids][2, :]
+    return [w ? r_in * log(r_in / r_c[c]) / λ_r : 0.0 for (c, w) in enumerate(_wall_cell_mask(data_domain))]
+end
+
+# Whether the wall touches `cell`, as a number
+@inline _at_wall(state, cell) = _state_has(state, :WallCells) ? state.WallCells[cell] : true
+
+# The heat capacity [J/K] of the wall around `cell`, if the wall touched it
+@inline _wall_heat_capacity(state, cell) = state.WallCrossSectionArea[1] * state.CellDx[cell] * state.WallDensity[1] * state.WallHeatCapacity[1]
 
 Jutul.@jutul_secondary function update_wall_conserved_energy!(wall_energy, tv::WallEnergy, model::DistributedUnitModel, WallTemperature, ix)
     for cell in ix
@@ -26,9 +93,8 @@ end
     q = zero(Jutul.flux_vector_type(eq, T))
 
     kgrad, upw = flow_disc.face_disc(face)
-    K_w = state.WallConductivity[1]
-    T = state.WallTemperature
-    q = K_w * Jutul.gradient(T, kgrad)
+    G = state.WallCrossSectionArea[1] * state.WallConductivity[1] * state.WallTransmissibilities[face]
+    q = G * Jutul.gradient(state.WallTemperature, kgrad)
     return q
 end
 
@@ -54,24 +120,27 @@ function Jutul.update_equation_in_entity!(
     C_pw = state.WallHeatCapacity[1]
     ρ_w = state.WallDensity[1]
     A_w = state.WallCrossSectionArea[1]
-    wall_volume = A_w * Δx
+    wall_volume = A_w * Δx * _at_wall(state, self_cell)
 
     src = sum_terms(wall_source, wall_source_terms(model.system), model, state, state0, self_cell, Δt)
 
     for component in eachindex(eq_buf)
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
-        eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - A_w * div_temp / Δx - src
+        eq_buf[component] = wall_volume * ρ_w * C_pw * ∂M∂t - div_temp - src
     end
 end
 
 """
-Heat exchange between the gas and the inner wall surface, `A_in·h_in·(T − T_w)`.
-It cools the gas and heats the wall.
+Heat exchange between the gas and the inner wall surface, `A_in·h_in·(T − T_w)`,
+or, in a column meshed across its radius, `A_in·(T − T_w)/(1/h_in + R)` with
+`R` the [`RingWallResistance`](@ref). It cools the gas and heats the wall.
 """
 struct WallExchange <: AbstractSourceTerm end
 
 @inline function _wall_exchange(state, cell)
-    return state.WallAreaIn[cell] * state.InnerHeatTransferCoeff[1] * (state.Temperature[cell] - state.WallTemperature[cell])
+    h = state.InnerHeatTransferCoeff[1]
+    U = _state_has(state, :RingWallResistance) ? h / (1 + h * state.RingWallResistance[cell]) : h
+    return state.WallAreaIn[cell] * U * (state.Temperature[cell] - state.WallTemperature[cell])
 end
 
 @inline Framework.energy_source(::WallExchange, model, state, state0, cell, Δt) = -_wall_exchange(state, cell)
@@ -86,15 +155,30 @@ end
 
 """
 Conduction along the wall out through its two ends to ambient, through a
-half-cell connection at the first and last cell.
+half-cell connection at the cells of the first and last axial layers.
 """
 struct WallEndConduction <: AbstractSourceTerm end
 
 @inline function Framework.wall_source(::WallEndConduction, model, state, state0, cell, Δt)
-    nc = Jutul.number_of_cells(model.domain)
-    n_ends = (cell == 1) + (cell == nc)
+    n = _axial_count(model)
+    i = mod1(cell, n)
+    n_ends = (i == 1) + (i == n)
     trans_wall = calc_bc_wall_trans(model, state, cell)
-    return -n_ends * trans_wall * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+    return -n_ends * _at_wall(state, cell) * trans_wall * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+end
+
+"""
+In a column meshed across its radius the wall touches the outer ring only; the
+wall temperature of a cell inside, which no wall surrounds, follows the gas
+temperature, `(C_w/Δt)·(T − T_w)` with `C_w` the heat capacity the wall would
+have there, so that it stays determined. The residual is then the difference
+in K, as the convergence check of the wall reads it.
+"""
+struct WallTie <: AbstractSourceTerm end
+
+@inline function Framework.wall_source(::WallTie, model, state, state0, cell, Δt)
+    _state_has(state, :WallCells) || return false
+    return (1 - state.WallCells[cell]) * _wall_heat_capacity(state, cell) / Δt * (state.Temperature[cell] - state.WallTemperature[cell])
 end
 
 """

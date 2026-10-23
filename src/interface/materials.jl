@@ -259,7 +259,8 @@ Wall(; density = 7800.0, heat_capacity = 502.0, conductivity = 16.0) = Wall(dens
 """
     Column(; length, radius, porosity, outer_radius = radius, axial_conductivity = 0.09,
         wall = Wall(), inner_heat_transfer = 8.6, outer_heat_transfer = 2.5,
-        ambient_temperature = 298.15)
+        ambient_temperature = 298.15, radial_conductivity = nothing,
+        wall_heat_transfer = nothing)
 
 The geometry and heat transfer of a packed column:
 
@@ -273,6 +274,13 @@ The geometry and heat transfer of a packed column:
   wall to surroundings, and `ambient_temperature` [K].
 
 The heat transfer defaults are those of Haghpanah et al. (2013).
+
+A bed meshed across its radius (`radial_cells` of [`add_bed!`](@ref)) also
+needs the effective `radial_conductivity` [W/(m·K)] of the packed bed and the
+`wall_heat_transfer` coefficient [W/(m²·K)] between the gas next to the wall
+and the wall. These differ from `inner_heat_transfer`, which, for a bed of
+one radial cell, lumps the resistance of the bed across its radius with that
+at the wall.
 """
 struct Column
     length::Float64
@@ -284,10 +292,13 @@ struct Column
     inner_heat_transfer::Float64
     outer_heat_transfer::Float64
     ambient_temperature::Float64
+    radial_conductivity::Union{Nothing, Float64}
+    wall_heat_transfer::Union{Nothing, Float64}
 end
 
 function Column(; length = nothing, radius = nothing, porosity = nothing, outer_radius = radius, axial_conductivity = 0.09, wall = Wall(),
-        inner_heat_transfer = 8.6, outer_heat_transfer = 2.5, ambient_temperature = 298.15)
+        inner_heat_transfer = 8.6, outer_heat_transfer = 2.5, ambient_temperature = 298.15,
+        radial_conductivity = nothing, wall_heat_transfer = nothing)
     for (k, v) in (:length => length, :radius => radius, :porosity => porosity)
         isnothing(v) && input_error("column", k, "is required")
     end
@@ -295,7 +306,11 @@ function Column(; length = nothing, radius = nothing, porosity = nothing, outer_
     radius > 0 || input_error("column", "radius", "must be positive, got $radius")
     outer_radius >= radius || input_error("column", "outer_radius", "must be at least the inner radius $radius, got $outer_radius")
     0 < porosity < 1 || input_error("column", "porosity", "must be between 0 and 1, got $porosity")
-    return Column(length, radius, outer_radius, porosity, axial_conductivity, wall, inner_heat_transfer, outer_heat_transfer, ambient_temperature)
+    for (k, v) in (:radial_conductivity => radial_conductivity, :wall_heat_transfer => wall_heat_transfer)
+        isnothing(v) || v > 0 || input_error("column", k, "must be positive, got $v")
+    end
+    return Column(length, radius, outer_radius, porosity, axial_conductivity, wall, inner_heat_transfer, outer_heat_transfer,
+        ambient_temperature, radial_conductivity, wall_heat_transfer)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", c::Column)

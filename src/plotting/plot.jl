@@ -49,10 +49,14 @@ end
     plot_cell(states, model, timesteps, cell)
 
 History of every variable of `cell` of a bed through time, one panel per
-variable, such as the outlet (`cell = ncells`, the top of the bed) or the feed
-end (`cell = 1`). `states` belong to the bed alone: for a process, pass
-`[s[:Bed] for s in result.states]`, with `model` the bed (`process.flowsheet[:Bed]`)
-and the `timesteps` of the result.
+variable. `cell` is a port, such as `:top` for the end the light product
+leaves by or `:bottom` for the feed end, whose values are the means over the
+cross-section (see [`cross_section_mean`](@ref)); a cell `(i, j)`, `i`-th
+along the column and in ring `j` from the axis (1 for a bed of one radial
+cell); or the index of a cell, which for a bed of one radial cell is its
+position along the column. `states` belong to the bed alone: for a process,
+pass `[s[:Bed] for s in result.states]`, with `model` the bed
+(`process.flowsheet[:Bed]`) and the `timesteps` of the result.
 """
 function plot_cell(states, model, timesteps, cell)
 
@@ -78,11 +82,12 @@ function plot_cell(states, model, timesteps, cell)
             xlabel=L"t\; [s]",
             ylabel=L"%$(units[symb])")
 
-        if size(states[end][symb], 2) == 1
-           lines!(ax, t, [result[symb][cell] for result in states], color = SINGLE_COLOUR)
+        values = [_at_cell(model, result[symb], cell) for result in states]
+        if states[end][symb] isa AbstractVector
+           lines!(ax, t, values, color = SINGLE_COLOUR)
         else
             for k in 1:size(states[end][symb], 1)
-                lines!(ax, t, [result[symb][k, cell] for result in states], label = comp_names[k],
+                lines!(ax, t, [v[k] for v in values], label = comp_names[k],
                     color = _component_colour(comp_names[k], k))
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
@@ -99,9 +104,10 @@ end
 """
     plot_state(state, model)
 
-Every variable along a bed at one time, one panel per variable. `state` is the
-state of the bed alone, such as `result.states[end][:Bed]` at the end of a
-simulation, and `model` the bed (`process.flowsheet[:Bed]`).
+Every variable along a bed at one time, one panel per variable, averaged over
+the cross-section (see [`axial_profile`](@ref)). `state` is the state of the
+bed alone, such as `result.states[end][:Bed]` at the end of a simulation, and
+`model` the bed (`process.flowsheet[:Bed]`).
 """
 function plot_state(state, model)
 
@@ -110,7 +116,7 @@ function plot_state(state, model)
     pretty_names = prettyVarNames(pvars)
 
     units = units_dict()
-    x = model.data_domain[:cell_centroids][1,:]
+    x = axial_positions(model)
 
     f = Figure(size = (900, 600))
     ga = f[2,3] = GridLayout()
@@ -127,11 +133,12 @@ function plot_state(state, model)
             xlabel=L"x\; [m]",
             ylabel=L"%$(units[symb])")
 
-        if size(state[symb], 2) == 1
-           lines!(ax, x, state[symb], color = SINGLE_COLOUR)
+        v = axial_profile(model, state[symb])
+        if v isa AbstractVector
+           lines!(ax, x, v, color = SINGLE_COLOUR)
         else
-            for k in 1:size(state[symb], 1)
-                lines!(ax, x, state[symb][k,:], label = comp_names[k], color = _component_colour(comp_names[k], k))
+            for k in 1:size(v, 1)
+                lines!(ax, x, v[k,:], label = comp_names[k], color = _component_colour(comp_names[k], k))
             end
             leg = Legend(f[2,3], ax, tellwidth=false)
             
@@ -180,7 +187,8 @@ end
     plot_cell_comparison(runs, model, cell; component = 1)
 
 Overlay the history of `cell` in several simulations of the same unit, one
-panel per primary variable. `runs` is a vector of `label => (states,
+panel per primary variable. `cell` is a port, a cell `(i, j)` or the index of
+a cell, as for [`plot_cell`](@ref). `runs` is a vector of `label => (states,
 timesteps)`, where `states` belong to that unit alone (for a flowsheet, pass
 `[s[:Bed] for s in states]`). For variables with one value per component only
 `component` is shown.
@@ -188,7 +196,7 @@ timesteps)`, where `states` belong to that unit alone (for a flowsheet, pass
 function plot_cell_comparison(runs, model, cell; component = 1)
     curves = map(runs) do (label, (states, timesteps))
         t = Float64.(cumsum(timesteps))
-        label => (t, symb -> [_component_value(s[symb], component, cell) for s in states])
+        label => (t, symb -> [_component_value(_at_cell(model, s[symb], cell), component) for s in states])
     end
     return _comparison_figure(model, curves, L"t\; [s]", component)
 end
@@ -196,19 +204,34 @@ end
 """
     plot_state_comparison(states, model; component = 1)
 
-Overlay profiles along the column from several states of the same unit.
-`states` is a vector of `label => state`.
+Overlay profiles along the column, averaged over the cross-section (see
+[`axial_profile`](@ref)), from several states of the same unit. `states` is a
+vector of `label => state`.
 """
 function plot_state_comparison(states, model; component = 1)
-    x = model.data_domain[:cell_centroids][1, :]
+    x = axial_positions(model)
     curves = map(states) do (label, state)
-        label => (x, symb -> [_component_value(state[symb], component, c) for c in eachindex(x)])
+        label => (x, symb -> (v = axial_profile(model, state[symb]); [_component_value(v, component, i) for i in eachindex(x)]))
     end
     return _comparison_figure(model, curves, L"x\; [m]", component)
 end
 
 _component_value(v::AbstractVector, component, cell) = v[cell]
 _component_value(v::AbstractMatrix, component, cell) = v[component, cell]
+_component_value(v::Number, component) = v
+_component_value(v::AbstractVector, component) = v[component]
+
+# The value of a cell variable `v` of `model` at `cell`, as plot_cell takes
+# it: a number for a variable with one value per cell, and a vector for one
+# with a column per cell
+_at_cell(model, v, cell::Integer) = v isa AbstractVector ? v[cell] : v[:, cell]
+_at_cell(model, v, port::Symbol) = cross_section_mean(model, v, port_cells(model, port))
+function _at_cell(model, v, (i, j)::Tuple{Integer, Integer})
+    layers = axial_layers(model)
+    nz, nr = length(layers), length(first(layers))
+    (1 <= i <= nz && 1 <= j <= nr) || throw(ArgumentError("cell ($i, $j) is outside the bed of $nz × $nr cells"))
+    return _at_cell(model, v, i + (j - 1) * nz)
+end
 
 function _comparison_figure(model, curves, xlabel, component)
     pvars = model.primary_variables.keys
@@ -298,12 +321,13 @@ end
     plot_profiles(states, timesteps, model, times; labels, unit = nothing, components = all)
 
 Profiles along a bed at the given `times` [s], measured from the start of
-`states`: the gas mole fraction of each of `components` (top row) and its
-loading (bottom row). For a dual-site Langmuir isotherm the loading is shown
-relative to the component's saturation capacity `qsb + qsd`, as in the bed
-profile figures of Haghpanah et al. and Krishnamurthy et al. For flowsheet
-states, `unit` names the bed and `model` is the bed's model. Each time uses the
-last state at or before it.
+`states`, averaged over the cross-section (see [`axial_profile`](@ref)): the
+gas mole fraction of each of `components` (top row) and its loading (bottom
+row). For a dual-site Langmuir isotherm the loading is shown relative to the
+component's saturation capacity `qsb + qsd`, as in the bed profile figures of
+Haghpanah et al. and Krishnamurthy et al. For flowsheet states, `unit` names
+the bed and `model` is the bed's model. Each time uses the last state at or
+before it.
 """
 function plot_profiles(states, timesteps, model, times;
         labels = ["t = $(round(t, digits = 1)) s" for t in times],
@@ -312,8 +336,8 @@ function plot_profiles(states, timesteps, model, times;
     t = cumsum(timesteps)
     unit_states = isnothing(unit) ? states : [s[unit] for s in states]
     names = model.system.component_names
-    x = model.data_domain[:cell_centroids][1, :]
-    x = x ./ sum(model.data_domain[:dx])
+    x = axial_positions(model)
+    x = x ./ sum(model.data_domain[:dx][first(l)] for l in axial_layers(model))
     q_scale = saturation_capacity(model.system.isotherm)
     colors = Makie.wong_colors()
     f = Figure(size = (300 * length(components), 600))
@@ -326,10 +350,10 @@ function plot_profiles(states, timesteps, model, times;
             k = findlast(<=(tj + 1e-6), t)
             isnothing(k) && error("No state at or before t = $tj s")
             s = unit_states[k]
-            q = s[:AdsorbedConcentration][i, :]
+            q = axial_profile(model, s[:AdsorbedConcentration])[i, :]
             isnothing(q_scale) || (q = q ./ q_scale[i])
             color = _step_colour(label, colors[mod1(j, length(colors))])
-            lines!(ax_y, x, s[:y][i, :], color = color, label = label)
+            lines!(ax_y, x, axial_profile(model, s[:y])[i, :], color = color, label = label)
             lines!(ax, x, q, color = color, label = label)
         end
     end
@@ -337,3 +361,134 @@ function plot_profiles(states, timesteps, model, times;
     return f
 end
 
+
+# Edges [m] of the rings of a bed from the axis to the wall: those of a bed
+# meshed across its radius, or the axis and the wall for one radial cell
+function _ring_edges(model)
+    d = model.data_domain
+    _is_axisymmetric(d) || return [0.0, first(d[:r_in, Unit()])]
+    return [0.0; cumsum(collect(Jutul.physical_representation(d).deltas[2]))]
+end
+
+# Cells along the column and across the radius of a bed
+function _bed_shape(model)
+    layers = axial_layers(model)
+    return (length(layers), length(first(layers)))
+end
+
+# Values of `variable` of a bed state on its cells, one component of a
+# variable with one value per component, as a matrix of cells along the
+# column by rings from the axis
+function _bed_field(model, s, variable, component)
+    v = s[variable]
+    return reshape(v isa AbstractVector ? v : v[component, :], _bed_shape(model)...)
+end
+
+_field_title(model, variable, component, v) =
+    (name = prettyVarNames([variable])[variable]; v isa AbstractVector ? name : "$name, $(model.system.component_names[component])")
+
+"""
+    plot_bed_section(state, model; variable = :Temperature, component = 1, unit = nothing,
+        colormap = :viridis, colorrange = nothing, radial_scale = 1)
+
+A cut through a bed along its axis at one time: `variable` over the radius
+and the length, the bed upright with its bottom port at the foot and mirrored
+about the axis, so that it spans the diameter, with the wall from the inner to
+the outer radius. For `variable = :Temperature` the wall shows its own
+temperature, and otherwise it is grey. For a variable with one value per
+component, `component` is shown. A bed of one radial cell is uniform across.
+
+`state` is the state of the bed alone, or, with `unit` naming the bed, a
+state of the flowsheet. `radial_scale` widens the plot, for a column much
+longer than it is wide; the axis keeps the true radius.
+"""
+function plot_bed_section(state, model; variable = :Temperature, component = 1, unit = nothing,
+        colormap = :viridis, colorrange = nothing, radial_scale = 1.0)
+    s = isnothing(unit) ? state : state[unit]
+    nz, nr = _bed_shape(model)
+    F = _bed_field(model, s, variable, component)
+    layers = axial_layers(model)
+    z_edges = [0.0; cumsum(model.data_domain[:dx][first.(layers)])]
+    r_edges = _ring_edges(model)
+    r_in, r_out = last(r_edges), first(model.data_domain[:r_out, Unit()])
+    L = last(z_edges)
+    x_edges = [-reverse(r_edges[2:end]); r_edges]
+    M = permutedims([reverse(F, dims = 2) F])
+    wall = variable == :Temperature && has_wall(model.system) && haskey(s, :WallTemperature) && r_out > r_in
+    Tw = wall ? s[:WallTemperature][[i + (nr - 1) * nz for i in 1:nz]] : Float64[]
+    lo, hi = extrema([vec(F); Tw])
+    cr = something(colorrange, lo == hi ? (lo - 0.5, hi + 0.5) : (lo, hi))
+
+    f = Figure(size = (450, 700))
+    ax = Axis(f[1, 1], title = _field_title(model, variable, component, s[variable]),
+        xlabel = L"r\; [m]", ylabel = L"z\; [m]", xticks = LinearTicks(3))
+    hm = heatmap!(ax, x_edges, z_edges, M; colormap = colormap, colorrange = cr)
+    if r_out > r_in
+        for xs in ([r_in, r_out], [-r_out, -r_in])
+            if wall
+                heatmap!(ax, xs, z_edges, reshape(Tw, 1, :); colormap = colormap, colorrange = cr)
+            else
+                poly!(ax, Rect(xs[1], 0.0, xs[2] - xs[1], L), color = (:grey, 0.6))
+            end
+        end
+    end
+    limits!(ax, -r_out, r_out, 0.0, L)
+    Colorbar(f[1, 2], hm; label = L"%$(units_dict()[variable])")
+    # The width of the bed from its height, so that the colour bar is as tall
+    # as the bed, and the figure fitted to it
+    colsize!(f.layout, 1, Aspect(1, 2 * r_out * radial_scale / L))
+    resize_to_layout!(f)
+    return f
+end
+
+"""
+    plot_radial_profiles(states, timesteps, model, times; positions = [0.25, 0.5, 0.75],
+        variable = :Temperature, component = 1, labels, unit = nothing)
+
+Profiles of `variable` across the radius of a bed, from the axis to the wall,
+one panel for each relative position along the column in `positions` (at the
+nearest cells), and one line for each of `times` [s], measured from the start
+of `states`, each the last state at or before it. For `variable =
+:Temperature` the temperature of the wall around the outer ring is marked
+with a square at the middle of the wall. For a variable with one value per
+component, `component` is shown. For flowsheet states, `unit` names the bed
+and `model` is the bed's model.
+"""
+function plot_radial_profiles(states, timesteps, model, times; positions = [0.25, 0.5, 0.75],
+        variable = :Temperature, component = 1, labels = ["t = $(round(t, digits = 1)) s" for t in times], unit = nothing)
+    t = cumsum(timesteps)
+    unit_states = isnothing(unit) ? states : [s[unit] for s in states]
+    nz, nr = _bed_shape(model)
+    layers = axial_layers(model)
+    z = axial_positions(model) ./ sum(model.data_domain[:dx][first.(layers)])
+    r_edges = _ring_edges(model)
+    rc = (r_edges[1:(end - 1)] .+ r_edges[2:end]) ./ 2
+    r_in, r_out = last(r_edges), first(model.data_domain[:r_out, Unit()])
+    wall = variable == :Temperature && has_wall(model.system)
+    colors = Makie.wong_colors()
+    f = Figure(size = (300 * length(positions) + 200, 420))
+    Label(f[0, 1:length(positions)], _field_title(model, variable, component, first(unit_states)[variable]), font = :bold, tellwidth = false)
+    ax = nothing
+    entries = Any[]
+    for (col, pos) in enumerate(positions)
+        i = argmin(abs.(z .- pos))
+        ax = Axis(f[1, col], title = "z/L = $(round(z[i], digits = 2))", xlabel = L"r\; [m]", xticks = LinearTicks(4),
+            ylabel = col == 1 ? L"%$(units_dict()[variable])" : "")
+        for (k, (tk, label)) in enumerate(zip(times, labels))
+            n = findlast(<=(tk + 1e-6), t)
+            isnothing(n) && error("No state at or before t = $tk s")
+            s = unit_states[n]
+            F = _bed_field(model, s, variable, component)
+            color = _step_colour(label, colors[mod1(k, length(colors))])
+            scatterlines!(ax, rc, F[i, :], color = color)
+            col == 1 && push!(entries, [LineElement(color = color), MarkerElement(color = color, marker = :circle)] => label)
+            if wall && haskey(s, :WallTemperature)
+                scatter!(ax, [(r_in + r_out) / 2], [s[:WallTemperature][i + (nr - 1) * nz]], color = color, marker = :rect)
+            end
+        end
+        wall && r_out > r_in && vlines!(ax, [r_in], color = :grey, linestyle = :dash)
+    end
+    wall && push!(entries, MarkerElement(color = :grey, marker = :rect) => "wall")
+    Legend(f[1, length(positions) + 1], first.(entries), last.(entries))
+    return f
+end

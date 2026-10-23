@@ -25,6 +25,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Getting started" => "getting_started"
         "Building a process from its parts" => "process_from_parts"
         "Breakthrough curve" => "breakthrough"
+        "A column with a cooled wall, across its radius" => "radial_bed"
         "Two-bed VSA with pressure equalisation" => "two_bed_vsa"
         "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
         "Wet flue gas: dual-adsorbent VSA" => "wet_flue_gas_dual_adsorbent_vsa"

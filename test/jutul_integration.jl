@@ -101,3 +101,15 @@ end
     expected_volume = dr^2 * expected_dx  # Cell volume
     @test all(domain[:volumes] .≈ expected_volume)
 end
+
+@testset "Equations see the parameters in Jutul's local states" begin
+    # Jutul evaluates equations on wrappers of the state, whose fields are not
+    # its variables; a parameter such as TimeScale must still be found
+    s = (TimeScale = [2.0], WallCells = [1.0, 0.0])
+    for l in (Jutul.local_ad(s, 1, Jutul.Cells()), Jutul.as_value(s))
+        @test Mocca.Framework._state_has(l, :TimeScale) && !Mocca.Framework._state_has(l, :RadialDispersion)
+    end
+    v = Jutul.as_value(s)
+    @test Mocca.Balances._scaled_dt(v, 0.5) == 1.0 && Mocca.Balances._at_wall(v, 2) == 0.0
+    @test Mocca.Balances._scaled_dt((Pressure = [1.0],), 0.5) == 0.5
+end

@@ -62,7 +62,7 @@ result = Mocca.simulate(process; timestep_selector_cfg = selector)
 # CO₂ breaks through as the feed cools the bed again:
 bed = fs[:Bed]
 bed_states = [s[:Bed] for s in result.states]
-f_outlet = Mocca.plot_cell(bed_states, bed, result.timesteps, ncells)
+f_outlet = Mocca.plot_cell(bed_states, bed, result.timesteps, :top)
 
 # and along the column at the end of the simulation:
 f_column = Mocca.plot_state(bed_states[end], bed)
@@ -98,4 +98,4 @@ end
 # breaks through about twice as late, in a single sharp front. Heat lost
 # through the wall cools the bed a little behind the first front, which then
 # takes up more CO₂ than the adiabatic bed.
-f_comparison = Mocca.plot_cell_comparison(runs, bed, ncells)
+f_comparison = Mocca.plot_cell_comparison(runs, bed, :top)

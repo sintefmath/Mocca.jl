@@ -64,12 +64,33 @@ holdup_units
 
 A new kind of unit is a `MoccaSystem` with these methods.
 
+A distributed unit's ports are its end layers of cells ([`axial_layers`](@ref)):
+one cell for a column, and every ring for a bed meshed across its radius. A
+stream through a port of several cells is shared between them by
+[`port_weights`](@ref), their shares of the cross-section unless a unit
+defines its own; out of the unit, each cell gives up its own gas, and the
+device sees them mixed. A unit on a Cartesian mesh has its axis along x and
+gets its ports for free; another can give each port as a cell or a vector of
+cells.
+
 ```@docs
+ports
+port_cells
+port_weights
+axial_layers
 stream_equations
 setup_unit_state
 setup_unit_parameters
 holds_sorbent
 AxialDispersion
+RadialDispersion
+WallTransmissibilities
+WallCells
+RingWallResistance
+WallTie
+wall_cells
+column_mesh
+mocca_domain
 ```
 
 ## Devices, schedules and steady states

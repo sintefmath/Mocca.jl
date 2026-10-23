@@ -131,6 +131,7 @@ Markdown.parse(join([line(rows[1]); "|" * repeat(" --- |", length(cols)); line.(
 | `stream_history.csv` | Flow, composition, temperature and pressures of every device at every time step |
 | `bed_history.csv` | Pressure, temperatures, gas composition and loading at both ends of each bed at every time step |
 | `bed_profiles.csv` | The same along each bed, at the start of the cycle and the end of each stage |
+| `bed_fields.csv` | The same for every cell of the beds meshed across their radius, with the radius of its ring; only for such beds |
 | `process.json` | The process, to read back with [`read_process`](@ref) |
 
 The time series have one row per time step and device (or bed end), with the
@@ -165,17 +166,19 @@ environment (see [Installation](@ref)) and use `save`:
 using CairoMakie
 bed = process.flowsheet[:Bed]
 bed_states = [s[:Bed] for s in result.states]
-f = plot_cell(bed_states, bed, result.timesteps, 30)   # history of cell 30, the top of a 30-cell bed
+f = plot_cell(bed_states, bed, result.timesteps, :top)   # history of the top of the bed
 save("bed_top.png", f)
 ```
 
 | Function | Shows |
 |---|---|
-| [`plot_cell`](@ref) | Every variable of one cell through time, such as the outlet |
+| [`plot_cell`](@ref) | Every variable of one cell, or of one end of the bed, through time |
 | [`plot_state`](@ref) | Every variable along the bed at one time |
 | [`plot_profiles`](@ref) | Mole fractions and loadings along the bed at several times, such as the end of each step |
 | [`plot_flowsheet_streams`](@ref) | Flow and composition through each device, with the steps shaded |
 | [`plot_cell_comparison`](@ref), [`plot_state_comparison`](@ref) | Several simulations of the same bed overlaid |
+| [`plot_bed_section`](@ref) | A cut through a bed meshed across its radius, along its axis, at one time |
+| [`plot_radial_profiles`](@ref) | Profiles across the radius at several positions and times |
 
 The figures below are for the steady cycle of the four-step VSA of Mocca's
 library, read with `process = read_process("haghpanah_2013_four_stage_vsa")`
@@ -183,11 +186,11 @@ and run with `result = cyclic_steady_state(process)`.
 
 ### One cell through time
 
-[`plot_cell`](@ref) shows every variable of one cell through the cycle. At the
-top of the bed (cell 30 of 30), the light product end:
+[`plot_cell`](@ref) shows every variable of one cell, or of one end of the
+bed, through the cycle. At the top of the bed, the light product end:
 
 ```@example results
-Mocca.plot_cell(bed_states, bed, result.timesteps, 30)
+Mocca.plot_cell(bed_states, bed, result.timesteps, :top)
 ```
 
 ### Along the bed at one time
@@ -224,8 +227,8 @@ Mocca.plot_flowsheet_streams(result.states, process.model, result.timesteps; sta
 
 [`plot_cell_comparison`](@ref) and [`plot_state_comparison`](@ref) overlay
 several simulations of the same bed. Here the evacuation pressure is lowered
-from 0.1 to 0.05 bar, and the feed end of the bed (cell 1) compared through
-the cycle:
+from 0.1 to 0.05 bar, and the feed end of the bed (`:bottom`) compared
+through the cycle:
 
 ```@example results
 low = Mocca.read_process("haghpanah_2013_four_stage_vsa")
@@ -233,7 +236,7 @@ low[:P_L] = 0.05bar
 result_low = Mocca.cyclic_steady_state(low; progress = false)
 runs = ["P_L = 0.1 bar" => (bed_states, result.timesteps),
         "P_L = 0.05 bar" => ([s[:Bed] for s in result_low.states], result_low.timesteps)]
-Mocca.plot_cell_comparison(runs, bed, 1)
+Mocca.plot_cell_comparison(runs, bed, :bottom)
 ```
 
 and along the bed at the end of the cycle:
@@ -241,6 +244,49 @@ and along the bed at the end of the cycle:
 ```@example results
 Mocca.plot_state_comparison([label => first(r)[end] for (label, r) in runs], bed)
 ```
+
+### Across the radius
+
+For a bed meshed across its radius (see
+[Beds meshed across their radius](@ref)), the plots along the bed and the bed
+ends show means over the cross-section, and two more show the field across
+it. Here the first cycle of the four-step VSA, from a bed of nitrogen, in a
+column of low radial conductivity, on 20 × 6 cells:
+
+```@example results
+column = Mocca.Column(; length = 1.0, radius = 0.1445, outer_radius = 0.162, porosity = 0.37,
+    radial_conductivity = 0.2, wall_heat_transfer = 30.0)
+radial = Mocca.four_stage_vsa_process(ncells = 20, radial_cells = 6, column = column)
+result_radial = Mocca.simulate(radial)
+radial_bed = radial.flowsheet[:Bed]
+nothing # hide
+```
+
+[`plot_bed_section`](@ref) cuts through the bed along its axis, mirrored
+about it, with the wall on either side. At the end of adsorption, 30 s into
+the cycle, the heat of adsorption has warmed the bottom of the bed, and the
+wall has begun to cool the outer ring:
+
+```@example results
+k = findlast(<=(30.0), cumsum(result_radial.timesteps))
+Mocca.plot_bed_section(result_radial.states[k], radial_bed; unit = :Bed, radial_scale = 2)
+```
+
+[`plot_radial_profiles`](@ref) draws the profiles from the axis to the wall,
+at positions along the bed and at times, with the wall temperature as a
+square:
+
+```@example results
+Mocca.plot_radial_profiles(result_radial.states, result_radial.timesteps, radial_bed, [15.0, 30.0, 60.0, 100.0];
+    unit = :Bed, positions = [0.1, 0.25],
+    labels = ["end of pressurisation", "end of adsorption", "end of blowdown", "end of evacuation"])
+```
+
+[`write_results`](@ref) adds `bed_fields.csv`, with every cell of the bed and
+the radius of its ring, and the summary gives the largest temperature
+difference across the radius over the last cycle. [`plot_cell`](@ref) takes a
+port, such as `:top`, for the mean over that end of the bed, or a cell
+`(i, j)`, `i`-th along the column and in ring `j` from the axis.
 
 ```@docs
 ProcessResult
@@ -251,6 +297,12 @@ plot_profiles
 plot_flowsheet_streams
 plot_cell_comparison
 plot_state_comparison
+plot_bed_section
+plot_radial_profiles
+axial_profile
+axial_positions
+cross_section_mean
+port_state
 stream_totals
 vacuum_pump_energy
 compressor_energy

@@ -28,7 +28,7 @@ _time_scale_force(forces) = hasproperty(forces, :time_scale) ? forces.time_scale
 Jutul.setup_forces(model::DistributedUnitModel; time_scale = nothing) = (time_scale = time_scale,)
 
 # The time step of a unit's time derivatives
-@inline _scaled_dt(state, Δt) = hasproperty(state, :TimeScale) ? Δt * state.TimeScale[1] : Δt
+@inline _scaled_dt(state, Δt) = _state_has(state, :TimeScale) ? Δt * state.TimeScale[1] : Δt
 
 struct AdsorbentDensity <: Jutul.ScalarVariable end
 Jutul.associated_entity(::AdsorbentDensity) = Unit()

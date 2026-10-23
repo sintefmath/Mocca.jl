@@ -17,7 +17,7 @@ using ..Operation: _no_targets, _plural, _simulate_schedule, _stage_forces, _sci
     report_cycle!, report_note!, start_phase!
 
 export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_variable!, Adsorb,
-    Adsorbent, adsorbent_to_dict, attachments, axial_diffusivity, bed_dispersion, beds,
+    Adsorbent, adsorbent_to_dict, attachments, axial_diffusivity, bed_dispersion, bed_radial_dispersion, beds,
     BedSpec, Blowdown, boundary, build_isotherm, Column, compile_cycle, CompiledCycle,
     Component, component, composition, Concurrent, Cycle, cycle_schedule, cycle_steps,
     cycle_time, cyclic_steady_state, default_conductance, default_step_name, DesignVariable,

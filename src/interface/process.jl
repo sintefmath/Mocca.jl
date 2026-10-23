@@ -100,7 +100,9 @@ function _process_parameters(p::Process)
     fs = p.flowsheet
     prm = setup_flowsheet_parameters(fs)
     for b in beds(fs)
-        get(fs.specs, b, nothing) isa BedSpec && (prm[b][:AxialDispersion] .= bed_dispersion(fs, b))
+        get(fs.specs, b, nothing) isa BedSpec || continue
+        prm[b][:AxialDispersion] .= bed_dispersion(fs, b)
+        haskey(prm[b], :RadialDispersion) && (prm[b][:RadialDispersion] .= bed_radial_dispersion(fs, b))
     end
     for (u, d) in p.parameter_settings
         haskey(prm, u) || input_error("parameters", String(u), "$u is not a unit of the flowsheet")
@@ -320,7 +322,11 @@ The cyclic steady state of the process, with the states of its last cycle:
   Newton's method does not converge from a few plain cycles. The coarser
   grids only give the start: the steady state is that of `p`. If Newton's
   method does not converge from the coarser grid's steady state, `p` is
-  started from its initial state as above. Pass `coarse_cells = nothing` to
+  started from its initial state as above. Beds meshed across their radius
+  start from the steady state on one radial cell instead, with as many cells
+  along the column (and so on as above), spread over the rings; the bed of
+  one radial cell takes the wall coefficient `1/(1/h_w + r/(4λ_r))` that
+  gives the radial bed's mean temperature. Pass `coarse_cells = nothing` to
   start from the initial state on any grid.
 - `:anderson`: [`simulate_to_cyclic_steady_state`](@ref) to `tol` (default
   `1e-6`).
@@ -398,7 +404,8 @@ const COARSE_TOL = 1e-6
 
 # Newton's method for the cyclic steady state of `p`, as cyclic_steady_state
 # runs it: from the last steady state if `warm`; otherwise, if the beds have
-# more than `coarse_cells` cells, from the steady state on half as many,
+# more than `coarse_cells` cells, from the steady state on half as many, or
+# for beds meshed across their radius on one radial cell (see _coarse_copy),
 # interpolated (found the same way, so possibly from coarser grids still);
 # otherwise, or if that fails, from the initial state, after `handover`
 # plain cycles or Anderson acceleration, with Anderson acceleration to
@@ -442,7 +449,7 @@ function _newton_steady_state(p::Process, pr; tol, warm = false, handover = DEFA
             report_note!(pr, "  $(_cells_text(p)): Newton's method from the steady state on $(_cells_text(q))")
             plan_phases!(pr, [("Newton", tol, "iteration")])
             r = try
-                newton_cyclic_steady_state(model, _interpolate_state(p, c.result.state0), prm, forces, dt; tol = tol,
+                newton_cyclic_steady_state(model, _interpolate_state(p, c.result.state0, q), prm, forces, dt; tol = tol,
                     max_iterations = 40, krylov = krylov, progress = pr, info_level = info_level, kwarg...)
             catch e
                 _is_solver_failure(e) || rethrow()
@@ -499,25 +506,41 @@ end
 # per cell). Settings made through the constructor, the design variables, the
 # feed or the steps carry over; the coarse grid only gives a start, so a
 # setting that does not changes the time taken, not the steady state.
+#
+# A process with beds meshed across their radius first goes to one radial
+# cell, on as many cells along the column: the axial fronts of the 1D bed are
+# close to those of the radial one, and the radial profiles, which the slow
+# conduction of heat across the bed sets over many cycles, are left to
+# Newton's method on the radial grid. The 1D bed then takes the wall
+# coefficient that gives the radial bed's mean temperature (see
+# _lumped_wall_coefficient), and leaves out the settings of parameters only
+# the radial bed has.
 function _coarse_copy(p::Process, coarse_cells)
     (isnothing(coarse_cells) || coarse_cells === false) && return nothing
     fs = p.flowsheet
     bs = beds(fs)
     (isempty(bs) || !all(b -> haskey(fs.specs, b), bs)) && return nothing
-    maximum(b -> fs.specs[b].ncells, bs) > coarse_cells || return nothing
+    radial = any(b -> fs.specs[b].radial_cells > 1, bs)
+    radial || maximum(b -> fs.specs[b].ncells, bs) > coarse_cells || return nothing
     coarse = deepcopy(fs)
+    settings = deepcopy(p.parameter_settings)
     for b in bs
         spec = coarse.specs[b]
-        spec.ncells = max(cld(spec.ncells, 2), 2)
-        network(coarse).units[b] = fixed_bed_model(coarse.gas, coarse.feed, spec.adsorbent, spec.column; ncells = spec.ncells,
-            thermal = spec.thermal, dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion,
-            permeability = spec.permeability)
+        if radial
+            spec.radial_cells > 1 || continue
+            spec.column = _with_inner_heat_transfer(spec.column, _lumped_wall_coefficient(spec.column))
+            spec.radial_cells, spec.radii = 1, nothing
+            haskey(settings, b) && foreach(k -> delete!(settings[b], k), RADIAL_PARAMETERS)
+        else
+            spec.ncells = max(cld(spec.ncells, 2), 2)
+        end
+        network(coarse).units[b] = _bed_model(coarse, spec)
     end
     o = p.options
     q = try
         Process(coarse, p.cycle; name = p.name, timestepping = p.timestepping, key_component = o.key_component,
             ambient_pressure = o.ambient_pressure, pump_efficiency = o.pump_efficiency, heat_capacity_ratio = o.heat_capacity_ratio,
-            ramp_rate = o.ramp_rate, initial_state = p.initial_conditions, parameters = p.parameter_settings)
+            ramp_rate = o.ramp_rate, initial_state = p.initial_conditions, parameters = settings)
     catch e
         e isa Union{MoccaInputError, DimensionMismatch} || rethrow()
         @debug "No coarser copy of the process" exception = (e, catch_backtrace())
@@ -529,6 +552,23 @@ function _coarse_copy(p::Process, coarse_cells)
     q.reference_durations = p.reference_durations
     return q
 end
+
+# Parameters of a bed meshed across its radius that a bed of one radial cell
+# does not have
+const RADIAL_PARAMETERS = (:RadialDispersion, :RadialDispersionTransmissibilities, :WallCells, :RingWallResistance)
+
+# The wall coefficient [W/(m²·K)] of a bed of one radial cell whose mean
+# temperature is that of the bed across its radius, for heat released evenly
+# in it: the resistance r/(4λ_r) of the bed, from its mean to the gas at the
+# wall, in series with 1/h_w at the wall. A column without the radial
+# coefficients keeps its inner_heat_transfer.
+function _lumped_wall_coefficient(c::Column)
+    (isnothing(c.radial_conductivity) || isnothing(c.wall_heat_transfer)) && return c.inner_heat_transfer
+    return 1 / (1 / c.wall_heat_transfer + c.radius / (4 * c.radial_conductivity))
+end
+
+_with_inner_heat_transfer(c::Column, h) = Column(c.length, c.radius, c.outer_radius, c.porosity, c.axial_conductivity, c.wall, h,
+    c.outer_heat_transfer, c.ambient_temperature, c.radial_conductivity, c.wall_heat_transfer)
 
 # The coarser grids _newton_steady_state goes through, coarsest first
 function _coarse_grids(p::Process, coarse_cells)
@@ -542,38 +582,85 @@ function _coarse_grids(p::Process, coarse_cells)
 end
 
 function _cells_text(p::Process)
-    n = [p.flowsheet.specs[b].ncells for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
+    n = [_cells_of(p.flowsheet.specs[b]) for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
     isempty(n) && return "the grid"
     allequal(n) && return "$(first(n)) cells" * (length(n) > 1 ? " per bed" : "")
-    return join(["$b $(p.flowsheet.specs[b].ncells)" for b in beds(p.flowsheet)], ", ") * " cells"
+    return join(["$b $(_cells_of(p.flowsheet.specs[b]))" for b in beds(p.flowsheet)], ", ") * " cells"
 end
 
-# The state `x` of the same process on another grid (see _coarse_copy), as a
-# start for `p`: each variable of a unit with holdup interpolated linearly,
-# cell centre to cell centre, along its uniform cells (mole fractions stay
-# normalised, as their weights add up to one); a unit on the same cells is
-# taken as it is
-function _interpolate_state(p::Process, x)
+# The state `x` of the same process on another grid (see _coarse_copy), the
+# process `q`, as a start for `p`: each variable of a unit with holdup
+# interpolated linearly, cell centre to cell centre, along the column and
+# across the radius, and taken as the nearest cell beyond the end centres
+# (mole fractions stay normalised, as their weights add up to one). A bed of
+# one radial cell is spread over the rings, whose wall temperature, inside the
+# outer ring, is that of their gas. A unit on the same cells is taken as it
+# is. Without `q`, the units of `x` have one radial cell, uniform along the
+# column.
+function _interpolate_state(p::Process, x, q = nothing)
     out = initial_state(p)
-    for u in holdup_units(p.flowsheet), k in keys(p.model[u].primary_variables)
-        xc, xf = x[u][k], out[u][k]
-        if size(xc) == size(xf)
-            xf .= xc
-            continue
-        end
-        nc, nf = size(xc, ndims(xc)), size(xf, ndims(xf))
-        for i in 1:nf
-            s = (i - 0.5) / nf * nc + 0.5
-            j = clamp(floor(Int, s), 1, nc - 1)
-            w = clamp(s - j, 0.0, 1.0)
-            if xf isa AbstractMatrix
-                xf[:, i] .= (1 - w) .* xc[:, j] .+ w .* xc[:, j + 1]
-            else
-                xf[i] = (1 - w) * xc[j] + w * xc[j + 1]
+    for u in holdup_units(p.flowsheet)
+        fine = p.model[u]
+        coarse = isnothing(q) ? nothing : q.model[u]
+        W = nothing
+        for k in keys(fine.primary_variables)
+            xc, xf = x[u][k], out[u][k]
+            if size(xc) == size(xf) && (isnothing(coarse) || _grid_shape(coarse) == _grid_shape(fine))
+                xf .= xc
+                continue
             end
+            W = something(W, _grid_weights(fine, coarse, size(xc, ndims(xc))))
+            for (i, wi) in enumerate(W)
+                if xf isa AbstractMatrix
+                    xf[:, i] .= sum(w .* xc[:, j] for (j, w) in wi)
+                else
+                    xf[i] = sum(w * xc[j] for (j, w) in wi)
+                end
+            end
+        end
+        if !isnothing(W) && haskey(out[u], :WallTemperature)
+            inner = setdiff(eachindex(out[u][:Temperature]), wall_cells(fine))
+            out[u][:WallTemperature][inner] .= out[u][:Temperature][inner]
         end
     end
     return restart_state(p.model, out)
+end
+
+# Cells (along the column, across the radius) of a distributed unit
+function _grid_shape(model)
+    nz = length(axial_layers(model))
+    return (nz, Jutul.number_of_cells(model.domain) ÷ nz)
+end
+
+_column_length(model) = sum(model.data_domain[:dx][first(l)] for l in axial_layers(model))
+_ring_centres(model) = model.data_domain[:cell_centroids][2, first(axial_layers(model))]
+
+# For each cell of `fine`, the cells of `coarse` it is interpolated from and
+# their weights, from the positions along the column relative to its length
+# and the radii of the ring centres; `coarse` is nothing for a unit of
+# `n_coarse` uniform cells and one radial cell
+function _grid_weights(fine, coarse, n_coarse)
+    nz, nr = _grid_shape(fine)
+    if isnothing(coarse)
+        nzc, zc, rc = n_coarse, ((1:n_coarse) .- 0.5) ./ n_coarse, [0.0]
+    else
+        nzc, zc, rc = first(_grid_shape(coarse)), axial_positions(coarse) ./ _column_length(coarse), _ring_centres(coarse)
+    end
+    Wz = _linear_weights(zc, axial_positions(fine) ./ _column_length(fine))
+    Wr = _linear_weights(rc, _ring_centres(fine))
+    return [[(ic + (jc - 1) * nzc, wz * wr) for (ic, wz) in Wz[i] for (jc, wr) in Wr[j]] for j in 1:nr for i in 1:nz]
+end
+
+# Weights of linear interpolation from the increasing points `xc` to each of
+# `xf`, as (index, weight) pairs; beyond the end points, the nearest one
+function _linear_weights(xc, xf)
+    n = length(xc)
+    n == 1 && return [[(1, 1.0)] for _ in xf]
+    return map(xf) do s
+        j = clamp(searchsortedlast(xc, s), 1, n - 1)
+        w = clamp((s - xc[j]) / (xc[j + 1] - xc[j]), 0.0, 1.0)
+        [(j, 1 - w), (j + 1, w)]
+    end
 end
 
 _handover_text(h::Integer) = "$h plain $(_plural("cycle", h))"

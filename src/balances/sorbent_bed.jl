@@ -3,24 +3,44 @@
 # unit.
 
 """
-    column_mesh(ncells, L, r_in)
+    column_mesh(ncells, L, r_in; radial_cells = 1, radii = nothing)
 
-Create a 1D `CartesianMesh` for a cylindrical column.
-The cross-section is a square with the same area as the circular column
-(side length `√(π r_in²)`).
+Create a `CartesianMesh` for a cylindrical column of `ncells` cells along its
+length `L`, with x along the axis.
+
+With one radial cell the mesh is 1D, with a square cross-section of the same
+area as the circular column (side length `√(π r_in²)`). With `radial_cells`
+rings it is the (z, r) plane of the column, y being the radius, uniform in r
+unless `radii` gives the ring edges from 0 to `r_in`. Pass it to
+[`mocca_domain`](@ref) with `axisymmetric = true`, which gives the cells and
+faces their volumes and areas as rings of the cylinder.
 """
-function column_mesh(ncells, L, r_in)
-    dx = sqrt(π * r_in^2)
-    return Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
+function column_mesh(ncells, L, r_in; radial_cells = 1, radii = nothing)
+    if radial_cells == 1 && isnothing(radii)
+        dx = sqrt(π * r_in^2)
+        return Jutul.CartesianMesh((ncells, 1, 1), (L, dx, dx))
+    end
+    radii = isnothing(radii) ? collect(range(0.0, r_in, length = radial_cells + 1)) : collect(Float64, radii)
+    length(radii) == radial_cells + 1 || throw(ArgumentError("radii must have radial_cells + 1 = $(radial_cells + 1) entries, got $(length(radii))"))
+    (first(radii) == 0 && last(radii) ≈ r_in && issorted(radii) && allunique(radii)) ||
+        throw(ArgumentError("radii must increase from 0 to r_in = $r_in, got $radii"))
+    return Jutul.CartesianMesh((ncells, radial_cells, 1), (fill(L / ncells, ncells), diff(radii), [1.0]))
 end
 
 """
-    mocca_domain(mesh; porosity, permeability, r_in, r_out, ...)
+    mocca_domain(mesh; porosity, permeability, r_in, r_out, ...,
+        axisymmetric = false, radial_diffusion_coefficient, radial_thermal_conductivity)
 
 Set up a DataDomain for an adsorption column simulation.
 Cell-level data (porosity, permeability) goes on Cells.
 Column-level data (geometry, material, transport, heat transfer) goes on a
-single Column entity.
+single `Unit()` entity.
+
+With `axisymmetric = true`, `mesh` is the (z, r) plane of the column from
+[`column_mesh`](@ref) with several `radial_cells`: each cell is a ring of the
+cylinder, and the domain holds the ring volumes and face areas, and the
+coefficients of dispersion [m²/s] and conduction [W/(m·K)] across the radius.
+The wall touches the outer ring only.
 """
 function mocca_domain(mesh;
     porosity, permeability,
@@ -30,6 +50,8 @@ function mocca_domain(mesh;
     wall_density, wall_heat_capacity, wall_conductivity,
     fluid_viscosity,
     inner_htc, outer_htc, ambient_temperature,
+    axisymmetric = false,
+    radial_diffusion_coefficient = nothing, radial_thermal_conductivity = nothing,
     kwarg...
 )
     domain = Jutul.DataDomain(mesh, porosity = porosity, permeability = permeability)
@@ -59,6 +81,14 @@ function mocca_domain(mesh;
     nc = Jutul.number_of_cells(mesh)
     dx = map(i -> first(Jutul.cell_dims(mesh, i)), 1:nc)
     domain[:dx] = dx
+
+    if axisymmetric
+        (isnothing(radial_diffusion_coefficient) || isnothing(radial_thermal_conductivity)) &&
+            throw(ArgumentError("an axisymmetric domain needs radial_diffusion_coefficient and radial_thermal_conductivity"))
+        _axisymmetric_geometry!(domain, mesh, r_in)
+        domain[:radial_diffusion_coefficient, Unit()] = radial_diffusion_coefficient
+        domain[:radial_thermal_conductivity, Unit()] = radial_thermal_conductivity
+    end
 
     for (k, v) in kwarg
         domain[k] = v

@@ -55,7 +55,6 @@ end
 function Jutul.convergence_criterion(model::DistributedUnitModel, storage, eq::Jutul.ConservationLaw{:WallConservedEnergy}, eq_s, r;
         dt = 1.0, update_report = missing)
     state = storage.state
-    wall(cell) = state.WallCrossSectionArea[1] * state.CellDx[cell] * state.WallDensity[1] * state.WallHeatCapacity[1]
-    e = _cell_criterion(wall, r, 1, dt)
+    e = _cell_criterion(cell -> _wall_heat_capacity(state, cell), r, 1, dt)
     return (ΔT = (errors = e, names = ["ΔT_wall"]),)
 end

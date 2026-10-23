@@ -34,14 +34,46 @@ end
 
 # Face transmissibilities [m] of the pore space for dispersion, per unit of
 # AxialDispersion: the dispersive flux through a face is
-# AxialDispersion·DispersionTransmissibilities·c̄·Δy
+# AxialDispersion·DispersionTransmissibilities·c̄·Δy. In an axisymmetric
+# column they are those of the faces across the axis only; the faces at a
+# radius have RadialDispersionTransmissibilities.
 struct DispersionTransmissibilities <: Jutul.ScalarVariable end
 Jutul.minimum_value(::DispersionTransmissibilities) = 0.0
 Jutul.associated_entity(::DispersionTransmissibilities) = Jutul.Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::DispersionTransmissibilities, symb)
-    g = Jutul.physical_representation(data_domain)
-    return Jutul.compute_face_trans(g, data_domain[:porosity])
+    T = Jutul.compute_face_trans(data_domain, data_domain[:porosity])
+    return _is_axisymmetric(data_domain) ? T .* _axial_faces(data_domain) : T
+end
+
+"""
+    RadialDispersion
+
+Radial dispersion coefficient [m²/s] of the gas in a column meshed across its
+radius, one value for the unit, as [`AxialDispersion`](@ref) is along it.
+"""
+struct RadialDispersion <: Jutul.ScalarVariable end
+Jutul.associated_entity(::RadialDispersion) = Unit()
+Jutul.minimum_value(::RadialDispersion) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, ::RadialDispersion, symb)
+    return copy(data_domain[:radial_diffusion_coefficient, Unit()])
+end
+
+# Face transmissibilities [m] of the pore space for dispersion across the
+# radius, per unit of RadialDispersion; zero on the faces across the axis
+struct RadialDispersionTransmissibilities <: Jutul.ScalarVariable end
+Jutul.minimum_value(::RadialDispersionTransmissibilities) = 0.0
+Jutul.associated_entity(::RadialDispersionTransmissibilities) = Jutul.Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::RadialDispersionTransmissibilities, symb)
+    return Jutul.compute_face_trans(data_domain, data_domain[:porosity]) .* .!_axial_faces(data_domain)
+end
+
+# The dispersion [m³/s] through `face` across the radius, for a unit that has it
+@inline function _radial_dispersion(state, face)
+    _state_has(state, :RadialDispersion) || return false
+    return state.RadialDispersion[1] * state.RadialDispersionTransmissibilities[face]
 end
 
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::MoccaModel, Pressure, Temperature, ix)
@@ -119,7 +151,7 @@ end
     y = state.y
     C = (cL + cR)/2.0
 
-    D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
+    D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face] + _radial_dispersion(state, face)
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / μ
         c_face = Jutul.upwind(upw, F_c, q_darcy)
