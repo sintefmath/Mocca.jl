@@ -149,8 +149,10 @@ components by name, such as `heat_capacities = (CO2 = 697.6,)`:
   values at the feed with the temperature, pressure and composition of each
   cell (see [`AbstractGasTransport`](@ref)). `:constant` (the default) keeps
   them; `:sutherland` uses the viscosities, Sutherland constants and thermal
-  conductivities of the components ([`SutherlandTransport`](@ref)); or give an
-  [`AbstractGasTransport`](@ref) model for the components in gas order.
+  conductivities of the components ([`SutherlandTransport`](@ref), with
+  molecular diffusion; see [`sutherland_transport`](@ref) to add Knudsen
+  diffusion); or give an [`AbstractGasTransport`](@ref) model for the
+  components in gas order.
 
 `gas.heat_capacities` holds the heat capacities [J/(kg·K)] per component at
 25 °C, `gas.thermodynamics` the thermodynamics model and `gas.transport` the
@@ -191,6 +193,27 @@ function _gas_transport(names, comps, M, transport)
     transport isa AbstractGasTransport && return transport
     transport == :constant && return ConstantTransport()
     transport == :sutherland || input_error("gas", "transport", "use :constant, :sutherland or an AbstractGasTransport, got $(repr(transport))")
+    return sutherland_transport(comps, M)
+end
+
+"""
+    sutherland_transport(names; molar_masses = nothing, knudsen_pressure = 0.0,
+        diffusivity_exponent = 1.75) → SutherlandTransport
+
+The [`SutherlandTransport`](@ref) of the named components from their data (see
+[`Component`](@ref)), what `Gas(names; transport = :sutherland)` uses; give it
+to `Gas` as `transport` to set the Knudsen pressure or the exponent of the
+diffusivity.
+"""
+function sutherland_transport(names::AbstractVector; molar_masses = nothing, knudsen_pressure = 0.0, diffusivity_exponent = 1.75)
+    names = String.(names)
+    comps = component.(names)
+    M = _by_component(names, molar_masses, [c.molar_mass for c in comps], "molar_masses")
+    knudsen_pressure >= 0 || input_error("gas", "knudsen_pressure", "must not be negative, got $knudsen_pressure")
+    return sutherland_transport(comps, M; knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent)
+end
+
+function sutherland_transport(comps::AbstractVector{Component}, M; knudsen_pressure = 0.0, diffusivity_exponent = 1.75)
     for (field, what) in ((:sutherland, "Sutherland constant"), (:thermal_conductivity, "thermal conductivity"),
             (:conductivity_exponent, "conductivity exponent"))
         missing_ = [c.name for c in comps if isnothing(getfield(c, field))]
@@ -198,7 +221,7 @@ function _gas_transport(names, comps, M, transport)
     end
     return SutherlandTransport(; viscosity = [c.viscosity for c in comps], sutherland = [c.sutherland for c in comps],
         thermal_conductivity = [c.thermal_conductivity for c in comps], conductivity_exponent = [c.conductivity_exponent for c in comps],
-        molar_masses = M)
+        molar_masses = M, knudsen_pressure = knudsen_pressure, diffusivity_exponent = diffusivity_exponent)
 end
 
 # The thermodynamics model of a gas from the keywords of Gas

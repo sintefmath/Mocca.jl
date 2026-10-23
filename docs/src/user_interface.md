@@ -76,6 +76,7 @@ gas = Gas(["CO2", "N2", "H2O"]; transport = :sutherland)
 AbstractGasTransport
 ConstantTransport
 SutherlandTransport
+sutherland_transport
 TransportReference
 mixture_viscosity
 mixture_thermal_conductivity

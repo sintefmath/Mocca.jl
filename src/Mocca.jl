@@ -35,7 +35,7 @@ export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
 
 export AbstractGasThermodynamics, IdealGasConstantCp, IdealGasShomate, component_heat_capacities,
     component_enthalpies, molar_heat_capacity, molar_enthalpy, molar_concentration, heat_capacity_ratio
-export AbstractGasTransport, ConstantTransport, SutherlandTransport, TransportReference, mixture_viscosity,
+export AbstractGasTransport, ConstantTransport, SutherlandTransport, sutherland_transport, TransportReference, mixture_viscosity,
     mixture_thermal_conductivity, diffusivity_scale
 export compute_permeability, compute_dispersion
 

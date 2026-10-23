@@ -34,7 +34,7 @@ export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_variable!,
     ProcessOptions, ProcessResult, Purge, ramp, read_process, register_component!,
     register_isotherm!, register_step!, reset_step_pattern!, save_adsorbent, set_variables!,
     stages, start_pressure, step_beds, step_settings, StepContext, StepPlace,
-    superficial_flow_rate, TimeStepping, two_bed_vsa_process, validate, valve,
+    superficial_flow_rate, sutherland_transport, TimeStepping, two_bed_vsa_process, validate, valve,
     variable_names, variable_values, Wall, WarmStart, WET_FLUE_GAS_FEED, write_process,
     write_results
 

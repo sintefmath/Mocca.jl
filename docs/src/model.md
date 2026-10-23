@@ -359,14 +359,17 @@ when the solid conducts much better. With [`SutherlandTransport`](@ref)
 \quad
 k_i = k_{0,i}\left(\frac{T}{T_0}\right)^{n_i},
 \qquad
-\hat D = \frac{T^{1.75}}{P},
+\frac{1}{\hat D} = P\left(\frac{T_0}{T}\right)^{1.75} + P_K\left(\frac{T_0}{T}\right)^{1/2},
 ```
 
 with ``\Phi_{ij}`` of Mason and Saxena and ``T_0`` = 298.15 K. The diffusivity
-is that of molecular diffusion; in pores finer than the mean free path of the
-gas, at low pressure, Knudsen diffusion takes over and the rate rises less
-than ``1/P``. The wall's conductivity and the heat transfer coefficients stay
-as given.
+is that of molecular diffusion (``T^{1.75}/P``) in series with Knudsen
+diffusion (``T^{1/2}``), which takes over in pores finer than the mean free
+path of the gas, at low pressure. ``P_K`` is the pressure at which the two
+are equal, about 0.1 bar for pores of 0.5 μm; it is 0 by default, which
+leaves molecular diffusion and makes mass transfer ten times faster at
+0.1 bar than at 1 bar (see [`sutherland_transport`](@ref) to set it). The
+wall's conductivity and the heat transfer coefficients stay as given.
 
 ### Isotherm: dual-site Langmuir
 

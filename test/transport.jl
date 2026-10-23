@@ -29,9 +29,17 @@ Mocca.diffusivity_scale(::_FixedTransport, T, P) = one(T / P)
     @test mixture_viscosity(t, y, 350.0) > mixture_viscosity(t, y, 300.0)
     @test mixture_thermal_conductivity(t, y, 350.0) > mixture_thermal_conductivity(t, y, 300.0)
     @test Mocca.diffusivity_scale(t, 400.0, 0.5e5) / Mocca.diffusivity_scale(t, 300.0, 1e5) ≈ (4 / 3)^1.75 * 2
-    k = SutherlandTransport(; viscosity = [1.5e-5], sutherland = [270.0], thermal_conductivity = [0.017],
-        conductivity_exponent = [1.3], molar_masses = [44e-3], diffusivity_exponent = 0.5, diffusivity_pressure_exponent = 0.0)
-    @test Mocca.diffusivity_scale(k, 400.0, 0.1e5) / Mocca.diffusivity_scale(k, 300.0, 1e5) ≈ sqrt(4 / 3)
+    # With Knudsen diffusion in series: molecular at high pressure, and at low
+    # pressure independent of it and going as √T
+    PK = 0.2e5
+    k = sutherland_transport(["CO2", "N2", "H2O"]; knudsen_pressure = PK)
+    D(T, P) = Mocca.diffusivity_scale(k, T, P)
+    @test D(350.0, 0.5e5) ≈ 1 / (0.5e5 * (298.15 / 350)^1.75 + PK * sqrt(298.15 / 350))
+    @test D(298.15, PK) ≈ 1 / 2PK   # where the two are equal
+    @test D(400.0, 1.0) / D(300.0, 1.0) ≈ sqrt(4 / 3) rtol = 1e-4
+    @test D(300.0, 1e9) / D(300.0, 2e9) ≈ 2 rtol = 1e-4
+    @test k.μ₀ == t.μ₀ && k.S == t.S
+    @test_throws MoccaInputError sutherland_transport(["CO2"]; knudsen_pressure = -1.0)
     @test_throws ArgumentError SutherlandTransport(; viscosity = [1.5e-5, 1.7e-5], sutherland = [270.0], thermal_conductivity = [0.017],
         conductivity_exponent = [1.3], molar_masses = [44e-3])
 
@@ -87,6 +95,10 @@ end
     @test q.flowsheet.gas.transport == p.flowsheet.gas.transport
     @test q.flowsheet[:Bed].system.transport == p.flowsheet[:Bed].system.transport
     @test !haskey(Mocca.process_to_dict(four_stage_vsa_process(ncells = 4))["gas"], "transport")
+    kn = four_stage_vsa_process(ncells = 4, gas = Mocca.haghpanah_2013_gas(transport = sutherland_transport(["CO2", "N2"];
+        molar_masses = [44.01e-3, 28e-3], knudsen_pressure = 0.1e5)))
+    @test Mocca.process_to_dict(kn)["gas"]["transport"]["knudsen_pressure"] == 0.1e5
+    @test read_process(write_process(joinpath(mktempdir(), "k.json"), kn)).flowsheet.gas.transport == kn.flowsheet.gas.transport
     r = four_stage_vsa_process(ncells = 4, gas = Mocca.haghpanah_2013_gas(transport = _FixedTransport()))
     @test_throws MoccaInputError Mocca.process_to_dict(r)
 end

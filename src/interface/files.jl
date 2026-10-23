@@ -283,9 +283,24 @@ _name_of(x::Symbol) = String(x)
 # The transport model of a gas, by name: models other than those Mocca builds
 # from the components cannot be written
 function _gas_transport_to_dict(gas::Gas)
-    gas.transport isa ConstantTransport && return nothing
-    gas.transport == _gas_transport(gas.names, component.(gas.names), gas.molar_masses, :sutherland) && return "sutherland"
+    t = gas.transport
+    t isa ConstantTransport && return nothing
+    if t isa SutherlandTransport
+        made = sutherland_transport(component.(gas.names), gas.molar_masses; knudsen_pressure = t.P_K, diffusivity_exponent = t.m)
+        t == made && t.P_K == 0 && t.m == 1.75 && return "sutherland"
+        t == made && return _obj("type" => "sutherland", "knudsen_pressure" => t.P_K, "diffusivity_exponent" => t.m)
+    end
     input_error("gas", "transport", "a transport model of type $(typeof(gas.transport)) not made from the components cannot be written to a file")
+end
+
+# The transport of a gas file entry: a name, or a Sutherland model with options
+function _transport_from_dict(t)
+    t isa AbstractString && t in ("constant", "sutherland") && return Symbol(t)
+    t isa AbstractDict || input_error("gas", "transport", "expected \"constant\", \"sutherland\" or an object with a \"type\", got $(repr(t))")
+    _check_keys(t, ("type", "knudsen_pressure", "diffusivity_exponent"), "gas transport")
+    get(t, "type", "") == "sutherland" || input_error("gas", "transport", "only the \"sutherland\" type takes options")
+    return (knudsen_pressure = something(_optnum(t, "knudsen_pressure", "gas transport"), 0.0),
+        diffusivity_exponent = something(_optnum(t, "diffusivity_exponent", "gas transport"), 1.75))
 end
 
 # The heat capacities of a gas, as keys of its JSON object
@@ -444,12 +459,13 @@ function process_from_dict(d; base_dir = pwd())
     diff = get(g, "diffusivity", 1.6e-5)
     thermo = get(g, "thermodynamics", nothing)
     thermo in (nothing, "constant", "shomate") || input_error("gas", "thermodynamics", "expected \"constant\" or \"shomate\", got $(repr(thermo))")
-    transport = get(g, "transport", "constant")
-    transport in ("constant", "sutherland") || input_error("gas", "transport", "expected \"constant\" or \"sutherland\", got $(repr(transport))")
+    transport = _transport_from_dict(get(g, "transport", "constant"))
     shomate = haskey(g, "shomate") ? Dict(String(k) => [_num(x, "gas", "shomate") for x in v] for (k, v) in g["shomate"]) : nothing
     gas = Gas(String.(_require(g, "components", "gas")); molar_masses = pervals(get(g, "molar_masses", nothing)),
         heat_capacities = pervals(get(g, "heat_capacities", nothing)),
-        thermodynamics = isnothing(thermo) ? nothing : Symbol(thermo), shomate = shomate, transport = Symbol(transport),
+        thermodynamics = isnothing(thermo) ? nothing : Symbol(thermo), shomate = shomate,
+        transport = transport isa Symbol ? transport : sutherland_transport(String.(g["components"]);
+            molar_masses = pervals(get(g, "molar_masses", nothing)), transport...),
         viscosity = _optnum(g, "viscosity", "gas"),
         density = _optnum(g, "density", "gas"), diffusivity = diff isa AbstractDict ? pervals(diff) : _num(diff, "gas", "diffusivity"))
     fd = _require(d, "feed", "process")
