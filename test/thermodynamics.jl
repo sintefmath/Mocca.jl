@@ -38,6 +38,10 @@ end
     # NIST: CO2 37.12 and 41.34 J/(mol·K), N2 29.12 and 29.25 at 298.15 and 400 K
     @test component_heat_capacities(m, 298.15) ≈ [37.12, 29.12] atol = 0.02
     @test component_heat_capacities(m, 400.0) ≈ [41.34, 29.25] atol = 0.02
+    # Water's set is fitted from 500 K; below, it stays with NIST's vapour at
+    # 0.001 bar (33.612, 33.883 and 34.264 J/(mol·K) at 300, 350 and 400 K)
+    w = Gas(["H2O"]; thermodynamics = :shomate).thermodynamics
+    @test [component_heat_capacities(w, T)[1] for T in (300.0, 350.0, 400.0)] ≈ [33.612, 33.883, 34.264] rtol = 5e-4
     # Zero at the reference, and its derivative is the heat capacity
     @test all(iszero, component_enthalpies(m, Mocca.THERMODYNAMIC_REFERENCE_TEMPERATURE))
     y = SVector(0.15, 0.85)

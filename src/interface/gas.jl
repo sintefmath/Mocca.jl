@@ -70,9 +70,12 @@ function component(name)
 end
 
 # Molar masses from IUPAC atomic weights; heat capacities and viscosities of the
-# gas at 25 °C and 1 atm. Shomate coefficients from the NIST Chemistry WebBook,
-# for the range from 298 K (100 K for N2 and O2) upwards; that of H2O is fitted
-# from 500 K and is within 0.1% of the tabulated values down to 298 K.
+# gas at 25 °C and 1 atm. Shomate coefficients: the lowest-temperature set of
+# the NIST Chemistry WebBook for each component, as printed there, fitted from
+# 298 K (100 K for N2 and O2) up to 500 K for N2, 700 K for O2, 1000 K for H2,
+# 1200 K for CO2, 1300 K for CH4 and CO and 6000 K for Ar and He. That of H2O
+# is fitted from 500 to 1700 K, and is within 0.05% of the NIST heat capacity of
+# the vapour at 0.001 bar from 300 to 400 K.
 # Sutherland constants and conductivity exponents fitted to the viscosities and
 # thermal conductivities of the NIST Chemistry WebBook at 300 and 500 K and
 # 0.01 bar: within 0.6% at 400 K (water 1.8%), and within 1.6% for the
