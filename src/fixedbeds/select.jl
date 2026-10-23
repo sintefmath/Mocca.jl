@@ -21,7 +21,14 @@ function Jutul.select_secondary_variables!(
     S[:MolarConcentration] = MolarConcentration()
     S[:AverageMolarMass] = AverageMolarMass()
     S[:ComponentMasses] = ComponentMasses()
-    S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    if is_constant_transport(system.transport)
+        S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    else
+        # Transport properties that follow the state of each cell
+        S[:AdsorptionMassTransfer] = ScaledAdsorptionMassTransfer()
+        S[:ViscosityFactor] = ViscosityFactor()
+        has_energy_balance(system) && (S[:ConductivityFactor] = ConductivityFactor())
+    end
     S[:AdsorbedLoading] = AdsorbedLoading()
 
     # For the energy equations

@@ -79,6 +79,42 @@ sorption and the enthalpy a stream brings into a bed (see [Model
 equations](@ref)). A model that is not one of Mocca's cannot be written to a
 process file.
 
+## Adding a transport model
+
+How the viscosity, molecular diffusivity and bed conductivity change through a
+bed comes from an [`AbstractGasTransport`](@ref) model, held by the
+[`Gas`](@ref) and, with the state at which the bed's parameters hold, by the
+bed (a [`TransportReference`](@ref) in the `transport` field of its system).
+Mocca has [`ConstantTransport`](@ref), the default, and
+[`SutherlandTransport`](@ref). Another model gives three functions:
+[`mixture_viscosity`](@ref), [`mixture_thermal_conductivity`](@ref) and
+[`diffusivity_scale`](@ref). The bed only uses their ratios to the values at
+the feed, so a model may be exact in its trends and loose in its absolute
+values. As for thermodynamics, they must take automatic-differentiation
+numbers and not allocate.
+
+```julia
+# Viscosity and conductivity as powers of temperature, the same for every
+# mixture, and Knudsen diffusion
+struct PowerLawTransport <: Mocca.AbstractGasTransport
+    a::Float64   # exponent of the viscosity
+    b::Float64   # exponent of the conductivity
+end
+Mocca.mixture_viscosity(m::PowerLawTransport, y, T) = (T / 298.15)^m.a
+Mocca.mixture_thermal_conductivity(m::PowerLawTransport, y, T) = (T / 298.15)^m.b
+Mocca.diffusivity_scale(m::PowerLawTransport, T, P) = sqrt(T)
+
+gas = Gas(["CO2", "N2"]; transport = PowerLawTransport(0.7, 0.8))
+```
+
+A bed with a transport model other than `ConstantTransport` adds per-cell
+variables `ViscosityFactor` and, with an energy balance, `ConductivityFactor`,
+and evaluates its mass transfer as `ScaledAdsorptionMassTransfer`, which
+passes the diffusivity factor to [`compute_mass_transfer_rate`](@ref). A mass
+transfer model whose rate depends on the molecular diffusivity adds a method
+with that fifth argument, as [`LinearDrivingForce`](@ref) does. Such a model
+cannot be written to a process file.
+
 ## The layer underneath
 
 The objects of the [Reference](@ref) build these, which can also be used

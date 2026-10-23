@@ -41,6 +41,32 @@ function Jutul.default_parameter_values(data_domain, model, param::ThermalConduc
     return T
 end
 
+"""
+Thermal conductivity of the gas in a cell relative to that at the reference of
+the system's `transport`. The conductivity of the bed, the
+`ThermalConductivities` of its faces, is scaled by it: the stagnant
+conductivity of a packed bed is nearly proportional to that of its gas when
+the solid conducts much better. A unit whose transport properties do not
+change leaves it out.
+"""
+struct ConductivityFactor <: Jutul.ScalarVariable end
+
+Jutul.@jutul_secondary function update_conductivity_factor!(f, tv::ConductivityFactor, model::DistributedUnitModel, y, Temperature, ix)
+    transport = model.system.transport
+    for cell in ix
+        f[cell] = conductivity_factor(transport, view(y, :, cell), Temperature[cell])
+    end
+end
+
+# Conductance of a face for heat: that of the parameter, scaled by the harmonic
+# mean of the conductivity factors of its cells, as for conduction in series
+@inline function _face_conductance(state, face, kgrad)
+    K = state.ThermalConductivities[face]
+    _state_has(state, :ConductivityFactor) || return K
+    fL, fR = state.ConductivityFactor[kgrad.left], state.ConductivityFactor[kgrad.right]
+    return K * (2 * fL * fR / (fL + fR))
+end
+
 Jutul.@jutul_secondary function update_column_conserved_energy!(column_energy, tv::ColumnEnergy, model::DistributedUnitModel, Temperature, ix)
     for cell in ix
         column_energy[cell] = Temperature[cell]
@@ -60,7 +86,7 @@ end
     q = zero(Jutul.flux_vector_type(eq, T))
     kgrad, upw = flow_disc.face_disc(face)
     T = state.Temperature
-    q = state.ThermalConductivities[face] * Jutul.gradient(T, kgrad)
+    q = _face_conductance(state, face, kgrad) * Jutul.gradient(T, kgrad)
     return q
 end
 
@@ -80,7 +106,8 @@ end
 
     T_f = state.Transmissibilities[face]
     ∇p = Jutul.gradient(state.Pressure, kgrad)
-    μ = state.FluidViscosity[1]
+    # Upwinded as the concentration over viscosity of the gas flux
+    μ = Jutul.upwind(upw, cell -> _cell_viscosity(state, cell), -T_f * ∇p)
     v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
     P_face = Jutul.upwind(upw, P_c, v)

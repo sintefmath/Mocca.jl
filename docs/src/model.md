@@ -294,7 +294,9 @@ k = \frac{\varepsilon^3 d_p^2}{150\,(1-\varepsilon)^2}.
 
 This is the viscous (laminar) term of the Ergun equation; the inertial term is
 not included. The interstitial velocity is ``v = u/\varepsilon``. Give
-`permeability` to [`add_bed!`](@ref) to override ``k``.
+`permeability` to [`add_bed!`](@ref) to override ``k``. ``\mu`` is the viscosity
+of the [`Gas`](@ref) at the feed, or of each cell with a `transport` model (see
+[Transport properties](@ref)); a face takes ``c_i/\mu`` from its upwind cell.
 
 ### Axial dispersion
 
@@ -305,7 +307,10 @@ D_L = 0.7\, D_m + 0.5\, v_0\, d_p,
 where ``D_m`` is the molecular diffusivity of the gas (`diffusivity` of
 [`Gas`](@ref), that of the first component if given per component) and ``v_0`` the interstitial feed velocity of the bed's
 adsorption step. ``D_L`` is evaluated once, when the process is built, and is
-constant along the bed and through the cycle. Set `dispersion_velocity` or
+constant along the bed and through the cycle, also with a `transport` model:
+at the usual velocities the term in ``v_0 d_p`` is most of it (0.5·1 m/s·2 mm
+against 0.7·1.6e-5 m²/s), and it is the `AxialDispersion` parameter that
+design variables and gradients act on. Set `dispersion_velocity` or
 `dispersion` in [`add_bed!`](@ref) to fix it yourself.
 
 ### Adsorption rate: linear driving force
@@ -319,6 +324,49 @@ k_i = \frac{c_i}{q_i^*}\,\frac{15\,\varepsilon_p D_{m,i}}{\tau\, r_p^2},
 
 This is macropore diffusion control: the particle porosity ``\varepsilon_p``,
 tortuosity ``\tau`` and diameter ``d_p`` of the [`Adsorbent`](@ref) set the rate.
+``D_{m,i}`` is the diffusivity of the [`Gas`](@ref) at the feed, or of each
+cell with a `transport` model.
+
+### Transport properties
+
+By default the viscosity ``\mu``, the molecular diffusivity ``D_m`` and the
+axial thermal conductivity ``K_z`` of a bed are the values given, those at the
+feed, everywhere and at all times. With a `transport` model for the
+[`Gas`](@ref) (see [`AbstractGasTransport`](@ref)) each cell scales them by the
+ratio of the model's value at its state to that at the feed,
+
+```math
+\mu = \mu_{feed}\,\frac{\hat\mu(y, T)}{\hat\mu(y_{feed}, T_{feed})},
+\qquad
+D_{m,i} = D_{m,i,feed}\,\frac{\hat D(T, P)}{\hat D(T_{feed}, P_{feed})},
+\qquad
+K_z = K_{z,feed}\,\frac{\hat k(y, T)}{\hat k(y_{feed}, T_{feed})},
+```
+
+so that the values given, and the parameters design variables act on, keep
+their meaning. The conductivity of a face is the harmonic mean of its cells'.
+Scaling the bed's conductivity with the gas conductivity ``\hat k`` follows the
+stagnant conductivity of a packed bed, nearly proportional to that of its gas
+when the solid conducts much better. With [`SutherlandTransport`](@ref)
+(`transport = :sutherland`):
+
+```math
+\hat\mu = \frac{\sum_i y_i \mu_i \sqrt{M_i}}{\sum_i y_i \sqrt{M_i}},
+\quad
+\mu_i = \mu_{0,i}\left(\frac{T}{T_0}\right)^{3/2}\frac{T_0 + S_i}{T + S_i},
+\qquad
+\hat k = \sum_i \frac{y_i k_i}{\sum_j y_j \Phi_{ij}},
+\quad
+k_i = k_{0,i}\left(\frac{T}{T_0}\right)^{n_i},
+\qquad
+\hat D = \frac{T^{1.75}}{P},
+```
+
+with ``\Phi_{ij}`` of Mason and Saxena and ``T_0`` = 298.15 K. The diffusivity
+is that of molecular diffusion; in pores finer than the mean free path of the
+gas, at low pressure, Knudsen diffusion takes over and the rate rises less
+than ``1/P``. The wall's conductivity and the heat transfer coefficients stay
+as given.
 
 ### Isotherm: dual-site Langmuir
 
@@ -582,13 +630,14 @@ optimisation come from the adjoint of the same discrete equations.
 | ``C_v`` | Valve conductance | m³/(s·Pa) | step `conductance` |
 | ``d_p`` | Particle diameter | m | [`Adsorbent`](@ref) `particle_diameter` |
 | ``D_L`` | Axial dispersion coefficient | m²/s | computed, or [`add_bed!`](@ref) `dispersion` |
-| ``D_m`` | Molecular diffusivity | m²/s | [`Gas`](@ref) `diffusivity` |
+| ``D_m`` | Molecular diffusivity, at the feed | m²/s | [`Gas`](@ref) `diffusivity` |
 | ``F`` | Molar flow through a device | mol/s | state |
 | ``h_i`` | Molar enthalpy of gas component ``i`` above ``T_{ref}`` = 298.15 K | J/mol | [`Gas`](@ref) `thermodynamics` |
 | ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
-| ``K_z`` | Axial thermal conductivity of the bed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
+| ``K_z`` | Axial thermal conductivity of the bed, at the feed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
 | ``K_w`` | Thermal conductivity of the wall | W/(m·K) | [`Wall`](@ref) `conductivity` |
+| ``k_i,\ S_i,\ n_i`` | Gas thermal conductivity, Sutherland constant and conductivity exponent of component ``i`` | W/(m·K), K, – | [`Component`](@ref) |
 | ``L`` | Column length | m | [`Column`](@ref) `length` |
 | ``M_i`` | Molar mass | kg/mol | [`Gas`](@ref) `molar_masses` |
 | ``P`` | Pressure | Pa | state |
@@ -606,6 +655,6 @@ optimisation come from the adjoint of the same discrete equations.
 | ``\varepsilon_p`` | Particle porosity | – | [`Adsorbent`](@ref) `particle_porosity` |
 | ``\gamma,\ \eta`` | Heat capacity ratio and efficiency of pumps and compressors | – | [`Process`](@ref) |
 | ``\lambda`` | Pressure ramp rate | 1/s | step or [`Process`](@ref) `ramp_rate` |
-| ``\mu`` | Gas viscosity | Pa·s | [`Gas`](@ref) `viscosity` |
+| ``\mu`` | Gas viscosity, at the feed | Pa·s | [`Gas`](@ref) `viscosity` |
 | ``\rho_s,\ \rho_w`` | Density of the adsorbent and of the wall | kg/m³ | [`Adsorbent`](@ref) `density`, [`Wall`](@ref) `density` |
 | ``\tau`` | Tortuosity | – | [`Adsorbent`](@ref) `tortuosity` |

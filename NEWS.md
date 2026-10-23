@@ -14,6 +14,20 @@
   A bed's system holds the model of the gas (`thermodynamics`) and of the
   adsorbed phase (`adsorbed_thermodynamics`) in place of `heat_capacity_gas`
   and `heat_capacity_adsorbed`, which `FixedBed` still takes.
+- **Transport properties that follow the state.** `Gas(...; transport =
+  :sutherland)` lets the viscosity, the molecular diffusivity of the linear
+  driving force and the axial conductivity of each bed change from their
+  values at the feed with the temperature, pressure and composition of each
+  cell: Sutherland viscosities mixed by Herning and Zipperer, conductivities
+  as powers of temperature mixed by Wassiljewa, Mason and Saxena (the bed
+  conductivity scaled with that of the gas), and diffusivity as `T^1.75/P`.
+  The common components carry Sutherland constants and conductivities fitted
+  to the NIST Chemistry WebBook. The parameters (`FluidViscosity`,
+  `ThermalConductivities`) stay the values at the feed, so design variables
+  and gradients act on them as before; a new model is an
+  `AbstractGasTransport` with three functions. Axial dispersion stays fixed:
+  it is mostly the `v·d_p` term, and a design parameter. The default,
+  `ConstantTransport`, gives the same results to the bit.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -54,6 +68,11 @@
   `heat_capacity_ratio` takes `γ = c_p/(c_p − R)` of the feed at its
   temperature (`pump_heat_capacity_ratio`), instead of 1.4. The presets and
   library processes set 1.4, as their papers do.
+- **`TimeScale` in every residual.** Units checked for the `TimeScale`
+  parameter with `hasproperty`, which is false on the local
+  automatic-differentiation states Jutul assembles the equations with, so it
+  was left out there; it is 1 except when differentiating with respect to a
+  stage duration, so simulations are unchanged.
 - **Renamed variables.** `SpecificHeatCapacityFluid` and
   `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
   `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the

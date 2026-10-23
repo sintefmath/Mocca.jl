@@ -83,8 +83,8 @@ The sections:
 
 | Section | Contents |
 |---|---|
-| `components` | Optional: components not known to Mocca, each with `name`, `molar_mass`, `heat_capacity` and `viscosity`, and optionally `formula`, `cas` and `shomate` (the five coefficients). |
-| `gas` | The [`Gas`](@ref): its `components` in order (the first is the one to capture), and optional overrides. Heat capacities are constant, `heat_capacities` per component; or with `"thermodynamics": "shomate"` from the Shomate equation, with optional `shomate` coefficients `[A, B, C, D, E]` per component. |
+| `components` | Optional: components not known to Mocca, each with `name`, `molar_mass`, `heat_capacity` and `viscosity`, and optionally `formula`, `cas`, `shomate` (the five coefficients), `sutherland`, `thermal_conductivity` and `conductivity_exponent`. |
+| `gas` | The [`Gas`](@ref): its `components` in order (the first is the one to capture), and optional overrides. Heat capacities are constant, `heat_capacities` per component; or with `"thermodynamics": "shomate"` from the Shomate equation, with optional `shomate` coefficients `[A, B, C, D, E]` per component. `"transport": "sutherland"` lets the viscosity, diffusivity and bed conductivity follow the state of each cell. |
 | `feed` | The [`Feed`](@ref): `composition`, `temperature`, `pressure` and optionally `light_product`. |
 | `adsorbents` | By name: an adsorbent object (as in an adsorbent file), the name of a library adsorbent, or the path of an adsorbent file relative to the process file. |
 | `columns` | By name: [`Column`](@ref) objects. |

@@ -62,6 +62,10 @@ include("haghpanah_cases.jl")
         include("thermodynamics.jl")
     end
 
+    @testset "Gas transport properties" begin
+        include("transport.jl")
+    end
+
     @testset "Integration with Jutul" begin
         include("jutul_integration.jl")
     end

@@ -16,6 +16,24 @@ Jutul.minimum_value(::TotalMolarConcentration) = 0.0
 struct ComponentMasses <: ComponentVariable end
 Jutul.minimum_value(::ComponentMasses) = 0.0
 
+"""
+Viscosity of the gas in a cell relative to the `FluidViscosity` parameter, from
+the system's `transport` (a TransportReference). A unit whose transport
+properties do not change leaves it out, and its viscosity is the parameter.
+"""
+struct ViscosityFactor <: Jutul.ScalarVariable end
+
+Jutul.@jutul_secondary function update_viscosity_factor!(f, tv::ViscosityFactor, model::MoccaModel, y, Temperature, ix)
+    transport = model.system.transport
+    for cell in ix
+        f[cell] = viscosity_factor(transport, view(y, :, cell), Temperature[cell])
+    end
+end
+
+# Viscosity [Pa·s] of the gas in a cell
+@inline _cell_viscosity(state, cell) =
+    _state_has(state, :ViscosityFactor) ? state.FluidViscosity[1] * state.ViscosityFactor[cell] : state.FluidViscosity[1]
+
 "Molar heat capacity [J/(mol·K)] of the gas in a cell, from the system's `thermodynamics`."
 struct GasMolarHeatCapacity <: Jutul.ScalarVariable end
 
@@ -90,8 +108,8 @@ Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::GasMolarHea
     end
 end
 
-# Darcy advection with upwinded concentration plus Fickian dispersion of the
-# mole fractions.
+# Darcy advection with upwinded concentration over viscosity plus Fickian
+# dispersion of the mole fractions.
 @inline function Jutul.face_flux!(
     q,
     face,
@@ -105,7 +123,6 @@ end
     kgrad, upw = ldisc.face_disc(face)
 
     c = state.MolarConcentration
-    μ = state.FluidViscosity[1]
 
     T_f = state.Transmissibilities[face]
     ∇p = Jutul.gradient(state.Pressure, kgrad)
@@ -120,7 +137,7 @@ end
 
     D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
     for component in eachindex(q)
-        F_c = cell -> c[component, cell] / μ
+        F_c = cell -> c[component, cell] / _cell_viscosity(state, cell)
         c_face = Jutul.upwind(upw, F_c, q_darcy)
         q_i = c_face * q_darcy - C * D_l * Jutul.gradient(y, component, kgrad)
 

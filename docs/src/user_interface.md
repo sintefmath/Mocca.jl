@@ -64,6 +64,27 @@ component_enthalpies
 THERMODYNAMIC_REFERENCE_TEMPERATURE
 ```
 
+Its viscosity, diffusivity and the conductivity of the beds it flows through
+are those given, the values at the feed, unless it has a transport model, by
+which they change from there with the state of each cell:
+
+```julia
+gas = Gas(["CO2", "N2", "H2O"]; transport = :sutherland)
+```
+
+```@docs
+AbstractGasTransport
+ConstantTransport
+SutherlandTransport
+TransportReference
+mixture_viscosity
+mixture_thermal_conductivity
+diffusivity_scale
+viscosity_factor
+conductivity_factor
+diffusivity_factor
+```
+
 ## Isotherms, adsorbents and columns
 
 Isotherm parameters are given by component name, so an adsorbent does not

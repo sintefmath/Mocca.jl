@@ -8,13 +8,14 @@
 # ------------------------------------------------------------------------------
 
 """
-    haghpanah_2013_gas()
+    haghpanah_2013_gas(; kwarg...)
 
 CO2/N2 with the properties used by Haghpanah et al. (2013), Ind. Eng. Chem.
-Res. 52, 4249.
+Res. 52, 4249. Keywords go to [`Gas`](@ref), such as `transport =
+:sutherland`.
 """
-haghpanah_2013_gas() = Gas(["CO2", "N2"]; molar_masses = [44.01e-3, 28e-3], heat_capacities = [697.5687, 1096.4],
-    viscosity = 1.72e-5, density = 1.22638310956, diffusivity = 1.6e-5)
+haghpanah_2013_gas(; kwarg...) = Gas(["CO2", "N2"]; molar_masses = [44.01e-3, 28e-3], heat_capacities = [697.5687, 1096.4],
+    viscosity = 1.72e-5, density = 1.22638310956, diffusivity = 1.6e-5, kwarg...)
 
 """
     haghpanah_2013_column(; length = 1.0)
@@ -132,15 +133,15 @@ end
 # ------------------------------------------------------------------------------
 
 """
-    krishnamurthy_2014_gas()
+    krishnamurthy_2014_gas(; kwarg...)
 
 Wet flue gas, CO2/N2/H2O, with the properties of Table S2 of Krishnamurthy
 et al. (2014), Ind. Eng. Chem. Res. 53, 14462: one gas heat capacity for the
 mixture, and a diffusivity per component (CO2–N2 for CO2 and N2, N2–H2O for
-water).
+water). Keywords go to [`Gas`](@ref).
 """
-krishnamurthy_2014_gas() = Gas(["CO2", "N2", "H2O"]; molar_masses = [44.01e-3, 28e-3, 18.015e-3], heat_capacities = fill(1030.0, 3),
-    viscosity = 1.7e-5, density = 1.22638310956, diffusivity = [1.6e-5, 1.6e-5, 2.6e-5])
+krishnamurthy_2014_gas(; kwarg...) = Gas(["CO2", "N2", "H2O"]; molar_masses = [44.01e-3, 28e-3, 18.015e-3], heat_capacities = fill(1030.0, 3),
+    viscosity = 1.7e-5, density = 1.22638310956, diffusivity = [1.6e-5, 1.6e-5, 2.6e-5], kwarg...)
 
 """
     krishnamurthy_2014_column(; length = 1.0)

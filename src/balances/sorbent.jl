@@ -61,6 +61,40 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer!(
     end
 end
 
+"""
+The rate of change of the loading as `AdsorptionMassTransfer`, with the
+molecular diffusivity following temperature and pressure by the system's
+`transport`. A bed whose transport properties change uses it in its place.
+"""
+struct ScaledAdsorptionMassTransfer <: ComponentVariable end
+
+Jutul.@jutul_secondary function update_scaled_adsorption_mass_transfer!(
+    adsorption_mass_transfer,
+    tv::ScaledAdsorptionMassTransfer,
+    model::SorbentBedModel,
+    MolarConcentration,
+    Temperature,
+    Pressure,
+    AdsorbedConcentration,
+    ix
+)
+    sys = model.system
+    iso = sys.isotherm
+    mt = sys.mass_transfer
+    N = number_of_components(sys)
+    T = eltype(adsorption_mass_transfer)
+    for cell in ix
+        C = SVector{N, T}(@view MolarConcentration[:, cell])
+        q = SVector{N, T}(@view AdsorbedConcentration[:, cell])
+        qstar = compute_equilibrium(iso, C, Temperature[cell])
+        s = diffusivity_factor(sys.transport, Temperature[cell], Pressure[cell])
+        rate = compute_mass_transfer_rate(mt, C, q, qstar, s)
+        for i in 1:N
+            adsorption_mass_transfer[i, cell] = rate[i]
+        end
+    end
+end
+
 # Isosteric heat of adsorption per component [J/mol]
 struct EnthalpyChange <: ComponentVariable end
 

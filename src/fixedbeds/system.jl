@@ -1,21 +1,24 @@
 """
-    FixedBed{N, RealT, IsoT, MtT, ThT, GasT, AdsT} <: SorbentBed
+    FixedBed{N, RealT, IsoT, MtT, ThT, GasT, AdsT, TrT} <: SorbentBed
 
 A fixed (packed) adsorbent bed: gas flows axially through a stationary sorbent.
 How energy is treated is set by the thermal model (see
 [`AbstractThermalModel`](@ref)); the default [`WithWall`](@ref) includes a column
 wall exchanging heat with the gas and the surroundings. The heat capacities of
 the gas and of the adsorbed phase come from two
-[`AbstractGasThermodynamics`](@ref) models.
+[`AbstractGasThermodynamics`](@ref) models, and the changes of its viscosity,
+thermal conductivity and diffusivity with the state from a
+[`TransportReference`](@ref).
 
 `AdsorptionSystem` is kept as an alias for backwards compatibility.
 """
 struct FixedBed{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer, ThT<:AbstractThermalModel,
-        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics} <: SorbentBed
+        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics, TrT<:TransportReference} <: SorbentBed
     component_names::Vector{String}
     molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
     thermodynamics::GasT                        # Heat capacities and equation of state of the gas
     adsorbed_thermodynamics::AdsT               # Heat capacities of the adsorbed phase
+    transport::TrT                              # Viscosity, conductivity and diffusivity against their parameters
     isotherm::IsoT
     mass_transfer::MtT
     thermal::ThT
@@ -28,7 +31,7 @@ const AdsorptionModel = FixedBedModel
 """
     FixedBed(; isotherm, mass_transfer, molecular_masses, component_names,
         thermodynamics, adsorbed_thermodynamics = thermodynamics,
-        thermal = WithWall())
+        transport = TransportReference(ConstantTransport()), thermal = WithWall())
 
 Construct an N-component adsorption system from explicit physics objects.
 The number of components is inferred from the length of `component_names`.
@@ -37,7 +40,9 @@ The number of components is inferred from the length of `component_names`.
 [`AbstractGasThermodynamics`](@ref) models of the gas and the adsorbed phase.
 Instead of them, `heat_capacity_gas` and `heat_capacity_adsorbed` give
 constant heat capacities per mass [J/(kg·K)] for each component, as
-[`IdealGasConstantCp`](@ref) models.
+[`IdealGasConstantCp`](@ref) models. `transport` sets how the viscosity,
+thermal conductivity and diffusivity parameters change with the state; by
+default they do not.
 """
 function FixedBed(;
     isotherm::AbstractIsotherm,
@@ -48,6 +53,7 @@ function FixedBed(;
     adsorbed_thermodynamics = nothing,
     heat_capacity_gas = nothing,
     heat_capacity_adsorbed = nothing,
+    transport::TransportReference = TransportReference(ConstantTransport()),
     thermal::AbstractThermalModel = WithWall(),
 )
     N = length(component_names)
@@ -60,11 +66,12 @@ function FixedBed(;
     mm = SVector{N}(molecular_masses)
     RealT = eltype(mm)
     IsoT, MtT, ThT = typeof(isotherm), typeof(mass_transfer), typeof(thermal)
-    return FixedBed{N, RealT, IsoT, MtT, ThT, typeof(gas), typeof(adsorbed)}(
+    return FixedBed{N, RealT, IsoT, MtT, ThT, typeof(gas), typeof(adsorbed), typeof(transport)}(
         component_names,
         mm,
         gas,
         adsorbed,
+        transport,
         isotherm,
         mass_transfer,
         thermal,
