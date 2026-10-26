@@ -191,9 +191,9 @@ end
 isotherm(adsorbent::Adsorbent, gas::Gas) =
     _at(() -> build_isotherm(adsorbent.isotherm, gas; density = adsorbent.density), isempty(adsorbent.name) ? "adsorbent" : "adsorbent $(adsorbent.name)")
 
-function mass_transfer(adsorbent::Adsorbent, gas::Gas)
+function mass_transfer(adsorbent::Adsorbent, gas::Gas, feed)
     isnothing(adsorbent.mass_transfer) || return adsorbent.mass_transfer
-    D = gas.diffusivity
+    D = gas.diffusivity isa Number ? gas.diffusivity : gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)
     D_m = D isa Number ? D : SVector{length(D)}(D)
     return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
 end

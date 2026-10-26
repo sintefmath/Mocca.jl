@@ -20,7 +20,7 @@ layers underneath are open for new units, steps and physics.
 | **Flowsheet** | `Mocca.Networks` | `src/networks` | A network of named units, the connections between their ports and the boundary conditions, turned into one Jutul `MultiModel`. Connections become cross terms. | `UnitNetwork`, `connect!`, `StreamConnection`, `PortStateCT`, `StreamCT` |
 | **Units** | `Mocca.FixedBeds`, `Mocca.Devices` | `src/fixedbeds`, `src/devices` | One module per kind of unit. A fixed bed is a 1-D column of cells with holdup. Flow devices are one-cell models that own the molar flow between two ports. | `FixedBed`, `FlowDevice`, `LinearValve`, `VolumetricFlow`, `PortCondition`, `ExponentialRamp` |
 | **Balances** | `Mocca.Balances` | `src/balances` | Shared material and energy balances: gas mass, adsorbed loading, gas energy, wall energy. Each unit adds its physics as a tuple of source terms. Scale-free convergence checks, and the setup every bed of sorbent shares. | `SorptionUptake`, `HeatOfSorption`, `WallExchange`, `setup_process_state` |
-| **Physics** | `Mocca.Physics` | `src/physics` | Pluggable material models behind small interfaces: isotherms, mass transfer, gas thermodynamics and transport properties. | `AbstractIsotherm`, `DualSiteLangmuir`, `AbstractMassTransfer`, `LinearDrivingForce`, `AbstractGasThermodynamics`, `IdealGasShomate`, `AbstractGasTransport`, `SutherlandTransport` |
+| **Physics** | `Mocca.Physics` | `src/physics` | Pluggable material models behind small interfaces: isotherms, mass transfer, gas thermodynamics and transport properties. | `AbstractIsotherm`, `DualSiteLangmuir`, `AbstractMassTransfer`, `LinearDrivingForce`, `AbstractGasThermodynamics`, `IdealGasShomate`, `AbstractGasTransport`, `ChapmanEnskogTransport` |
 | **Core** | `Mocca.Framework` | `src/framework` | The system hierarchy, the core variables, thermal models, and the functions every unit implements. | `MoccaSystem`, `SorbentBed`, `ports`, `stream_equations`, `WithWall`, `Adiabatic`, `Isothermal` |
 | **Jutul** | dependency | | Discretisation, automatic differentiation, Newton solver and adjoints. | |
 
@@ -76,7 +76,7 @@ of the same name, whose methods are never called.
 | An isotherm | `compute_equilibrium`, `compute_enthalpy`, and optionally `saturation_capacity` |
 | A mass transfer model | `compute_mass_transfer_rate` |
 | A gas thermodynamics model | `component_heat_capacities`, and optionally `component_enthalpies` |
-| A gas transport model | `mixture_viscosity`, `mixture_thermal_conductivity` and `diffusivity_scale` |
+| A gas transport model | `mixture_viscosity` and `molecular_diffusivities` |
 | A source term | `mass_source`, `energy_source`, `wall_source` or `heat_capacity`, then list it for the unit |
 | A unit | A `MoccaSystem` with `ports`, `stream_equations` and `holds_sorbent`, in a module of its own like `Mocca.FixedBeds` |
 | A device law | `device_flow` for a subtype of `AbstractDeviceLaw` |

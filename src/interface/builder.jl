@@ -59,9 +59,10 @@ The model of a fixed bed of `adsorbent` packed in `column`, for `gas`, on
 `ncells` cells. The permeability (Kozeny–Carman, from the bed porosity and
 particle size) and the axial dispersion (`0.7 D_m + 0.5 v d_p`, at the
 interstitial `dispersion_velocity` [m/s]) are computed unless given. The gas
-viscosity defaults to that of the `feed`; see [`Gas`](@ref). The viscosity,
-diffusivity and axial conductivity are those at the feed, and change from there
-with the state of each cell by the `transport` of the gas.
+viscosity and diffusivities default to those of the `feed`; see [`Gas`](@ref).
+They change from there with the state of each cell by the `transport` of the
+gas; with a transport model and no `dispersion` given, the axial dispersion
+follows the diffusivities and the gas velocity by [`WakaoFunazkri`](@ref).
 """
 function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
         dispersion_velocity = 1.0, dispersion = nothing, permeability = nothing)
@@ -71,15 +72,18 @@ function fixed_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Col
         input_error(loc, "column", "a bed with a wall needs the column's outer_radius; use thermal = Adiabatic() for a bed without one")
     system = FixedBed(;
         isotherm = isotherm(adsorbent, gas),
-        mass_transfer = mass_transfer(adsorbent, gas),
+        mass_transfer = mass_transfer(adsorbent, gas, feed),
         molecular_masses = gas.molar_masses,
         component_names = gas.names,
         thermodynamics = gas.thermodynamics,
         adsorbed_thermodynamics = adsorbed_thermodynamics(adsorbent, gas),
         transport = TransportReference(gas.transport, feed.composition, feed.temperature, feed.pressure),
+        dispersion = gas.transport isa ConstantTransport || !isnothing(dispersion) ? ConstantDispersion() :
+            WakaoFunazkri(; particle_diameter = adsorbent.particle_diameter, porosity = column.porosity,
+                diffusivities = gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)),
         thermal = thermal)
     perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
-    disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas), dispersion_velocity, adsorbent.particle_diameter) : dispersion
+    disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas, feed), dispersion_velocity, adsorbent.particle_diameter) : dispersion
     mesh = column_mesh(ncells, column.length, column.radius)
     domain = mocca_domain(mesh;
         porosity = column.porosity, permeability = perm,
@@ -110,7 +114,10 @@ of the bed's adsorption step when a [`Process`](@ref) is built, or the largest
 adsorption velocity in the cycle for a bed fed from another; it then stays
 fixed as settings change. Give a velocity [m/s], or the `dispersion` [m²/s]
 itself, to fix it. It is the bed's `AxialDispersion` parameter, so it can also
-be set through `parameters` of a `Process` or a design variable. See
+be set through `parameters` of a `Process` or a design variable. With a
+`transport` model for the gas and no `dispersion` given, the dispersion
+instead follows the diffusivities and the gas velocity at each face, by
+[`WakaoFunazkri`](@ref), times the bed's `DispersionScale` parameter. See
 [`fixed_bed_model`](@ref) for the other keywords.
 """
 function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
@@ -136,7 +143,7 @@ Axial dispersion [m²/s] of bed `name`, added with [`add_bed!`](@ref): the
 function bed_dispersion(fs::Flowsheet, name::Symbol)
     spec = fs.specs[name]
     isnothing(spec.dispersion) || return spec.dispersion
-    return compute_dispersion(axial_diffusivity(fs.gas), spec.velocity_used, spec.adsorbent.particle_diameter)
+    return compute_dispersion(axial_diffusivity(fs.gas, fs.feed), spec.velocity_used, spec.adsorbent.particle_diameter)
 end
 
 "Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."

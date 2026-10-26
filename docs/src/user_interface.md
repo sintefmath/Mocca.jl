@@ -64,26 +64,31 @@ component_enthalpies
 THERMODYNAMIC_REFERENCE_TEMPERATURE
 ```
 
-Its viscosity, diffusivity and the conductivity of the beds it flows through
-are those given, the values at the feed, unless it has a transport model, by
-which they change from there with the state of each cell:
+Its viscosity and diffusivities are those given, the values at the feed,
+unless it has a transport model, by which they change from there with the
+state of each cell; the axial dispersion of a bed then follows them and the
+gas velocity:
 
 ```julia
-gas = Gas(["CO2", "N2", "H2O"]; transport = :sutherland)
+gas = Gas(["CO2", "N2", "H2O"]; thermodynamics = :polynomial, transport = :chapman_enskog)
 ```
 
 ```@docs
+IdealGasPolynomial
 AbstractGasTransport
 ConstantTransport
-SutherlandTransport
-sutherland_transport
+ChapmanEnskogTransport
+chapman_enskog_transport
 TransportReference
 mixture_viscosity
-mixture_thermal_conductivity
-diffusivity_scale
+molecular_diffusivities
 viscosity_factor
-conductivity_factor
-diffusivity_factor
+diffusivity_factors
+gas_diffusivities
+AbstractAxialDispersion
+ConstantDispersion
+WakaoFunazkri
+DispersionScale
 ```
 
 ## Isotherms, adsorbents and columns

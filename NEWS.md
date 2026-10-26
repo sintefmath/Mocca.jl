@@ -15,21 +15,22 @@
   adsorbed phase (`adsorbed_thermodynamics`) in place of `heat_capacity_gas`
   and `heat_capacity_adsorbed`, which `FixedBed` still takes.
 - **Transport properties that follow the state.** `Gas(...; transport =
-  :sutherland)` lets the viscosity, the molecular diffusivity of the linear
-  driving force and the axial conductivity of each bed change from their
-  values at the feed with the temperature, pressure and composition of each
-  cell: Sutherland viscosities mixed by Herning and Zipperer, conductivities
-  as powers of temperature mixed by Wassiljewa, Mason and Saxena (the bed
-  conductivity scaled with that of the gas), and diffusivity as `T^1.75`; or,
-  with `sutherland_transport(names; pressure_dependent = true)`, as
-  `T^1.75/P` with optional Knudsen diffusion in series (`knudsen_pressure`).
-  The common components carry Sutherland constants and conductivities fitted
-  to the NIST Chemistry WebBook. The parameters (`FluidViscosity`,
-  `ThermalConductivities`) stay the values at the feed, so design variables
-  and gradients act on them as before; a new model is an
-  `AbstractGasTransport` with three functions. Axial dispersion stays fixed:
-  it is mostly the `v·d_p` term, and a design parameter. The default,
-  `ConstantTransport`, gives the same results to the bit.
+  :chapman_enskog)` lets the viscosity and the molecular diffusivity of each
+  component change from their values at the feed with the temperature,
+  pressure and composition of each cell, by the kinetic theory of Chapman and
+  Enskog with the collision integrals of Neufeld and the mixing rules of Wilke,
+  as in the thermodynamics library of the MATLAB model. The axial dispersion
+  then follows the diffusivities and the gas velocity at each face, by Wakao
+  and Funazkri, `ε D_L,i = 20 D_m,i + 0.5 |u| d_p`, times a `DispersionScale`
+  parameter; the linear driving force takes the diffusivities at the feed
+  pressure. The common components carry their Lennard-Jones parameters (all but
+  CO and He). The given viscosity and diffusivities, and `FluidViscosity`,
+  stay the values at the feed, so design variables and gradients act on them
+  as before; a new model is an `AbstractGasTransport` with two functions. The
+  default, `ConstantTransport`, gives the same results to the bit.
+- **Cubic heat capacities.** `Gas(...; thermodynamics = :polynomial)`, with the
+  coefficients of Reid, Prausnitz and Poling (`IdealGasPolynomial`), as in the
+  MATLAB model; within 2% of the NIST values from 300 to 500 K.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,

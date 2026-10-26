@@ -179,3 +179,30 @@ end
         @test maximum(maximum(abs.(s[:Bed][:Temperature] .- 298.15)) for s in r.states) < 1e-6
     end
 end
+
+@testset "Cubic heat capacities" begin
+    # The coefficients of the MATLAB thermodynamics library: within 2% of the
+    # NIST Shomate heat capacities from 300 to 500 K
+    p = Gas(["CO2", "N2", "O2", "H2O", "CH4", "H2", "Ar"]; thermodynamics = :polynomial).thermodynamics
+    s = Gas(["CO2", "N2", "O2", "H2O", "CH4", "H2", "Ar"]; thermodynamics = :shomate).thermodynamics
+    @test p isa IdealGasPolynomial && isbits(p)
+    for T in (300.0, 400.0, 500.0)
+        @test component_heat_capacities(p, T) ≈ component_heat_capacities(s, T) rtol = 0.021
+    end
+    @test component_heat_capacities(p, 298.15)[1] ≈ 22.26 + 5.981e-2 * 298.15 - 3.501e-5 * 298.15^2 + 7.469e-9 * 298.15^3
+    # The enthalpy is zero at the reference and its derivative is the heat capacity
+    @test all(iszero, component_enthalpies(p, Mocca.THERMODYNAMIC_REFERENCE_TEMPERATURE))
+    y = fill(1 / 7, 7)
+    for T in (280.0, 350.0, 420.0)
+        @test ForwardDiff.derivative(t -> molar_enthalpy(p, y, t), T) ≈ molar_heat_capacity(p, y, T)
+    end
+    @test Mocca.Physics.polynomial_coefficients(p)[2] == (28.90, -1.571e-3, 8.081e-6, -2.873e-9)
+    @test IdealGasPolynomial(Mocca.Physics.polynomial_coefficients(p)) == p
+    # No polynomial for CO and He
+    @test_throws MoccaInputError Gas(["CO2", "CO"]; thermodynamics = :polynomial)
+    @test_throws MoccaInputError Gas(["CO2", "N2"]; thermodynamics = :polynomial, heat_capacities = [800.0, 1000.0])
+    # In a process file
+    q = four_stage_vsa_process(ncells = 4, gas = Gas(["CO2", "N2"]; thermodynamics = :polynomial))
+    @test Mocca.process_to_dict(q)["gas"]["thermodynamics"] == "polynomial"
+    @test read_process(write_process(joinpath(mktempdir(), "p.json"), q)).flowsheet.gas.thermodynamics == q.flowsheet.gas.thermodynamics
+end

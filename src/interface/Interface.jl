@@ -17,14 +17,14 @@ using ..Operation: _no_targets, _plural, _simulate_schedule, _stage_forces, _sci
     report_cycle!, report_note!, start_phase!
 
 export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_variable!, Adsorb,
-    Adsorbent, adsorbent_to_dict, attachments, axial_diffusivity, bed_dispersion, beds,
+    Adsorbent, adsorbent_to_dict, attachments, axial_diffusivity, bed_dispersion, beds, chapman_enskog_transport,
     BedSpec, Blowdown, boundary, build_isotherm, Column, compile_cycle, CompiledCycle,
     Component, component, composition, Concurrent, Cycle, cycle_schedule, cycle_steps,
     cycle_time, cyclic_steady_state, default_conductance, default_step_name, DesignVariable,
     device_role, DEVICE_ROLES, devices_at, devices_with_role, dual_adsorbent_vsa_process,
     dual_site_langmuir, DualSiteLangmuirData, end_pressure, end_pressures, Equalise,
     equilibrium_loading, Evacuate, Feed, FeedPlace, find_device, fixed_bed_model, Flowsheet,
-    four_stage_vsa_process, Gas, gas_density, gas_heat_capacity_ratio, gas_viscosity, haghpanah_2013_column,
+    four_stage_vsa_process, Gas, gas_density, gas_diffusivities, gas_heat_capacity_ratio, gas_viscosity, haghpanah_2013_column,
     haghpanah_2013_gas, Idle, initial_state, interstitial_flow_rate, isotherm,
     isotherm_table, krishnamurthy_2014_column, krishnamurthy_2014_gas, langmuir,
     library_adsorbents, library_processes, light_product_composition, load_adsorbent,
@@ -34,7 +34,7 @@ export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_variable!,
     ProcessOptions, ProcessResult, Purge, ramp, read_process, register_component!,
     register_isotherm!, register_step!, reset_step_pattern!, save_adsorbent, set_variables!,
     stages, start_pressure, step_beds, step_settings, StepContext, StepPlace,
-    superficial_flow_rate, sutherland_transport, TimeStepping, two_bed_vsa_process, validate, valve,
+    superficial_flow_rate, TimeStepping, two_bed_vsa_process, validate, valve,
     variable_names, variable_values, Wall, WarmStart, WET_FLUE_GAS_FEED, write_process,
     write_results
 

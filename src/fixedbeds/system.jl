@@ -1,24 +1,26 @@
 """
-    FixedBed{N, RealT, IsoT, MtT, ThT, GasT, AdsT, TrT} <: SorbentBed
+    FixedBed{N, RealT, IsoT, MtT, ThT, GasT, AdsT, TrT, DispT} <: SorbentBed
 
 A fixed (packed) adsorbent bed: gas flows axially through a stationary sorbent.
 How energy is treated is set by the thermal model (see
 [`AbstractThermalModel`](@ref)); the default [`WithWall`](@ref) includes a column
 wall exchanging heat with the gas and the surroundings. The heat capacities of
 the gas and of the adsorbed phase come from two
-[`AbstractGasThermodynamics`](@ref) models, and the changes of its viscosity,
-thermal conductivity and diffusivity with the state from a
-[`TransportReference`](@ref).
+[`AbstractGasThermodynamics`](@ref) models, the changes of its viscosity and
+diffusivities with the state from a [`TransportReference`](@ref), and its axial
+dispersion from an [`AbstractAxialDispersion`](@ref).
 
 `AdsorptionSystem` is kept as an alias for backwards compatibility.
 """
 struct FixedBed{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer, ThT<:AbstractThermalModel,
-        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics, TrT<:TransportReference} <: SorbentBed
+        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics, TrT<:TransportReference,
+        DispT<:AbstractAxialDispersion} <: SorbentBed
     component_names::Vector{String}
     molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
     thermodynamics::GasT                        # Heat capacities and equation of state of the gas
     adsorbed_thermodynamics::AdsT               # Heat capacities of the adsorbed phase
-    transport::TrT                              # Viscosity, conductivity and diffusivity against their parameters
+    transport::TrT                              # Viscosity and diffusivities against their values at the feed
+    dispersion::DispT                           # Axial dispersion
     isotherm::IsoT
     mass_transfer::MtT
     thermal::ThT
@@ -31,7 +33,8 @@ const AdsorptionModel = FixedBedModel
 """
     FixedBed(; isotherm, mass_transfer, molecular_masses, component_names,
         thermodynamics, adsorbed_thermodynamics = thermodynamics,
-        transport = TransportReference(ConstantTransport()), thermal = WithWall())
+        transport = TransportReference(ConstantTransport()), dispersion = ConstantDispersion(),
+        thermal = WithWall())
 
 Construct an N-component adsorption system from explicit physics objects.
 The number of components is inferred from the length of `component_names`.
@@ -40,9 +43,9 @@ The number of components is inferred from the length of `component_names`.
 [`AbstractGasThermodynamics`](@ref) models of the gas and the adsorbed phase.
 Instead of them, `heat_capacity_gas` and `heat_capacity_adsorbed` give
 constant heat capacities per mass [J/(kg·K)] for each component, as
-[`IdealGasConstantCp`](@ref) models. `transport` sets how the viscosity,
-thermal conductivity and diffusivity parameters change with the state; by
-default they do not.
+[`IdealGasConstantCp`](@ref) models. `transport` sets how the viscosity and
+diffusivities change with the state; by default they do not. `dispersion` is
+the model of the axial dispersion, by default the `AxialDispersion` parameter.
 """
 function FixedBed(;
     isotherm::AbstractIsotherm,
@@ -54,6 +57,7 @@ function FixedBed(;
     heat_capacity_gas = nothing,
     heat_capacity_adsorbed = nothing,
     transport::TransportReference = TransportReference(ConstantTransport()),
+    dispersion::AbstractAxialDispersion = ConstantDispersion(),
     thermal::AbstractThermalModel = WithWall(),
 )
     N = length(component_names)
@@ -66,12 +70,14 @@ function FixedBed(;
     mm = SVector{N}(molecular_masses)
     RealT = eltype(mm)
     IsoT, MtT, ThT = typeof(isotherm), typeof(mass_transfer), typeof(thermal)
-    return FixedBed{N, RealT, IsoT, MtT, ThT, typeof(gas), typeof(adsorbed), typeof(transport)}(
+    dispersion isa WakaoFunazkri && @assert length(dispersion.diffusivities) == N "the dispersion needs a diffusivity for each of the $N components"
+    return FixedBed{N, RealT, IsoT, MtT, ThT, typeof(gas), typeof(adsorbed), typeof(transport), typeof(dispersion)}(
         component_names,
         mm,
         gas,
         adsorbed,
         transport,
+        dispersion,
         isotherm,
         mass_transfer,
         thermal,

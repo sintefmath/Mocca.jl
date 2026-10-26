@@ -81,38 +81,39 @@ process file.
 
 ## Adding a transport model
 
-How the viscosity, molecular diffusivity and bed conductivity change through a
-bed comes from an [`AbstractGasTransport`](@ref) model, held by the
-[`Gas`](@ref) and, with the state at which the bed's parameters hold, by the
-bed (a [`TransportReference`](@ref) in the `transport` field of its system).
-Mocca has [`ConstantTransport`](@ref), the default, and
-[`SutherlandTransport`](@ref). Another model gives three functions:
-[`mixture_viscosity`](@ref), [`mixture_thermal_conductivity`](@ref) and
-[`diffusivity_scale`](@ref). The bed only uses their ratios to the values at
-the feed, so a model may be exact in its trends and loose in its absolute
-values. As for thermodynamics, they must take automatic-differentiation
-numbers and not allocate.
+How the viscosity and molecular diffusivities change through a bed comes from
+an [`AbstractGasTransport`](@ref) model, held by the [`Gas`](@ref) and, with
+its values at the feed, by the bed (a [`TransportReference`](@ref) in the
+`transport` field of its system). Mocca has [`ConstantTransport`](@ref), the
+default, and [`ChapmanEnskogTransport`](@ref). Another model gives two
+functions: [`mixture_viscosity`](@ref) and [`molecular_diffusivities`](@ref),
+the diffusivity of each component in the mixture. The bed scales the values at
+the feed by their ratios, so a model may be exact in its trends and looser in
+its absolute values. As for thermodynamics, they must take
+automatic-differentiation numbers and not allocate.
 
 ```julia
-# Viscosity and conductivity as powers of temperature, the same for every
-# mixture, and Knudsen diffusion
+using Mocca, StaticArrays
+
+# Viscosity as a power of temperature, the same for every mixture, and
+# Knudsen diffusion, as the square root of temperature whatever the pressure
 struct PowerLawTransport <: Mocca.AbstractGasTransport
     a::Float64   # exponent of the viscosity
-    b::Float64   # exponent of the conductivity
 end
-Mocca.mixture_viscosity(m::PowerLawTransport, y, T) = (T / 298.15)^m.a
-Mocca.mixture_thermal_conductivity(m::PowerLawTransport, y, T) = (T / 298.15)^m.b
-Mocca.diffusivity_scale(m::PowerLawTransport, T, P) = sqrt(T)
+Mocca.mixture_viscosity(m::PowerLawTransport, y, T) = 1.8e-5 * (T / 298.15)^m.a
+Mocca.molecular_diffusivities(m::PowerLawTransport, y, T, P) = 1.6e-5 * sqrt(T / 298.15) .* SVector(1.0, 1.0)
 
-gas = Gas(["CO2", "N2"]; transport = PowerLawTransport(0.7, 0.8))
+gas = Gas(["CO2", "N2"]; transport = PowerLawTransport(0.7))
 ```
 
-A bed with a transport model other than `ConstantTransport` adds per-cell
-variables `ViscosityFactor` and, with an energy balance, `ConductivityFactor`,
-and evaluates its mass transfer as `ScaledAdsorptionMassTransfer`, which
-passes the diffusivity factor to [`compute_mass_transfer_rate`](@ref). A mass
-transfer model whose rate depends on the molecular diffusivity adds a method
-with that fifth argument, as [`LinearDrivingForce`](@ref) does. Such a model
+A bed with a transport model other than `ConstantTransport` adds a per-cell
+variable `ViscosityFactor`, and evaluates its mass transfer as
+`ScaledAdsorptionMassTransfer`, which passes the diffusivity factors at the
+feed pressure to [`compute_mass_transfer_rate`](@ref). A mass transfer model
+whose rate depends on the molecular diffusivity adds a method with that fifth
+argument, as [`LinearDrivingForce`](@ref) does. Unless a `dispersion` is given,
+its axial dispersion is [`WakaoFunazkri`](@ref), with a per-cell
+`MolecularDiffusivity` and a `DispersionScale` parameter. A model of your own
 cannot be written to a process file.
 
 ## The layer underneath

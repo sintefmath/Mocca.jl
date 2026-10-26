@@ -12,7 +12,7 @@
 
 CO2/N2 with the properties used by Haghpanah et al. (2013), Ind. Eng. Chem.
 Res. 52, 4249. Keywords go to [`Gas`](@ref), such as `transport =
-:sutherland`.
+:chapman_enskog`.
 """
 haghpanah_2013_gas(; kwarg...) = Gas(["CO2", "N2"]; molar_masses = [44.01e-3, 28e-3], heat_capacities = [697.5687, 1096.4],
     viscosity = 1.72e-5, density = 1.22638310956, diffusivity = 1.6e-5, kwarg...)

@@ -429,7 +429,7 @@ end
         return Process(fs, Cycle([Pressurise(5.0), Adsorb(5.0; velocity = v), Evacuate(5.0; to = 0.1bar)]))
     end
     # Set from the adsorption velocity, without rebuilding the bed
-    D(v) = M.compute_dispersion(M.axial_diffusivity(gas), v, a.particle_diameter)
+    D(v) = M.compute_dispersion(M.axial_diffusivity(gas, Feed(gas; composition = [0.15, 0.85], pressure = 1bar)), v, a.particle_diameter)
     p = process(v = 0.5)
     @test only(p.parameters[:Bed][:AxialDispersion]) ≈ D(0.5)
     @test p.flowsheet.specs[:Bed].velocity_used == 0.5

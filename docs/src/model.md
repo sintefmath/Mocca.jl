@@ -300,18 +300,37 @@ of the [`Gas`](@ref) at the feed, or of each cell with a `transport` model (see
 
 ### Axial dispersion
 
+By default, with constant transport properties,
+
 ```math
 D_L = 0.7\, D_m + 0.5\, v_0\, d_p,
 ```
 
 where ``D_m`` is the molecular diffusivity of the gas (`diffusivity` of
-[`Gas`](@ref), that of the first component if given per component) and ``v_0`` the interstitial feed velocity of the bed's
-adsorption step. ``D_L`` is evaluated once, when the process is built, and is
-constant along the bed and through the cycle, also with a `transport` model:
-at the usual velocities the term in ``v_0 d_p`` is most of it (0.5·1 m/s·2 mm
-against 0.7·1.6e-5 m²/s), and it is the `AxialDispersion` parameter that
-design variables and gradients act on. Set `dispersion_velocity` or
-`dispersion` in [`add_bed!`](@ref) to fix it yourself.
+[`Gas`](@ref), that of the first component if given per component) and ``v_0``
+the interstitial feed velocity of the bed's adsorption step. ``D_L`` is
+evaluated once, when the process is built, and is constant along the bed and
+through the cycle. It is the bed's `AxialDispersion` parameter. Set
+`dispersion_velocity` or `dispersion` in [`add_bed!`](@ref) to fix it yourself.
+
+With a `transport` model (see [Transport properties](@ref)) and no
+`dispersion` given, the dispersion of each component follows its molecular
+diffusivity and the gas velocity at each face, by the correlation of Wakao and
+Funazkri (1978):
+
+```math
+\frac{\varepsilon D_{L,i}}{D_{m,i}} = 20 + 0.5\,\mathrm{Sc}_i\,\mathrm{Re}_p,
+\qquad
+\mathrm{Re}_p = \frac{\rho u d_p}{\mu},
+\quad
+\mathrm{Sc}_i = \frac{\mu}{\rho D_{m,i}},
+\qquad\text{so}\qquad
+D_{L,i} = \frac{20\, D_{m,i} + 0.5\,|u|\, d_p}{\varepsilon},
+```
+
+with ``D_{m,i}`` the mean of the two cells of the face and ``u`` the superficial
+velocity there (see [`WakaoFunazkri`](@ref)). The bed's `DispersionScale`
+parameter (1) multiplies it.
 
 ### Adsorption rate: linear driving force
 
@@ -329,56 +348,51 @@ cell with a `transport` model.
 
 ### Transport properties
 
-By default the viscosity ``\mu``, the molecular diffusivity ``D_m`` and the
-axial thermal conductivity ``K_z`` of a bed are the values given, those at the
-feed, everywhere and at all times. With a `transport` model for the
-[`Gas`](@ref) (see [`AbstractGasTransport`](@ref)) each cell scales them by the
-ratio of the model's value at its state to that at the feed,
+By default the viscosity ``\mu`` and the molecular diffusivities ``D_{m,i}`` of a
+bed are the values given, those at the feed, everywhere and at all times. With
+a `transport` model for the [`Gas`](@ref) (see [`AbstractGasTransport`](@ref))
+each cell scales them by the ratio of the model's value at its state to that
+at the feed,
 
 ```math
 \mu = \mu_{feed}\,\frac{\hat\mu(y, T)}{\hat\mu(y_{feed}, T_{feed})},
 \qquad
-D_{m,i} = D_{m,i,feed}\,\frac{\hat D(T, P)}{\hat D(T_{feed}, P_{feed})},
-\qquad
-K_z = K_{z,feed}\,\frac{\hat k(y, T)}{\hat k(y_{feed}, T_{feed})},
+D_{m,i} = D_{m,i,feed}\,\frac{\hat D_i(y, T, P)}{\hat D_i(y_{feed}, T_{feed}, P_{feed})},
 ```
 
 so that the values given, and the parameters design variables act on, keep
-their meaning. The conductivity of a face is the harmonic mean of its cells'.
-Scaling the bed's conductivity with the gas conductivity ``\hat k`` follows the
-stagnant conductivity of a packed bed, nearly proportional to that of its gas
-when the solid conducts much better. With [`SutherlandTransport`](@ref)
-(`transport = :sutherland`):
+their meaning; the values at the feed default to the model's. The axial
+dispersion takes ``D_{m,i}`` at the pressure of the cell. The linear driving
+force takes it at the feed pressure: molecular diffusion goes as ``1/P``, and at
+the 0.03 bar of an evacuation that would make mass transfer some 30 times
+faster than at 1 bar, which the cyclic steady state of the wet flue gas
+processes does not converge with. With [`ChapmanEnskogTransport`](@ref)
+(`transport = :chapman_enskog`), from the kinetic theory of gases with the
+Lennard-Jones parameters ``\sigma_i`` [Å] and ``\varepsilon_i/k`` [K] of each
+component and the collision integrals ``\Omega`` of Neufeld et al.:
 
 ```math
-\hat\mu = \frac{\sum_i y_i \mu_i \sqrt{M_i}}{\sum_i y_i \sqrt{M_i}},
-\quad
-\mu_i = \mu_{0,i}\left(\frac{T}{T_0}\right)^{3/2}\frac{T_0 + S_i}{T + S_i},
+\mu_i = 2.6693\times10^{-6}\,\frac{\sqrt{M_i T}}{\sigma_i^2\,\Omega_\mu(kT/\varepsilon_i)},
 \qquad
-\hat k = \sum_i \frac{y_i k_i}{\sum_j y_j \Phi_{ij}},
+\hat\mu = \sum_i \frac{y_i \mu_i}{\sum_j y_j \Phi_{ij}},
 \quad
-k_i = k_{0,i}\left(\frac{T}{T_0}\right)^{n_i},
-\qquad
-\hat D = T^{1.75},
+\Phi_{ij} = \frac{\left[1 + (\mu_i/\mu_j)^{1/2} (M_j/M_i)^{1/4}\right]^2}{\left[8\,(1 + M_i/M_j)\right]^{1/2}},
 ```
-
-with ``\Phi_{ij}`` of Mason and Saxena and ``T_0`` = 298.15 K. The diffusivity
-follows the temperature as molecular diffusion at a fixed pressure does. With
-`pressure_dependent = true` in [`sutherland_transport`](@ref) it follows the
-pressure too, as molecular diffusion (``T^{1.75}/P``) in series with Knudsen
-diffusion (``T^{1/2}``), which takes over in pores finer than the mean free
-path of the gas, at low pressure:
 
 ```math
-\frac{1}{\hat D} = P\left(\frac{T_0}{T}\right)^{1.75} + P_K\left(\frac{T_0}{T}\right)^{1/2},
+D_{ij} = 1.858\times10^{-7}\,\frac{T^{3/2}\sqrt{1/M_i + 1/M_j}}{P\,\sigma_{ij}^2\,\Omega_D(kT/\varepsilon_{ij})},
+\qquad
+\hat D_i = \frac{\sum_{j\ne i} y_j}{\sum_{j\ne i} y_j / D_{ij}},
 ```
 
-where ``P_K`` (`knudsen_pressure`, 0 by default) is the pressure at which the
-two are equal, about 0.1 bar for pores of 0.5 μm. That is not the default:
-mass transfer then runs some 30 times faster at 0.03 bar than at 1 bar, and
-the cyclic steady state of the wet flue gas processes, which evacuate to
-0.03 bar, does not converge. The wall's conductivity and the heat transfer
-coefficients stay as given.
+with ``M_i`` in g/mol, ``P`` in atm, ``\sigma_{ij} = (\sigma_i + \sigma_j)/2`` and
+``\varepsilon_{ij} = \sqrt{\varepsilon_i \varepsilon_j}`` (Wilke's rules for the
+mixture). In ``\hat D_i`` the mole fractions of the other components have a
+floor of 10⁻⁶: where a component is nearly pure, its diffusivity would
+otherwise swing between its binary values with the ratio of the traces of the
+others, with derivatives too large for Newton's method in gases of three or
+more components. The bed's axial thermal conductivity, the wall's conductivity and
+the heat transfer coefficients stay as given.
 
 ### Isotherm: dual-site Langmuir
 
@@ -649,7 +663,7 @@ optimisation come from the adjoint of the same discrete equations.
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
 | ``K_z`` | Axial thermal conductivity of the bed, at the feed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
 | ``K_w`` | Thermal conductivity of the wall | W/(m·K) | [`Wall`](@ref) `conductivity` |
-| ``k_i,\ S_i,\ n_i`` | Gas thermal conductivity, Sutherland constant and conductivity exponent of component ``i`` | W/(m·K), K, – | [`Component`](@ref) |
+| ``\sigma_i,\ \varepsilon_i/k`` | Lennard-Jones collision diameter and well depth of component ``i`` | Å, K | [`Component`](@ref) `lennard_jones` |
 | ``L`` | Column length | m | [`Column`](@ref) `length` |
 | ``M_i`` | Molar mass | kg/mol | [`Gas`](@ref) `molar_masses` |
 | ``P`` | Pressure | Pa | state |

@@ -18,14 +18,14 @@ export AdsorbedConcentration, AdsorbedLoading, AdsorbedMolarHeatCapacity,
     AdsorptionMassTransfer, AmbientLoss, AmbientTemperature, AverageMolarMass,
     AxialDispersion, BedCrossSectionArea, BulkVolume, calc_bc_trans, calc_bc_wall_trans,
     CellDx, column_mesh, ColumnEnergy, ComponentMasses, compute_column_face_area,
-    ConductivityFactor, ConservedPressure, DispersionTransmissibilities, EnthalpyChange,
+    ConservedPressure, DispersionScale, DispersionTransmissibilities, EnthalpyChange,
     FluidViscosity, FluidVolume, GasMolarHeatCapacity, HeatOfSorption,
-    InnerHeatTransferCoeff, mocca_domain, MolarConcentration, OuterHeatTransferCoeff,
-    Permeability, ScaledAdsorptionMassTransfer, setup_process_model,
-    setup_process_parameters, setup_process_state, SolidHeatCapacity, SorptionUptake,
-    ThermalConductivities, TimeScale, TotalMolarConcentration, ViscosityFactor, WallArea,
-    WallConductivity, WallCrossSectionArea, WallDensity, WallEndConduction, WallEnergy,
-    WallExchange, WallHeatCapacity
+    InnerHeatTransferCoeff, mocca_domain, MolarConcentration, MolecularDiffusivity,
+    OuterHeatTransferCoeff, Permeability, ScaledAdsorptionMassTransfer,
+    setup_process_model, setup_process_parameters, setup_process_state, SolidHeatCapacity,
+    SorptionUptake, ThermalConductivities, TimeScale, TotalMolarConcentration,
+    ViscosityFactor, WallArea, WallConductivity, WallCrossSectionArea, WallDensity,
+    WallEndConduction, WallEnergy, WallExchange, WallHeatCapacity
 
 include("geometry.jl")
 include("unit_parameters.jl")

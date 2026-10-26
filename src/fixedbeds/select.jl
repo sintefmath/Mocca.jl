@@ -27,8 +27,8 @@ function Jutul.select_secondary_variables!(
         # Transport properties that follow the state of each cell
         S[:AdsorptionMassTransfer] = ScaledAdsorptionMassTransfer()
         S[:ViscosityFactor] = ViscosityFactor()
-        has_energy_balance(system) && (S[:ConductivityFactor] = ConductivityFactor())
     end
+    system.dispersion isa WakaoFunazkri && (S[:MolecularDiffusivity] = MolecularDiffusivity())
     S[:AdsorbedLoading] = AdsorbedLoading()
 
     # For the energy equations
@@ -79,6 +79,7 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
 
     # Unit-entity parameters (single scalars)
     S[:AxialDispersion] = AxialDispersion()
+    sys.dispersion isa WakaoFunazkri && (S[:DispersionScale] = DispersionScale())
     S[:AdsorbentDensity] = AdsorbentDensity()
     S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
     S[:WallDensity] = WallDensity()

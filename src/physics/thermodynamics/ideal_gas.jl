@@ -74,3 +74,52 @@ end
 
 component_enthalpies(model::IdealGasShomate, T) =
     _shomate_enthalpy(model, T) .- _shomate_enthalpy(model, THERMODYNAMIC_REFERENCE_TEMPERATURE)
+
+"""
+    IdealGasPolynomial{N, T} <: AbstractGasThermodynamics
+
+Ideal gas whose components have heat capacities that are cubic polynomials of
+temperature, as tabulated by Reid, Prausnitz and Poling (*The Properties of
+Gases and Liquids*, 4th ed., Appendix A):
+
+    cp = A + B·T + C·T² + D·T³   [J/(mol·K)],   T in K
+
+    IdealGasPolynomial(coefficients)
+    IdealGasPolynomial(; A, B, C, D)
+
+`coefficients` holds one `(A, B, C, D)` per component; the keyword form one
+vector per coefficient.
+"""
+struct IdealGasPolynomial{N, T} <: AbstractGasThermodynamics
+    A::SVector{N, T}
+    B::SVector{N, T}
+    C::SVector{N, T}
+    D::SVector{N, T}
+end
+
+function IdealGasPolynomial(; A, B, C, D)
+    N = length(A)
+    all(length(x) == N for x in (B, C, D)) || throw(ArgumentError("heat capacity coefficients A to D must have one value per component"))
+    v(x) = SVector{N}(float.(x))
+    return IdealGasPolynomial(v(A), v(B), v(C), v(D))
+end
+
+function IdealGasPolynomial(coefficients::AbstractVector)
+    all(length(c) == 4 for c in coefficients) || throw(ArgumentError("each component needs the four coefficients (A, B, C, D)"))
+    coef(k) = [c[k] for c in coefficients]
+    return IdealGasPolynomial(; A = coef(1), B = coef(2), C = coef(3), D = coef(4))
+end
+
+"The coefficients `(A, B, C, D)` of each component of `model`."
+polynomial_coefficients(model::IdealGasPolynomial) =
+    [(model.A[i], model.B[i], model.C[i], model.D[i]) for i in eachindex(model.A)]
+
+component_heat_capacities(model::IdealGasPolynomial, T) =
+    model.A .+ T .* (model.B .+ T .* (model.C .+ T .* model.D))
+
+# ∫ cp dT from 0 to T
+_polynomial_enthalpy(model::IdealGasPolynomial, T) =
+    T .* (model.A .+ T .* (model.B ./ 2 .+ T .* (model.C ./ 3 .+ T .* model.D ./ 4)))
+
+component_enthalpies(model::IdealGasPolynomial, T) =
+    _polynomial_enthalpy(model, T) .- _polynomial_enthalpy(model, THERMODYNAMIC_REFERENCE_TEMPERATURE)
