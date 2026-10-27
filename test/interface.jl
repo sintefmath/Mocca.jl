@@ -611,6 +611,59 @@ end
     @test q[:L] == 2.0 && q[:R] == 0.2 && q[:P_L_mbar] == 150.0
 end
 
+@testset "Convergence does not depend on the order of the gas components" begin
+    # The wet flue gas with water before nitrogen converges with the default
+    # Newton's method, as in the usual order, where a trace last held it at a
+    # change of 10⁻⁶ before. The solver cuts different steps for the two
+    # orders, which Newton's method then keeps, so the steady states differ by
+    # the error of the steps: about 10⁻⁴ in the recovery here. With steps
+    # neither order cuts (max_dt = 0.25, first_dt = 0.01 on 10 cells) the
+    # dual-adsorbent VSA agrees to 10⁻⁹.
+    usual = M.krishnamurthy_2014_gas()
+    order = ["CO2", "H2O", "N2"]
+    perm = [findfirst(==(n), usual.names) for n in order]
+    gas = Gas(order; molar_masses = usual.molar_masses[perm], heat_capacities = usual.heat_capacities[perm],
+        viscosity = usual.viscosity, density = usual.density, diffusivity = usual.diffusivity[perm])
+    for make in (lpp_vsa_process, dual_adsorbent_vsa_process)
+        io = IOBuffer()
+        a = cyclic_steady_state(make(ncells = 6); progress = io)
+        b = cyclic_steady_state(make(ncells = 6, gas = gas); progress = false)
+        @test a.converged && b.converged
+        pa, pb = performance(a), performance(b)
+        @test pb.purity ≈ pa.purity rtol = 1e-3
+        @test pb.recovery ≈ pa.recovery rtol = 1e-3
+        @test pb.specific_energy ≈ pa.specific_energy rtol = 1e-3
+        @test pb.extract ≈ pa.extract[perm] rtol = 1e-3
+        for u in M.beds(a.process.flowsheet)
+            @test b.state0[u][:Pressure] ≈ a.state0[u][:Pressure] rtol = 1e-3
+            @test b.state0[u][:Temperature] ≈ a.state0[u][:Temperature] rtol = 1e-3
+            @test maximum(abs, b.state0[u][:y] .- a.state0[u][:y][perm, :]) < 1e-3
+            @test b.state0[u][:AdsorbedConcentration] ≈ a.state0[u][:AdsorbedConcentration][perm, :] rtol = 1e-3
+        end
+        # Every component's inventory closes over the cycle, and the closure
+        # is printed at the end
+        @test all(c -> abs(c) < 1e-5, a.closure)
+        @test b.closure ≈ a.closure[perm] atol = 1e-5
+        out = String(take!(io))
+        @test contains(out, "Inventory change over the last cycle, per mole fed: CO2 ")
+    end
+
+    # A trace as the last component, which only ever moves by minus the
+    # change of the others: dry flue gas on a 13X that also takes up water,
+    # with water at 10⁻¹⁰ in the feed. Measured against a floor, the round-off
+    # of Newton's steps held the change at 10⁻⁶. The same with water in the
+    # middle.
+    trace(order) = Gas(order; molar_masses = (CO2 = 44.01e-3, N2 = 28e-3), heat_capacities = (CO2 = 697.5687, N2 = 1096.4),
+        viscosity = 1.72e-5, density = 1.22638310956, diffusivity = 1.6e-5)
+    ads = load_adsorbent("zeolite_13x_krishnamurthy_2014")
+    a = cyclic_steady_state(four_stage_vsa_process(ncells = 10, adsorbent = ads, gas = trace(["CO2", "N2", "H2O"])); progress = false)
+    b = cyclic_steady_state(four_stage_vsa_process(ncells = 10, adsorbent = ads, gas = trace(["CO2", "H2O", "N2"])); progress = false)
+    @test a.converged && b.converged
+    @test maximum(a.state0[:Bed][:y][3, :]) < 1e-8
+    @test performance(b).purity ≈ performance(a).purity rtol = 1e-6
+    @test performance(b).recovery ≈ performance(a).recovery rtol = 1e-6
+end
+
 @testset "A fine grid starts from the steady state of a coarser one" begin
     I = M.Interface
     p = four_stage_vsa_process(ncells = 20)

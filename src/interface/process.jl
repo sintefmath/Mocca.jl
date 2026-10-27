@@ -316,6 +316,16 @@ every step the solver took, the number of `cycles` they span, the initial
 state `state0` of the last of them, and for a cyclic steady state whether it
 `converged`, the change per iteration or cycle in `history` and the cycle
 Jacobian if Newton's method found it.
+
+`closure` is the inventory closure of the last cycle, one entry per component
+in gas order: the change over the cycle of the moles of the component the beds
+hold, in the gas and on the sorbent, as a fraction of the moles of it that
+enter through the inlet devices (`:feed` and `:light_inlet`) over the cycle,
+positive if the beds gain it. At cyclic steady state each is zero to within
+what the steps resolve: a component still accumulating, such as water that
+the solver has not let settle, shows here. A component that hardly enters is
+measured against 10⁻⁶ of all the moles that enter. `NaN` if the process has no
+inlet devices.
 """
 struct CyclicResult <: ProcessResult
     process::CyclicProcess
@@ -327,6 +337,38 @@ struct CyclicResult <: ProcessResult
     history::Vector{Float64}
     iterations::Int
     jacobian::Any
+    closure::Vector{Float64}
+end
+
+CyclicResult(p, states, timesteps, cycles, state0, converged, history, iterations, jacobian) =
+    CyclicResult(p, states, timesteps, cycles, state0, converged, history, iterations, jacobian,
+        _inventory_closure(p, states, timesteps, cycles, state0))
+
+# Moles entering, per component, below which the inventory closure of a
+# component is measured against this fraction of all the moles entering
+const CLOSURE_FLOOR = 1e-6
+
+# The inventory closure of the last of `cycles` cycles simulated in `states`,
+# from `state0` (see CyclicResult)
+function _inventory_closure(p::CyclicProcess, states, timesteps, cycles, state0)
+    fs = p.flowsheet
+    N = number_of_components(fs.gas)
+    held(state) = sum(b -> component_inventory(p.model[b], state[b], p.parameters[b]), beds(fs); init = zeros(N))
+    inlets = [d for role in INLET_ROLES for d in devices_with_role(fs, role)]
+    (isempty(states) || isempty(inlets)) && return fill(NaN, N)
+    w = _last_cycle(p, timesteps, cycles)
+    fed = sum(d -> stream_totals(states, timesteps, d; window = w), inlets)
+    total = sum(abs, fed)
+    total > 0 || return fill(NaN, N)
+    return (held(states[last(w)]) .- held(state0)) ./ max.(abs.(fed), CLOSURE_FLOOR * total)
+end
+
+# Print the inventory closure of result `r`
+function _report_closure!(pr, r)
+    (isnothing(pr) || any(isnan, r.closure)) && return
+    names = r.process.flowsheet.gas.names
+    report_note!(pr, "Inventory change over the last cycle, per mole fed: " *
+        join(["$n $(_sci(c))" for (n, c) in zip(names, r.closure)], ", "))
 end
 
 """
@@ -362,9 +404,16 @@ const DEFAULT_COARSE_CELLS = 40
 """
     cyclic_steady_state(p; method = :newton, tol = nothing, max_cycles = 500,
         warm_start = true, handover = 3, krylov = :auto, coarse_cells = 40,
-        progress = isinteractive(), info_level = -1, kwarg...) → CyclicResult
+        nonlinear_tolerance = nothing, progress = isinteractive(), info_level = -1,
+        kwarg...) → CyclicResult
 
-The cyclic steady state of the process, with the states of its last cycle:
+The cyclic steady state of the process, with the states of its last cycle.
+Every cycle of a solve is simulated at one `nonlinear_tolerance`, so that
+each phase works with the same cycle map: by default `1e-8` for `:newton`,
+that of the adjoints, and `1e-6` otherwise. A cycle's change counts only
+what goes beyond what steps at that tolerance resolve (see
+[`cycle_change`](@ref)): an entry has settled when its change is at most
+`tol` times its scale plus that resolution.
 
 - `:newton` (default): `handover` plain cycles (3), each from the end of the
   last, then Newton's method on the cycle map (see
@@ -400,6 +449,11 @@ The cyclic steady state of the process, with the states of its last cycle:
 - `:mass_balance`: [`simulate_until_mass_balance`](@ref) on the key component,
   between the feed and light inlet devices and the outlet devices.
 
+The result's `closure` is the change of each component's inventory in the
+beds over the last cycle, as a fraction of the moles of it fed (see
+[`CyclicResult`](@ref)); it is printed with the progress, and does not
+decide convergence.
+
 With `progress`, on by default in an interactive session such as the REPL,
 each cycle is printed as it finishes: how many have run, how much the state
 still changes over a cycle against `tol`, a bar of how far it has come, and an
@@ -408,8 +462,8 @@ place, so only the end of each phase stays on screen. `progress` can also be
 an `IO` to print to, or a [`CycleProgress`](@ref).
 """
 function cyclic_steady_state(p::CyclicProcess; method = :newton, tol = nothing, max_cycles = 500, warm_start = true,
-        handover = DEFAULT_HANDOVER, krylov = :auto, coarse_cells = DEFAULT_COARSE_CELLS, progress = isinteractive(),
-        info_level = -1, kwarg...)
+        handover = DEFAULT_HANDOVER, krylov = :auto, coarse_cells = DEFAULT_COARSE_CELLS, nonlinear_tolerance = nothing,
+        progress = isinteractive(), info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p)
     model, prm = p.model, p.parameters
     has_warm = warm_start && !isnothing(p.warm.state)
@@ -418,6 +472,7 @@ function cyclic_steady_state(p::CyclicProcess; method = :newton, tol = nothing, 
     name = isempty(p.name) ? "the process" : p.name
     if method == :newton
         tol = something(tol, 1e-9)
+        ntol = something(nonlinear_tolerance, STEADY_STATE_NONLINEAR_TOLERANCE)
         (handover isa Integer ? handover >= 0 : 0 < handover < 1) ||
             input_error("cyclic_steady_state", "handover", "give a number of cycles, or a cycle change below 1, got $handover")
         (krylov isa Integer || krylov === :auto) ||
@@ -433,36 +488,40 @@ function cyclic_steady_state(p::CyclicProcess; method = :newton, tol = nothing, 
         p.timestepping.first_dt < p.timestepping.max_dt ||
             @warn "Newton's method needs a smooth cycle map; start each stage with short steps (TimeStepping(first_dt = 0.05))" maxlog = 1
         s = _newton_steady_state(p, pr; tol = tol, warm = has_warm, handover = handover, krylov = krylov,
-            coarse_cells = coarse_cells, max_cycles = max_cycles, info_level = info_level, kwarg...)
+            coarse_cells = coarse_cells, max_cycles = max_cycles, nonlinear_tolerance = ntol, info_level = info_level, kwarg...)
         r = s.result
         finish_progress!(pr, r.converged)
         r.converged || @warn "Cyclic steady state not converged by Newton's method" r.history
         # Only a steady state is a good start for the next solve; otherwise the
         # last one found, if any, stays
         r.converged && ((p.warm.state, p.warm.jacobian) = (r.state0, r.jacobian))
-        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
+        result = CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
     elseif method == :anderson
         tol = something(tol, 1e-6)
+        ntol = something(nonlinear_tolerance, DEFAULT_NONLINEAR_TOLERANCE)
         report_note!(pr, "Cyclic steady state of $name: Anderson acceleration to $(_sci(tol))" * (has_warm ? " from the last steady state" : ""))
         r = simulate_to_cyclic_steady_state(model, x0, prm, forces, dt; tol = tol, max_cycles = max_cycles,
-            progress = pr, info_level = info_level, kwarg...)
+            nonlinear_tolerance = ntol, progress = pr, info_level = info_level, kwarg...)
         finish_progress!(pr, r.converged)
         r.converged && (p.warm.state = r.state0)
-        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
+        result = CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     elseif method == :mass_balance
         fs = p.flowsheet
         inflow = Tuple(vcat(devices_with_role(fs, :feed), devices_with_role(fs, :light_inlet)))
         outflow = Tuple(vcat([devices_with_role(fs, r) for r in OUTLET_ROLES]...))
         kw = isnothing(tol) ? NamedTuple() : (tol = tol,)
+        isnothing(nonlinear_tolerance) || (kw = merge(kw, (nonlinear_tolerance = nonlinear_tolerance,)))
         k = p.options.key_component
         report_note!(pr, "Cyclic steady state of $name: $(fs.gas.names[k]) mass balance" * (has_warm ? " from the last steady state" : ""))
         r = simulate_until_mass_balance(model, x0, prm, forces, dt; inflow = inflow, outflow = outflow,
             component = k, max_cycles = max_cycles, progress = pr, info_level = info_level, kw..., kwarg...)
         finish_progress!(pr, r.converged)
-        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
+        result = CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     else
         input_error("cyclic_steady_state", "method", "use :newton, :anderson or :mass_balance, got $method")
     end
+    _report_closure!(pr, result)
+    return result
 end
 
 # Cycle change to which a coarser grid is converged when it only gives the
@@ -478,7 +537,10 @@ const COARSE_TOL = 1e-6
 # tighter hand-overs as the fallback. Returns the result of the last Newton
 # solve, the change of every cycle or iteration and the cycles simulated.
 function _newton_steady_state(p::CyclicProcess, pr; tol, warm = false, handover = DEFAULT_HANDOVER, krylov = :auto,
-        coarse_cells = DEFAULT_COARSE_CELLS, max_cycles = 500, info_level = -1, in_sequence = false, kwarg...)
+        coarse_cells = DEFAULT_COARSE_CELLS, max_cycles = 500, nonlinear_tolerance = STEADY_STATE_NONLINEAR_TOLERANCE,
+        info_level = -1, in_sequence = false, kwarg...)
+    # Every cycle at the same tolerance, so that each phase sees the same map
+    kwarg = (; nonlinear_tolerance = nonlinear_tolerance, kwarg...)
     forces, dt = cycle_schedule(p)
     model, prm = p.model, p.parameters
     history = Float64[]
@@ -559,7 +621,7 @@ function _newton_steady_state(p::CyclicProcess, pr; tol, warm = false, handover 
             append!(history, r.history)
             cycles += r.cycles
         end
-        (last || r.converged) && return (result = r, history = history, cycles = cycles)
+        (last || (!isnothing(r) && r.converged)) && return (result = r, history = history, cycles = cycles)
         x = isnothing(r) || isempty(loose.history) || r.history[end] >= loose.history[end] ? loose.state0 : r.state0
         report_note!(pr, "  Newton's method " * (isnothing(r) ? "failed" : "did not converge") *
             " from " * _handover_text(h) * "; Anderson acceleration on to $(_sci(stages[k + 1])), then Newton's method again")
@@ -658,14 +720,14 @@ _handover_text(h) = "Anderson acceleration to $(_sci(h))"
 # `n` cycles from `x`, each from the end of the last, to start Newton's method
 # from: the fast modes have died out after a few, and Newton's method does the
 # rest
-function _plain_cycles(model, x, prm, forces, dt, n, pr; info_level = -1, kwarg...)
+function _plain_cycles(model, x, prm, forces, dt, n, pr; nonlinear_tolerance = DEFAULT_NONLINEAR_TOLERANCE, info_level = -1, kwarg...)
     start_phase!(pr, "Cycles"; tol = NaN, estimate = false)
     history = Float64[]
     for k in 1:n
-        states, _, ok = _simulate_schedule(model, x, prm, forces, dt; info_level = info_level, kwarg...)
+        states, _, ok = _simulate_schedule(model, x, prm, forces, dt; nonlinear_tolerance = nonlinear_tolerance, info_level = info_level, kwarg...)
         ok || throw(SimulationFailure("simulation of cycle $k failed"))
         x_end = restart_state(model, states[end])
-        push!(history, cycle_change(model, x, x_end))
+        push!(history, cycle_change(model, x, x_end; nonlinear_tolerance = nonlinear_tolerance))
         report_cycle!(pr, k, history[end]; fraction = k / n)
         x = x_end
     end
@@ -677,7 +739,8 @@ end
 # Performance
 # ------------------------------------------------------------------------------
 
-_last_cycle(r::CyclicResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
+_last_cycle(r::CyclicResult) = _last_cycle(r.process, r.timesteps, r.cycles)
+_last_cycle(p::CyclicProcess, timesteps, cycles) = cycles == 1 ? eachindex(timesteps) : cycle_window(timesteps, cycle_time(p), cycles)
 
 Operation.adsorbent_volume(p::CyclicProcess) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 adsorbent_mass(p::CyclicProcess) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))

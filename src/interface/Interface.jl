@@ -14,7 +14,7 @@ import ..Units
 using ..Framework, ..Physics, ..Balances, ..Devices, ..FixedBeds, ..MovingBeds, ..Networks, ..Operation
 using ..Framework: _is_solver_failure
 using ..Operation: _no_targets, _plural, _simulate_schedule, _stage_forces, _sci, cycle_progress, finish_phase!, finish_progress!, plan_phases!,
-    report_cycle!, report_note!, start_phase!
+    report_cycle!, report_note!, start_phase!, DEFAULT_NONLINEAR_TOLERANCE, STEADY_STATE_NONLINEAR_TOLERANCE
 
 export AbstractIsothermData, AbstractStep, add_bed!, add_device!, add_integral!,
     add_measure!, add_moving_bed!, add_variable!, Adsorb, Adsorbent, adsorbent_to_dict,

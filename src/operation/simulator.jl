@@ -3,6 +3,12 @@
 # add up, so they are held tighter than Jutul's default of 1e-3.
 const DEFAULT_NONLINEAR_TOLERANCE = 1e-6
 
+# Tighter still for the cycles of Newton's method and of the adjoints, and so
+# for every cycle of a solve that hands over to Newton's method, so that each
+# phase works with the same cycle map: a map that changes with the tolerance
+# jumps by about the error of the steps at the hand-over
+const STEADY_STATE_NONLINEAR_TOLERANCE = 1e-8
+
 # Jutul gives up on a step after halving it 5 times. Opening a valve onto a bed
 # at another pressure can take more: the start of a cycle of the dual-adsorbent
 # example needs 7. Allowing more cuts changes nothing for a step that converges

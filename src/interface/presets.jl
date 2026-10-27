@@ -46,7 +46,7 @@ from, 1 bar, with a heat capacity ratio of 1.4.
 function four_stage_vsa_process(; ncells = 30, durations = (15.0, 15.0, 30.0, 40.0), P_H = 1e5, P_I = 0.2e5, P_L = 0.1e5,
         velocity = 1.0, ramp_rate = 0.5, timestepping = TimeStepping(), name = "four-stage VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
-    feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
+    feed = Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), temperature = 298.15, pressure = P_H)
     fs = Flowsheet(gas, feed)
     add_bed!(fs, :Bed, adsorbent, column; ncells = ncells)
     add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
@@ -98,7 +98,7 @@ function two_bed_vsa_process(; ncells = 30, feed_time = 15.0, pressurisation_tim
         equalisation_conductance = 1e-6, P_H = 1e5, P_L = 0.1e5, velocity = 1.0, ramp_rate = 0.5,
         timestepping = TimeStepping(), name = "two-bed VSA", initial_state = Dict{Symbol, Any}(),
         adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013"), column = haghpanah_2013_column(), gas = haghpanah_2013_gas())
-    feed = Feed(gas; composition = [0.15, 0.85], temperature = 298.15, pressure = P_H)
+    feed = Feed(gas; composition = (CO2 = 0.15, N2 = 0.85), temperature = 298.15, pressure = P_H)
     fs = Flowsheet(gas, feed)
     for b in (:A, :B)
         add_bed!(fs, b, adsorbent, column; ncells = ncells)
@@ -155,7 +155,9 @@ krishnamurthy_2014_column(; length = 1.0) = Column(; length = length, radius = 0
 "Feed composition of the wet flue gas: 15% CO2, 82% N2 and 3% H2O."
 const WET_FLUE_GAS_FEED = [0.15, 0.82, 0.03]
 
-_wet_feed(gas, P) = Feed(gas; composition = WET_FLUE_GAS_FEED, temperature = 298.15, pressure = P, light_product = (N2 = 1.0,))
+# By name, so that the gas may list its components in any order
+_wet_feed(gas, P) = Feed(gas; composition = Dict(zip(("CO2", "N2", "H2O"), WET_FLUE_GAS_FEED)), temperature = 298.15, pressure = P,
+    light_product = (N2 = 1.0,))
 
 """
     lpp_vsa_process(; ncells = 30, velocity = 0.45, t_lpp = 20.0, t_ads = 78.4, t_bd = 37.9,

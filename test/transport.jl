@@ -119,7 +119,7 @@ end
     r = four_stage_vsa_process(ncells = 4, gas = Mocca.haghpanah_2013_gas(transport = _FixedTransport()))
     @test_throws MoccaInputError Mocca.process_to_dict(r)
     # A component of the user's own, with its data
-    ne = Gas(["N2", "Ne"]; transport = :chapman_enskog)
+    ne = Gas(["CO2", "N2", "Ne"]; transport = :chapman_enskog)
     pn = four_stage_vsa_process(ncells = 4, gas = ne, adsorbent = Adsorbent(; isotherm = load_adsorbent("zeolite_13x_haghpanah_2013").isotherm,
         density = 1130.0, heat_capacity = 1070.0, particle_diameter = 2e-3, particle_porosity = 0.35))
     dn = Mocca.process_to_dict(pn)
@@ -222,17 +222,9 @@ end
     add_variable!(p, :P_L, ("evacuation", :to); bounds = (0.05bar, 0.3bar))
     add_variable!(p, :rho, (:parameter, :Bed, :AdsorbentDensity); bounds = (1000.0, 1300.0))
     add_variable!(p, :disp, (:parameter, :Bed, :DispersionScale); bounds = (0.5, 2.0))
-    g = performance_gradient(p; progress = false)
-    @test g.steady_state.converged
-    value() = performance(cyclic_steady_state(p; tol = 1e-11, progress = false))
-    for n in (:P_L, :rho, :disp)
-        x0 = p[n]
-        h = 1e-4 * x0
-        p[n] = x0 + h; up = value()
-        p[n] = x0 - h; down = value()
-        p[n] = x0
-        for m in (:purity, :recovery, :specific_energy)
-            @test g.gradients[m][n] ≈ (up[m] - down[m]) / 2h rtol = 1e-4
-        end
-    end
+    # Against central differences at two steps (see check_gradients): one
+    # step alone is noisy at 1e-4, the change of the cycle that its steps
+    # resolve
+    checks = check_gradients(p; measures = (:purity, :recovery, :specific_energy), io = nothing)
+    @test all(r -> r.status == :pass, checks.rows)
 end

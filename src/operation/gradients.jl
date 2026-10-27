@@ -96,7 +96,8 @@ end
 # into sub-steps incorrectly (they look up the forces of a sub-step by its
 # report step), and its DI adjoints use the initial state for every sub-step
 # of the first report step, so the adjoints here only ever see unsplit steps.
-function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear_tolerance = 1e-8, info_level = -1, kwarg...)
+function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear_tolerance = STEADY_STATE_NONLINEAR_TOLERANCE,
+        info_level = -1, kwarg...)
     sim, cfg = setup_process_simulator(model, state0, parameters;
         info_level = info_level, nonlinear_tolerance = nonlinear_tolerance, output_substates = true, kwarg...)
     result = Jutul.simulate!(sim, timesteps; forces = forces, config = cfg)
@@ -362,15 +363,17 @@ function _fill_variable_scale!(s, model::Jutul.SimulationModel, map)
     return s
 end
 
-# Scale of each of `dofs`, as the cycle change measures it: the largest
-# magnitude of its variable in `x`, per component for mole fractions and
-# loadings, at least the variable's floor
-function _dof_scale(model, x, map, dofs)
+# Scale of each of `dofs`, as the cycle change measures it at tolerance `tol`
+# for steps at nonlinear tolerance `ntol`: an entry passes the test when its
+# change is at most `tol` times this. The scale of its variable in `x`, per
+# component for mole fractions and loadings, at least the variable's floor,
+# plus what the steps resolve divided by `tol`.
+function _dof_scale(model, x, map, dofs; tol, ntol)
     s = deepcopy(x)
     for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
         v = _unit_state(s, k)[p]
-        sc = _variable_scale(m, p, v)
-        v .= v isa AbstractMatrix ? repeat(sc, 1, size(v, 2)) : sc
+        sc = _variable_scale(m, p, v) .+ _resolution(m, p, v, ntol) ./ tol
+        v .= sc isa Number ? sc : (sc .+ zero(v))
     end
     return Jutul.vectorize_variables(model, s, map)[dofs]
 end
@@ -378,7 +381,7 @@ end
 """
     newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-10, max_iterations = 10, krylov = :auto, growth = 100, max_backtracks = 6,
-        keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
+        keep_steps_below = 1e-3, nonlinear_tolerance = 1e-8, progress = false, info_level = -1, kwarg...)
 
 Converge a cyclic steady state with Newton's method from `state0`, such as the
 end of a few plain cycles.
@@ -444,7 +447,16 @@ iteration's cycle, cuts included (and adds any further cut it needs), so
 that the map is smooth. The steady state found is that of those steps, which
 differ from the steps given only where the solver cut them.
 
-Stops when the [`cycle_change`](@ref) is below `tol`. With `progress`
+The cycles are simulated at `nonlinear_tolerance`, and the iterations stop
+when the [`cycle_change`](@ref) beyond what that resolves is below `tol`:
+when every entry has changed by at most `tol` times its scale plus the
+resolution of the steps. The residual is weighed the same way, in the norm
+of the step control and in GMRES: each entry divided by its scale plus the
+resolution over `tol`. Newton's method works in the `N − 1` mole fractions
+that are unknowns of the simulation, while the test checks all `N`, so that
+it does not depend on the order of the components; the last fraction
+changes by minus the sum of the others' changes, which the resolution
+covers even when it is a trace. With `progress`
 (`true`, an `IO` or a [`CycleProgress`](@ref)), each iteration is printed with
 its cycle change and its step if shortened, and each Jacobian built, GMRES
 solve or step rejected. Returns the same fields
@@ -457,7 +469,9 @@ iterations that fell back to a plain cycle. Extra keywords go to
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, krylov = :auto, max_products = nothing,
-        max_backtracks = 6, growth = 100.0, keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
+        max_backtracks = 6, growth = 100.0, keep_steps_below = 1e-3, nonlinear_tolerance = STEADY_STATE_NONLINEAR_TOLERANCE,
+        progress = false, info_level = -1, kwarg...)
+    ntol = nonlinear_tolerance
     krylov = _use_krylov(model, krylov)
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, "Newton"; tol = tol, noun = "iteration", estimate = false)
@@ -476,14 +490,14 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
     # cut), so that the map it works with is smooth. Further away, the cuts
     # differ from those at the steady state, so the steps given are used.
     sched_forces, sched_dt = forces, timesteps
-    sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+    sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
     step = 1.0
     # Residual Φ(x) − x of the best iterate so far, for the step control
     best = nothing
     for it in 0:max_iterations
         states, dt, step_forces = sim
         x_end = restart_state(model, states[end])
-        push!(history, cycle_change(model, x, x_end))
+        push!(history, cycle_change(model, x, x_end; nonlinear_tolerance = ntol))
         report_cycle!(pr, it, history[end]; note = step < 1 ? (step == 0 ? "plain cycle" : "step $(_sci(step))") : "")
         if history[end] < keep_steps_below && length(dt) > length(sched_dt)
             sched_dt, sched_forces = dt, step_forces
@@ -507,7 +521,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
                 rtol = clamp(max(c, 0.1 * tol / c), 1e-12, 1e-2)
                 itmax = something(max_products, length(dofs))
                 δ, M, n_products = _krylov_step(tangent, length(z0), isnothing(J) ? nothing : J.M, dofs, r,
-                    _dof_scale(model, x, vmap, dofs), rtol, itmax, pr)
+                    _dof_scale(model, x, vmap, dofs; tol = tol, ntol = ntol), rtol, itmax, pr)
                 products += n_products
                 J = (M = M, dofs = dofs, map = vmap)
                 fresh = true
@@ -539,7 +553,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
         z1 = Jutul.vectorize_variables(model, x_end, J.map)
         # The residual measured in the units of the cycle change; the Newton
         # step reduces its norm at a unit rate
-        scale = _dof_scale(model, x, J.map, J.dofs)
+        scale = _dof_scale(model, x, J.map, J.dofs; tol = tol, ntol = ntol)
         r = z1[J.dofs] .- z0[J.dofs]
         merit0 = norm(r ./ scale)
         # Steps are measured against the best iterate so far, in this one's
@@ -553,7 +567,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             z[J.dofs] .= z0[J.dofs] .+ t .* δ
             xt = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
             simt = try
-                _simulate_steps(model, xt, parameters, sched_forces, sched_dt; kwarg...)
+                _simulate_steps(model, xt, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
             catch e
                 Framework._is_solver_failure(e) || rethrow()
                 return (x = xt, sim = nothing, merit = Inf, change = Inf)
@@ -561,7 +575,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             zt = Jutul.vectorize_variables(model, xt, J.map)
             xe = restart_state(model, simt[1][end])
             ze = Jutul.vectorize_variables(model, xe, J.map)
-            return (x = xt, sim = simt, merit = norm((ze[J.dofs] .- zt[J.dofs]) ./ scale), change = cycle_change(model, xt, xe))
+            return (x = xt, sim = simt, merit = norm((ze[J.dofs] .- zt[J.dofs]) ./ scale), change = cycle_change(model, xt, xe; nonlinear_tolerance = ntol))
         end
         # Line search: take the full step if it reduces the residual enough
         # (Armijo), or reaches `tol`. Otherwise a quasi-Newton step first gets
@@ -596,7 +610,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             fallbacks += 1
             report_status!(pr, "no step accepted; continuing from the end of the cycle"; persist = true)
             x = x_end
-            sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+            sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
             step = 0.0
             previous = nothing
         else

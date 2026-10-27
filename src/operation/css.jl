@@ -46,30 +46,68 @@ function _variable_scale(model, p, x; per_component = true)
     return max(maximum(abs, x), maximum(floor))
 end
 
-"""
-    cycle_change(model, state_start, state_end) → Float64
+# What the steps of a simulation at nonlinear tolerance `ntol` resolve of
+# primary variable `p` with values `x`, per entry or as one number (see
+# balances/convergence.jl): each step converges the mass balances to `ntol`
+# of the cell's holdup, so a mole fraction to about `ntol`, a loading to
+# `ntol` of the cell's total loading and a pressure to `ntol` of itself, and
+# the energy balances to a temperature error of `ntol` K
+function _resolution(model, p, x, ntol)
+    p == :y && return ntol
+    p == :AdsorbedConcentration && return ntol .* sum(abs, x; dims = 1)
+    model.primary_variables[p] isa Temperature && return ntol
+    return ntol .* abs.(x)
+end
 
-Largest relative change of any primary variable of a unit with holdup between
-the start and the end of a cycle: `max |x_end − x_start| / max |x_start|`, taken
-per variable, and per component for mole fractions and loadings, so that a
-trace component is measured against its own level. A mole fraction is measured
-against at least 10⁻⁶, and a loading against at least 0.1% of the component's
-saturation capacity, so that an absent component does not measure round-off
-against itself. Devices are skipped, since they hold no inventory.
+# Per entry: how far |x1 − x0| exceeds the resolution of the steps, relative
+# to the variable's scale in `x0`
+function _excess_change(model, p, x0, x1, ntol)
+    sc = _variable_scale(model, p, x0)
+    return max.(abs.(x1 .- x0) .- _resolution(model, p, x0, ntol), 0.0) ./ sc
+end
+
 """
-function cycle_change(model::Jutul.SimulationModel, s0, s1)
+    cycle_change(model, state_start, state_end; nonlinear_tolerance = 0.0) → Float64
+
+Change of the primary variables of the units with holdup between the start and
+the end of a cycle, beyond what the steps resolve, relative to each variable's
+scale. A cycle with change `c` passes the test
+
+    |x_end − x_start| ≤ tol · scale + atol
+
+for every entry of every variable if and only if `c ≤ tol`, as the mixed
+absolute and relative tolerances of an ODE solver: `c` is the largest
+`max(|x_end − x_start| − atol, 0) / scale`.
+
+The `scale` is the largest magnitude of the variable at the start of the cycle,
+per component for mole fractions and loadings, so that a trace component is
+measured against its own level (at least 10⁻⁶ for a mole fraction, and 0.1% of
+the component's saturation capacity for a loading), and over the whole
+variable for pressures and temperatures. `atol` is what the steps of a
+simulation at `nonlinear_tolerance` resolve, since each step converges its
+balances only to that tolerance (see the docs, *Cyclic steady state*): for a
+mole fraction the tolerance itself, for a loading the tolerance times the
+cell's total loading, for a pressure the tolerance times the pressure, and for
+a temperature the tolerance in kelvin. Changes within that are the noise of
+the steps and count as none. With the default `nonlinear_tolerance = 0`, the
+change is the plain relative change.
+
+Every component of the mole fractions is checked, not only the `N − 1` that
+are unknowns of the simulation, so the change does not depend on the order of
+the components. Devices are skipped, since they hold no inventory.
+"""
+function cycle_change(model::Jutul.SimulationModel, s0, s1; nonlinear_tolerance = 0.0)
     err = 0.0
     for k in keys(model.primary_variables)
-        x0, x1 = s0[k], s1[k]
-        err = max(err, maximum(abs.(x1 .- x0) ./ _variable_scale(model, k, x0)))
+        err = max(err, maximum(_excess_change(model, k, s0[k], s1[k], nonlinear_tolerance)))
     end
     return err
 end
 
-cycle_change(model::FlowDeviceModel, s0, s1) = 0.0
+cycle_change(model::FlowDeviceModel, s0, s1; kwarg...) = 0.0
 
-function cycle_change(model::Jutul.MultiModel, s0, s1)
-    return maximum(cycle_change(model.models[k], s0[k], s1[k]) for k in Jutul.submodels_symbols(model))
+function cycle_change(model::Jutul.MultiModel, s0, s1; kwarg...)
+    return maximum(cycle_change(model.models[k], s0[k], s1[k]; kwarg...) for k in Jutul.submodels_symbols(model))
 end
 
 # ------------------------------------------------------------------------------
@@ -93,7 +131,10 @@ end
 # Scale of each entry: the largest magnitude of its variable in `state`, at
 # least the floor. Taken over the whole variable rather than per component: it
 # weights the least squares fit of Anderson acceleration, which a small
-# component, such as a weakly adsorbed one, would otherwise dominate.
+# component, such as a weakly adsorbed one, would otherwise dominate. Unlike
+# the cycle change it leaves out what the steps resolve: over the whole
+# variable, the scale is far above that resolution divided by the tolerances
+# Anderson acceleration runs to.
 function _stack_scale(model, state)
     v = Float64[]
     for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
@@ -139,11 +180,12 @@ end
 """
     simulate_to_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5,
-        progress = false, info_level = -1, kwarg...)
+        nonlinear_tolerance = 1e-6, progress = false, info_level = -1, kwarg...)
 
 Repeat one cycle, given by its `forces` and `timesteps`, until the
 [`cycle_change`](@ref) of a cycle falls below `tol` or `max_cycles` is reached.
-Works for a single unit model and for flowsheets.
+The cycles are simulated at `nonlinear_tolerance`, and the change is measured
+beyond what that resolves. Works for a single unit model and for flowsheets.
 
 Each cycle maps its initial state `x` to its final state `Φ(x)`, and cyclic
 steady state is the fixed point `x = Φ(x)`. With `acceleration = :none` the next
@@ -162,11 +204,13 @@ initial state `state0`, the change per cycle in `history`, the number of
 `simulate_process`.
 """
 function simulate_to_cyclic_steady_state(model, state0, parameters, forces, timesteps;
-        tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5, progress = false, info_level = -1, kwarg...)
+        tol = 1e-4, max_cycles = 100, acceleration = :anderson, depth = 5, nonlinear_tolerance = DEFAULT_NONLINEAR_TOLERANCE,
+        progress = false, info_level = -1, kwarg...)
     acceleration in (:none, :anderson) || error("acceleration must be :none or :anderson, got $acceleration")
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, acceleration == :anderson ? "Anderson" : "Substitution"; tol = tol)
-    run_cycle(x) = _simulate_schedule(model, x, parameters, forces, timesteps; info_level = info_level, kwarg...)
+    run_cycle(x) = _simulate_schedule(model, x, parameters, forces, timesteps; info_level = info_level,
+        nonlinear_tolerance = nonlinear_tolerance, kwarg...)
 
     x = restart_state(model, state0)
     history = Float64[]
@@ -193,7 +237,7 @@ function simulate_to_cyclic_steady_state(model, state0, parameters, forces, time
             ok || throw(SimulationFailure("simulation of cycle $cycle failed, also from the unaccelerated start"))
         end
         x_end = restart_state(model, states[end])
-        push!(history, cycle_change(model, x, x_end))
+        push!(history, cycle_change(model, x, x_end; nonlinear_tolerance = nonlinear_tolerance))
         report_cycle!(pr, cycle, history[end]; note = restarted ? "failed from the extrapolated state, rerun" : "")
         if history[end] < tol
             finish_phase!(pr, cycle, true)

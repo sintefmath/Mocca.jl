@@ -315,6 +315,40 @@
   `keep_steps_below` (`1e-3`), Newton's method keeps the time steps of its
   cycle, including any the solver cut, for every later cycle, so that the
   cycle map it works with is smooth.
+- **Cyclic steady state judged against what the steps resolve.** The
+  change over a cycle (`cycle_change`) is now a mixed absolute and relative
+  test, as in an ODE solver: an entry has settled when its change is at most
+  `tol` times its scale plus what steps at the nonlinear tolerance resolve
+  (that tolerance for a mole fraction, times the cell's total loading for a
+  loading, times the pressure for a pressure, and in kelvin for a
+  temperature). The change reported is the largest excess over that
+  resolution relative to the scale, so it is below `tol` exactly when the
+  test passes. Every component's mole fraction is checked, and Newton's
+  method weighs its residual the same way. Before, a trace as the last gas
+  component, which only moves by minus the change of the others, was
+  measured against a floor of 10⁻⁶ and held Newton's method at a change of
+  exactly 10⁻⁶. On 30 cells, with the gas in the order CO2, H2O, N2, the wet
+  flue gas LPP VSA now converges in 21 cycles (28 s) and the dual-adsorbent
+  VSA in 82 (4 min), where both stopped unconverged after 98; dry flue gas
+  with a trace of water last converges in 19 instead of not at all. In the
+  usual order the library processes take about as many cycles as before.
+  `cycle_change` without `nonlinear_tolerance` is the plain relative change,
+  as before.
+- **One nonlinear tolerance for a cyclic steady state.** With
+  `method = :newton`, the plain cycles and any Anderson acceleration before
+  Newton's method are simulated at Newton's tolerance, `1e-8`, that of the
+  adjoints, instead of `1e-6`, so that every phase works with the same cycle
+  map. `cyclic_steady_state` takes `nonlinear_tolerance` to change it.
+- **Inventory closure.** A `CyclicResult` has `closure`: for each component,
+  the change of what the beds hold over the last cycle as a fraction of the
+  moles of it fed. It is printed at the end of the progress of
+  `cyclic_steady_state`, and does not decide convergence.
+- The four-stage, two-bed and wet flue gas presets give their feed by
+  component name, so that their `gas` may list the components in another
+  order.
+- `cyclic_steady_state` no longer fails with a `FieldError` when Newton's
+  method fails from a hand-over that is not the last; Anderson acceleration
+  goes on to the next, as documented.
 - **Submodules.** The source is split into one submodule per layer
   (`Mocca.Framework`, `Mocca.Physics`, `Mocca.Balances`, `Mocca.Devices`,
   `Mocca.FixedBeds`, `Mocca.Networks`, `Mocca.Operation`, `Mocca.Interface`),
