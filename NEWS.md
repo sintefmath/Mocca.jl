@@ -53,6 +53,13 @@
 
 ### Changed
 
+- **Diffusivities at the feed.** `mass_transfer(adsorbent, gas, feed)` and
+  `axial_diffusivity(gas, feed)` take the feed, at which a transport model
+  gives the diffusivities. Without it they still work for a gas with given
+  or constant diffusivities, and raise an error for one whose diffusivities
+  come from a transport model. A bed whose dispersion follows the state, by
+  Wakao and Funazkri, has a `DispersionScale` parameter in place of
+  `AxialDispersion`, and `bed_dispersion` raises an error for it.
 - **Molar heat capacities in the energy balance.** The heat capacity of the
   gas is the mole average of the molar heat capacities, `Σ yᵢ Mᵢ cₚᵢ`. It
   was `(Σ yᵢ cₚᵢ)·(Σ yᵢ Mᵢ)`, exact only for one component or for equal

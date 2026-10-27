@@ -117,7 +117,7 @@ function _process_parameters(p::Process)
     fs = p.flowsheet
     prm = setup_flowsheet_parameters(fs)
     for b in beds(fs)
-        get(fs.specs, b, nothing) isa BedSpec && (prm[b][:AxialDispersion] .= bed_dispersion(fs, b))
+        get(fs.specs, b, nothing) isa BedSpec && !_dispersion_follows_state(fs, b) && (prm[b][:AxialDispersion] .= bed_dispersion(fs, b))
     end
     for (u, d) in p.parameter_settings
         haskey(prm, u) || input_error("parameters", String(u), "$u is not a unit of the flowsheet")
@@ -135,7 +135,7 @@ function _set_dispersion_velocities!(fs, compiled)
     all_v = vcat(values(compiled.velocities)...)
     for b in beds(fs)
         spec = get(fs.specs, b, nothing)
-        spec isa BedSpec && spec.dispersion_velocity == :adsorption && isnothing(spec.dispersion) || continue
+        spec isa BedSpec && spec.dispersion_velocity == :adsorption && isnothing(spec.dispersion) && !_dispersion_follows_state(fs, b) || continue
         v = haskey(compiled.velocities, b) ? maximum(compiled.velocities[b]) : (isempty(all_v) ? nothing : maximum(all_v))
         if isnothing(v)
             @warn "No adsorption step sets a feed velocity, so the axial dispersion of bed $b uses 1 m/s; pass dispersion_velocity to add_bed! to set it"
@@ -526,7 +526,9 @@ function _coarse_copy(p::Process, coarse_cells)
     for b in bs
         spec = coarse.specs[b]
         spec.ncells = max(cld(spec.ncells, 2), 2)
-        network(coarse).units[b] = fixed_bed_model(coarse.gas, coarse.feed, spec.adsorbent, spec.column; ncells = spec.ncells,
+        # At the feed the fine bed was built for, which a design variable may
+        # since have changed, so that both grids have the same gas properties
+        network(coarse).units[b] = fixed_bed_model(coarse.gas, spec.feed, spec.adsorbent, spec.column; ncells = spec.ncells,
             thermal = spec.thermal, dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion,
             permeability = spec.permeability)
     end

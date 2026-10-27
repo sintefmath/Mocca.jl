@@ -74,6 +74,7 @@ Jutul.@jutul_secondary function update_scaled_adsorption_mass_transfer!(
     tv::ScaledAdsorptionMassTransfer,
     model::SorbentBedModel,
     MolarConcentration,
+    y,
     Temperature,
     AdsorbedConcentration,
     ix
@@ -87,8 +88,7 @@ Jutul.@jutul_secondary function update_scaled_adsorption_mass_transfer!(
         C = SVector{N, T}(@view MolarConcentration[:, cell])
         q = SVector{N, T}(@view AdsorbedConcentration[:, cell])
         qstar = compute_equilibrium(iso, C, Temperature[cell])
-        y = C ./ sum(C)
-        s = diffusivity_factors(sys.transport, y, Temperature[cell], sys.transport.pressure)
+        s = diffusivity_factors(sys.transport, view(y, :, cell), Temperature[cell], sys.transport.pressure)
         rate = compute_mass_transfer_rate(mt, C, q, qstar, s)
         for i in 1:N
             adsorption_mass_transfer[i, cell] = rate[i]
@@ -115,7 +115,9 @@ end
 """
 Molar heat capacity [J/(mol·K)] of the adsorbed phase in a cell: the average of
 the component heat capacities of the system's `adsorbed_thermodynamics`,
-weighted by the loadings.
+weighted by the loadings. Where nothing is adsorbed it is their plain mean,
+which the heat capacity of the adsorbed phase, `C_pa·Σ_i q_i`, multiplies by
+zero.
 """
 struct AdsorbedMolarHeatCapacity <: Jutul.ScalarVariable end
 
@@ -123,7 +125,18 @@ Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::Adsorbe
     thermo = model.system.adsorbed_thermodynamics
     for cell in ix
         q = view(AdsorbedConcentration, :, cell)
-        cpa[cell] = molar_heat_capacity(thermo, q, Temperature[cell]) / sum(q)
+        c = component_heat_capacities(thermo, Temperature[cell])
+        s, qc = zero(eltype(cpa)), zero(eltype(cpa))
+        for i in eachindex(c)
+            s += q[i]
+            qc += q[i] * c[i]
+        end
+        # ifelse evaluates both sides, so divide by one where the loading is
+        # zero. On the value: iszero of a dual number also asks for zero
+        # derivatives, which loadings that are primary variables do not have
+        empty = Jutul.value(s) == 0
+        weighted = qc / ifelse(empty, one(s), s)
+        cpa[cell] = ifelse(empty, sum(c) / length(c), weighted)
     end
 end
 
@@ -199,6 +212,9 @@ end
 function _adsorbed_excess_enthalpies(sys, T)
     gas, ads = sys.thermodynamics, sys.adsorbed_thermodynamics
     T0 = THERMODYNAMIC_REFERENCE_TEMPERATURE
+    # The default: the adsorbed phase has the heat capacities of the gas. Of
+    # the type of the full expression, so that the result is type-stable
+    ads === gas && return zero(T) .* component_heat_capacities(gas, T0)
     return (component_heat_capacities(ads, T0) .- component_heat_capacities(gas, T0)) .* T0 .+
         component_enthalpies(ads, T) .- component_enthalpies(gas, T)
 end

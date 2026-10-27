@@ -60,7 +60,7 @@ _scaled_diffusivities(::TransportReference{ConstantTransport}, D, y, T, P) = D .
 Factor on the axial dispersion of a unit whose dispersion follows the state
 (see [`WakaoFunazkri`](@ref)), 1 by default. As a parameter it can be set per
 case, by a design variable or in a history match, as `AxialDispersion` can for
-a constant dispersion.
+a constant dispersion. Such a unit has it in place of `AxialDispersion`.
 """
 struct DispersionScale <: Jutul.ScalarVariable end
 Jutul.associated_entity(::DispersionScale) = Unit()
@@ -70,8 +70,8 @@ Jutul.default_parameter_values(data_domain, model, ::DispersionScale, symb) = [1
 # Dispersion conductance [m³/s] of a face for a component: the AxialDispersion
 # parameter, or by Wakao and Funazkri from the molecular diffusivity of the
 # component in the cells of the face and the superficial velocity `u` [m/s]
-@inline function _face_dispersion(state, model, face, kgrad, u, component, D_l)
-    _state_has(state, :MolecularDiffusivity) || return D_l
+@inline function _face_dispersion(state, model, face, kgrad, u, component)
+    _state_has(state, :MolecularDiffusivity) || return state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
     D = state.MolecularDiffusivity
     D̄ = (D[component, kgrad.left] + D[component, kgrad.right]) / 2
     return state.DispersionScale[1] * dispersion_coefficient(model.system.dispersion, D̄, u) * state.DispersionTransmissibilities[face]
@@ -178,14 +178,13 @@ end
     y = state.y
     C = (cL + cR)/2.0
 
-    D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
     # Superficial velocity, for a dispersion that follows it
     u = _state_has(state, :MolecularDiffusivity) ?
         q_darcy / (Jutul.upwind(upw, cell -> _cell_viscosity(state, cell), q_darcy) * state.BedCrossSectionArea[1]) : zero(q_darcy)
     for component in eachindex(q)
         F_c = cell -> c[component, cell] / _cell_viscosity(state, cell)
         c_face = Jutul.upwind(upw, F_c, q_darcy)
-        D_c = _face_dispersion(state, model, face, kgrad, u, component, D_l)
+        D_c = _face_dispersion(state, model, face, kgrad, u, component)
         q_i = c_face * q_darcy - C * D_c * Jutul.gradient(y, component, kgrad)
 
         q = setindex(q, q_i, component)

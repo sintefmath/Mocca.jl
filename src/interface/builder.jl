@@ -2,7 +2,8 @@
 # devices with roles.
 
 """
-How a bed was built, so that it can be rebuilt and written to a file.
+How a bed was built, so that it can be rebuilt and written to a file. `feed`
+is the feed when it was added, at which its gas properties are taken.
 """
 mutable struct BedSpec
     adsorbent::Adsorbent
@@ -13,6 +14,7 @@ mutable struct BedSpec
     dispersion::Union{Nothing, Float64}
     permeability::Union{Nothing, Float64}
     velocity_used::Float64
+    feed::Feed
 end
 
 """
@@ -117,7 +119,8 @@ itself, to fix it. It is the bed's `AxialDispersion` parameter, so it can also
 be set through `parameters` of a `Process` or a design variable. With a
 `transport` model for the gas and no `dispersion` given, the dispersion
 instead follows the diffusivities and the gas velocity at each face, by
-[`WakaoFunazkri`](@ref), times the bed's `DispersionScale` parameter. See
+[`WakaoFunazkri`](@ref), times the bed's `DispersionScale` parameter, which
+it has in place of `AxialDispersion`. See
 [`fixed_bed_model`](@ref) for the other keywords.
 """
 function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; ncells = 30, thermal = WithWall(),
@@ -130,7 +133,8 @@ function add_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Col
     add_unit!(fs, name, model)
     fs.specs[name] = BedSpec(adsorbent, column, ncells, thermal,
         dispersion_velocity isa Symbol ? dispersion_velocity : Float64(dispersion_velocity),
-        isnothing(dispersion) ? nothing : Float64(dispersion), isnothing(permeability) ? nothing : Float64(permeability), v)
+        isnothing(dispersion) ? nothing : Float64(dispersion), isnothing(permeability) ? nothing : Float64(permeability), v,
+        deepcopy(fs.feed))
     return fs
 end
 
@@ -139,12 +143,20 @@ end
 
 Axial dispersion [m²/s] of bed `name`, added with [`add_bed!`](@ref): the
 `dispersion` given, or `0.7 D_m + 0.5 v d_p` at the velocity it was set for.
+A bed whose dispersion follows the state, by [`WakaoFunazkri`](@ref), has no
+single value, and is an error.
 """
 function bed_dispersion(fs::Flowsheet, name::Symbol)
+    _dispersion_follows_state(fs, name) && input_error("bed $name", "dispersion",
+        "it follows the diffusivities and the gas velocity at each face by Wakao and Funazkri, so it has no single value; its DispersionScale parameter scales it")
     spec = fs.specs[name]
     isnothing(spec.dispersion) || return spec.dispersion
-    return compute_dispersion(axial_diffusivity(fs.gas, fs.feed), spec.velocity_used, spec.adsorbent.particle_diameter)
+    return compute_dispersion(axial_diffusivity(fs.gas, spec.feed), spec.velocity_used, spec.adsorbent.particle_diameter)
 end
+
+# Whether the axial dispersion of bed `name` follows the state, by Wakao and
+# Funazkri, rather than being its AxialDispersion parameter
+_dispersion_follows_state(fs::Flowsheet, name::Symbol) = fs[name].system.dispersion isa WakaoFunazkri
 
 "Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."
 beds(fs::AbstractFlowsheet) = [n for n in unit_names(fs) if holds_sorbent(fs[n])]
@@ -264,7 +276,8 @@ attachments(fs::AbstractFlowsheet, d::Symbol) = [c for c in stream_connections(f
 Valve conductance [m³/(s·Pa)] for `device`: that of the half cell at the bed
 end it is attached to (see [`port_conductance`](@ref)), so that the valve adds
 no more resistance than the bed's end and the bed follows the pressure set at
-the other side. For a link, the two half cells in series.
+the other side. For a link, the two half cells in series. It is computed at
+the viscosity of the feed, also for a gas whose viscosity follows the state.
 """
 function default_conductance(fs::Flowsheet, d::Symbol)
     C = [port_conductance(fs[c.unit.name], ports(fs[c.unit.name])[c.unit.port]) for c in attachments(fs, d)]

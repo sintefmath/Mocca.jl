@@ -461,7 +461,8 @@ Written in terms of temperature and pressure:
 ```
 
 with the molar heat capacities [J/(mol·K)] of the gas, the mole average of
-those of its components, and of the adsorbed phase, weighted by the loadings:
+those of its components, and of the adsorbed phase, weighted by the loadings
+(their plain mean where nothing is adsorbed):
 
 ```math
 \tilde c_{pg} = \sum_i y_i\, \tilde c_{pg,i}(T),

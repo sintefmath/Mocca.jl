@@ -184,11 +184,9 @@ function Gas(names::AbstractVector; molar_masses = nothing, heat_capacities = no
     allunique(names) || input_error("gas", "names", "components appear more than once: $(join(names, ", "))")
     comps = component.(names)
     M = _by_component(names, molar_masses, [c.molar_mass for c in comps], "molar_masses")
-    thermo = _gas_thermodynamics(names, comps, M, thermodynamics, heat_capacities, shomate)
+    thermo, C_given = _gas_thermodynamics(names, comps, M, thermodynamics, heat_capacities, shomate)
     # Per mass at 25 °C: as given for constant heat capacities, else from the model
-    C = thermo isa IdealGasConstantCp && !(thermodynamics isa AbstractGasThermodynamics) ?
-        _by_component(names, heat_capacities, [c.heat_capacity for c in comps], "heat_capacities") :
-        collect(component_heat_capacities(thermo, THERMODYNAMIC_REFERENCE_TEMPERATURE)) ./ M
+    C = something(C_given, collect(component_heat_capacities(thermo, THERMODYNAMIC_REFERENCE_TEMPERATURE)) ./ M)
     D = isnothing(diffusivity) ? nothing : diffusivity isa Number ? Float64(diffusivity) :
         _by_component(names, diffusivity, fill(NaN, length(names)), "diffusivity")
     !isnothing(D) && any(isnan, D) && input_error("gas", "diffusivity", "give one diffusivity, or one for every component")
@@ -226,14 +224,15 @@ function chapman_enskog_transport(comps::AbstractVector{Component}, M)
         molar_masses = M)
 end
 
-# The thermodynamics model of a gas from the keywords of Gas
+# The thermodynamics model of a gas from the keywords of Gas, and the constant
+# heat capacities per mass it was made from, if it was
 function _gas_thermodynamics(names, comps, M, model, heat_capacities, shomate)
     N = length(names)
     if model isa AbstractGasThermodynamics
         isnothing(heat_capacities) && isnothing(shomate) ||
             input_error("gas", "thermodynamics", "a thermodynamics model sets the heat capacities; do not also give heat_capacities or shomate")
         number_of_components(model) == N || input_error("gas", "thermodynamics", "the model has $(number_of_components(model)) components, the gas $N")
-        return model
+        return model, nothing
     end
     kind = isnothing(model) ? (isnothing(shomate) ? :constant : :shomate) : model
     if kind == :polynomial
@@ -241,11 +240,11 @@ function _gas_thermodynamics(names, comps, M, model, heat_capacities, shomate)
             input_error("gas", "thermodynamics", "polynomial heat capacities come from the components; do not also give heat_capacities or shomate")
         missing_ = [c.name for c in comps if isnothing(c.cp_polynomial)]
         isempty(missing_) || input_error("gas", "thermodynamics", "no heat capacity polynomial for $(join(missing_, ", ")); register the component with its `cp_polynomial`")
-        return IdealGasPolynomial([c.cp_polynomial for c in comps])
+        return IdealGasPolynomial([c.cp_polynomial for c in comps]), nothing
     elseif kind == :constant
         isnothing(shomate) || input_error("gas", "shomate", "Shomate coefficients need thermodynamics = :shomate")
         C = _by_component(names, heat_capacities, [c.heat_capacity for c in comps], "heat_capacities")
-        return IdealGasConstantCp(; molar_masses = M, heat_capacities = C)
+        return IdealGasConstantCp(; molar_masses = M, heat_capacities = C), C
     elseif kind == :shomate
         isnothing(heat_capacities) ||
             input_error("gas", "heat_capacities", "sets constant heat capacities; with Shomate heat capacities give the coefficients through shomate")
@@ -264,7 +263,7 @@ function _gas_thermodynamics(names, comps, M, model, heat_capacities, shomate)
         end
         missing_ = names[isnothing.(coefficients)]
         isempty(missing_) || input_error("gas", "shomate", "no Shomate coefficients for $(join(missing_, ", ")); give them through shomate")
-        return IdealGasShomate(collect(NTuple{5, Float64}, coefficients))
+        return IdealGasShomate(collect(NTuple{5, Float64}, coefficients)), nothing
     end
     input_error("gas", "thermodynamics", "use :constant, :polynomial, :shomate or an AbstractGasThermodynamics, got $model")
 end
@@ -422,6 +421,15 @@ end
 
 "Diffusivity [m²/s] for a constant axial dispersion: that of the first component of `gas` at the `feed`."
 axial_diffusivity(gas::Gas, feed) = gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)[1]
+axial_diffusivity(gas::Gas) = axial_diffusivity(gas, _no_feed(gas, "axial_diffusivity"))
+
+# A stand-in for the feed, for a gas whose diffusivities are given or constant
+# and so do not depend on one
+function _no_feed(gas::Gas, f)
+    isnothing(gas.diffusivity) && !(gas.transport isa ConstantTransport) &&
+        input_error("gas", "diffusivity", "its diffusivities come from its transport model at the feed; call $f with the feed")
+    return (composition = nothing, temperature = nothing, pressure = nothing)
+end
 
 function Base.show(io::IO, ::MIME"text/plain", gas::Gas)
     constant = gas.thermodynamics isa IdealGasConstantCp

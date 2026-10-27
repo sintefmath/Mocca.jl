@@ -140,6 +140,21 @@ end
     # preset gives 1.6e-5 m²/s), scaled by a parameter
     @test bed.system.dispersion == WakaoFunazkri(; particle_diameter = 2e-3, porosity = 0.37, diffusivities = [1.6e-5, 1.6e-5])
     @test only(p.parameters[:Bed][:DispersionScale]) == 1.0
+    # in place of the constant dispersion, which cannot be set or read
+    @test !haskey(p.parameters[:Bed], :AxialDispersion)
+    @test_throws MoccaInputError Mocca.bed_dispersion(p.flowsheet, :Bed)
+    @test_throws MoccaInputError add_variable!(deepcopy(p), :D_ax, (:parameter, :Bed, :AxialDispersion))
+    # Without a feed only for diffusivities that do not depend on one
+    ads = load_adsorbent("zeolite_13x_haghpanah_2013")
+    @test Mocca.mass_transfer(ads, Mocca.haghpanah_2013_gas()) == Mocca.mass_transfer(ads, Mocca.haghpanah_2013_gas(), feed)
+    @test Mocca.axial_diffusivity(Gas(["CO2", "N2"])) == 1.6e-5
+    @test_throws MoccaInputError Mocca.axial_diffusivity(Gas(["CO2", "N2"]; transport = :chapman_enskog))
+    # A coarse grid keeps the gas properties of the fine one after the feed changes
+    p2 = four_stage_vsa_process(ncells = 4, gas = gas)
+    Mocca.Interface._set!(p2, FeedPlace(:pressure), 1.5e5)
+    coarse = Mocca.Interface._coarse_copy(p2, 2)
+    @test coarse.flowsheet[:Bed].system.transport == p2.flowsheet[:Bed].system.transport
+    @test coarse.flowsheet[:Bed].system.mass_transfer == p2.flowsheet[:Bed].system.mass_transfer
     plain = four_stage_vsa_process(ncells = 4).flowsheet[:Bed]
     @test !haskey(plain.secondary_variables, :ViscosityFactor) && !haskey(plain.secondary_variables, :MolecularDiffusivity)
     @test plain.secondary_variables[:AdsorptionMassTransfer] isa Mocca.AdsorptionMassTransfer

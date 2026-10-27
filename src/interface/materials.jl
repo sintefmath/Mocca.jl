@@ -197,6 +197,8 @@ function mass_transfer(adsorbent::Adsorbent, gas::Gas, feed)
     D_m = D isa Number ? D : SVector{length(D)}(D)
     return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
 end
+# Without a feed, for a gas whose diffusivities do not depend on one
+mass_transfer(adsorbent::Adsorbent, gas::Gas) = mass_transfer(adsorbent, gas, _no_feed(gas, "mass_transfer"))
 
 "Thermodynamics of the phase adsorbed on `adsorbent` from `gas`, for its heat capacities."
 function adsorbed_thermodynamics(adsorbent::Adsorbent, gas::Gas)

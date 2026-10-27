@@ -78,8 +78,12 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     S[:DispersionTransmissibilities] = DispersionTransmissibilities()
 
     # Unit-entity parameters (single scalars)
-    S[:AxialDispersion] = AxialDispersion()
-    sys.dispersion isa WakaoFunazkri && (S[:DispersionScale] = DispersionScale())
+    # A dispersion that follows the state has a factor in place of the parameter
+    if sys.dispersion isa WakaoFunazkri
+        S[:DispersionScale] = DispersionScale()
+    else
+        S[:AxialDispersion] = AxialDispersion()
+    end
     S[:AdsorbentDensity] = AdsorbentDensity()
     S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
     S[:WallDensity] = WallDensity()

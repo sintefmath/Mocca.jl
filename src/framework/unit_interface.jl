@@ -17,7 +17,8 @@
 #
 # A DistributedUnit gets the gas balance for free (balances/gas.jl): its face flux
 # reads the `Transmissibilities`, `DispersionTransmissibilities`,
-# `AxialDispersion` and `FluidViscosity` parameters. A unit that also
+# `AxialDispersion` (or, with a dispersion that follows the state,
+# `DispersionScale`) and `FluidViscosity` parameters. A unit that also
 # [`holds_sorbent`](@ref) counts as a bed: steps can act on it and its sorbent
 # counts in the productivity of a process.
 

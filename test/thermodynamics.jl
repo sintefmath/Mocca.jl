@@ -151,6 +151,15 @@ end
         @test Jutul.value(s.C_pa[cell]) ≈ sum(Jutul.value.(q) .* sys.adsorbed_thermodynamics.cp) / sum(Jutul.value.(q))
     end
     @test Jutul.value(s.C_pg[1]) < Jutul.value(s.C_pg[3])
+
+    # A clean bed: no loading anywhere, and a finite heat capacity
+    state0 = Mocca.setup_process_state(model; Pressure = 1e5, Temperature = 300.0, WallTemperature = 300.0, y = [0.5, 0.5],
+        AdsorbedConcentration = zeros(2, 3))
+    sim = Jutul.Simulator(model; state0 = state0, parameters = Jutul.setup_parameters(model))
+    Jutul.update_secondary_variables!(sim.storage, model)
+    s = sim.storage.state
+    @test all(isfinite, Jutul.value.(s.C_pa))
+    @test Jutul.value(s.C_pa[1]) ≈ sum(sys.adsorbed_thermodynamics.cp) / 2
 end
 
 @testset "Gas at the bed's temperature leaves it there" begin

@@ -30,7 +30,7 @@ function validate(p::Process)
     if !isnothing(compiled)
         for b in beds(fs)
             spec = get(fs.specs, b, nothing)
-            spec isa BedSpec && isnothing(spec.dispersion) && haskey(compiled.velocities, b) || continue
+            spec isa BedSpec && isnothing(spec.dispersion) && !_dispersion_follows_state(fs, b) && haskey(compiled.velocities, b) || continue
             v = maximum(compiled.velocities[b])
             u = spec.velocity_used
             (v > 2u || v < u / 2) && note("bed $b", "dispersion_velocity",

@@ -220,6 +220,12 @@ Volumetric conductance [m³/(s·Pa)] of the half-cell connection between `cell`
 and the end of a distributed unit, `k·A/(Δx/2)/μ`. A [`LinearValve`](@ref) with this
 conductance reproduces the pressure boundary conditions of earlier Mocca
 versions.
+
+`μ` is the unit's `FluidViscosity` parameter, the viscosity at the feed. The
+valve is a device of its own and does not see the gas, so where the viscosity
+follows the state of each cell (a transport model of the [`Gas`](@ref)), its
+conductance stays that at the feed: a little larger than that of the half cell
+where the gas is hotter than the feed, and smaller where it is colder.
 """
 function port_conductance(model::DistributedUnitModel, cell; parameters = Jutul.setup_parameters(model))
     state = NamedTuple(parameters)
