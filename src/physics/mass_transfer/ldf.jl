@@ -97,3 +97,16 @@ compute_mass_transfer_rate(mt::LinearDrivingForce, C, q, qstar, T, diffusivity_f
 # would be C/0. ifelse evaluates both sides, so the derivatives keep the same
 # pattern whichever applies.
 @inline _capacity_ratio(c, qstar) = ifelse(qstar > 0, c / qstar, zero(c / one(qstar)))
+
+"""
+    LumpedLinearDrivingForce{K} <: AbstractMassTransfer
+
+Linear driving force with a fixed, lumped rate coefficient per component,
+`∂q/∂t = k·(q* − q)`, as fitted to breakthrough curves. `k` [1/s] is one
+value for all components or one per component, in gas order.
+"""
+struct LumpedLinearDrivingForce{K} <: AbstractMassTransfer
+    k::K
+end
+
+compute_mass_transfer_rate(mt::LumpedLinearDrivingForce, C, q, qstar) = mt.k .* (qstar .- q)

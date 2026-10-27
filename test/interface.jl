@@ -77,7 +77,8 @@ end
     @test_throws MoccaInputError dual_site_langmuir("CO2" => (qsb = 1.0, b0 = 1e-6, ΔUb = -1.0, qs = 2.0))
     @test_throws MoccaInputError Adsorbent(; isotherm = perkg, density = 1000.0, heat_capacity = 900.0, particle_diameter = 1e-3, particle_porosity = 1.5)
     @test_throws MoccaInputError Column(; length = 1.0, radius = 0.1, porosity = 0.0)
-    @test library_adsorbents() == ["activated_carbon_mondino_2022", "silica_gel_krishnamurthy_2014", "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
+    @test library_adsorbents() == ["activated_carbon_mondino_2022", "apdes_nfc_stampi_bombelli_2020", "silica_gel_krishnamurthy_2014",
+        "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
     # Writing and reading an adsorbent gives it back
     path = save_adsorbent(joinpath(mktempdir(), "a.json"), a)
     b = load_adsorbent(path)
@@ -232,7 +233,7 @@ end
     fb, = M.cycle_schedule(q)
     @test force_difference(fa, p.model, fb, q.model) == 0
     @test library_processes() == ["haghpanah_2013_four_stage_vsa", "krishnamurthy_2014_dual_adsorbent_vsa", "krishnamurthy_2014_lpp_vsa",
-        "mondino_2022_mbtsa"]
+        "mondino_2022_mbtsa", "stampi_bombelli_2020_stvsa"]
     @test read_process("mondino_2022_mbtsa") isa SteadyProcess
     @test read_process("haghpanah_2013_four_stage_vsa") isa Process
     # Process is the abstract type of every process; Process(fs, cycle) builds

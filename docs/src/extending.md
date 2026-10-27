@@ -326,12 +326,17 @@ setup_flowsheet_model
 setup_flowsheet_state
 setup_flowsheet_parameters
 DualSiteLangmuir
+TothGAB
+water_vapour_pressure
+minimum_mole_fraction
 AbstractIsotherm
 AbstractMassTransfer
 compute_mass_transfer_rate
 LinearDrivingForce
 pore_diffusivity
 has_knudsen
+LumpedLinearDrivingForce
+JacketTemperature
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state
 simulate_until_mass_balance
@@ -344,6 +349,7 @@ VacuumPumpObjective
 CompressorObjective
 BlowerObjective
 HeatDutyObjective
+JacketHeatObjective
 EquivalentWorkObjective
 SumObjective
 objective_state

@@ -15,6 +15,11 @@ end
 
 _has_heat_exchangers(fs) = any(u -> has_heat_exchanger(fs[u].system), holdup_units(fs))
 
+# Units with a wall that a stage of the cycle heats or cools through its jacket
+_jacketed_units(p::Process) = Symbol[]
+_jacketed_units(p::CyclicProcess) =
+    [u for u in holdup_units(p.flowsheet) if any(st -> haskey(get(st.settings, u, NamedTuple()), :jacket_temperature), stages(p))]
+
 """
     performance_integrals(p) → NamedTuple
 
@@ -33,12 +38,14 @@ second at steady state:
   link that lets the gas down, such as the valve of an equalisation, takes no
   work;
 - `heating` [J]: heat given by heat transfer fluids that come from outside the
-  process hotter than `ambient_temperature`, and `cooling` [J], heat taken by
-  those that come in at or below it (see [`HeatDutyObjective`](@ref)); units
-  whose fluid comes from another unit only pass heat around;
+  process hotter than `ambient_temperature`, and by heating jackets in the
+  stages that set a bed's `jacket_temperature` (see
+  [`JacketHeatObjective`](@ref)), and `cooling` [J], heat taken by fluids
+  that come in at or below it (see [`HeatDutyObjective`](@ref)); units whose
+  fluid comes from another unit only pass heat around;
 - `equivalent_work` [J]: the work equivalent to the heating, each bit of heat
   weighted by the Carnot factor `1 − T₀/T` at the temperature `T` of the fluid
-  giving it up, against `T₀ = ambient_temperature` (see
+  or jacket giving it up, against `T₀ = ambient_temperature` (see
   [`EquivalentWorkObjective`](@ref)).
 
 followed by those added with [`add_integral!`](@ref).
@@ -61,14 +68,16 @@ function performance_integrals(p::Process)
     end
     blowers = Tuple(BlowerObjective(d; efficiency = o.pump_efficiency, γ = γ) for d in devices_with_role(fs, :link))
     hx = _utility_units(fs, p.parameters, o)
+    jackets = _jacketed_units(p)
     builtin = (key_extract = SumObjective(Tuple(StreamObjective(d; component = k) for d in extract)),
         total_extract = SumObjective(Tuple(StreamObjective(d; component = i) for d in extract for i in 1:N)),
         key_feed = SumObjective(Tuple(StreamObjective(d; component = k) for d in feed)),
         energy = SumObjective((energy..., blowers...)),
         blower_energy = SumObjective(blowers),
-        heating = SumObjective(Tuple(HeatDutyObjective(fs, u) for u in hx.hot)),
+        heating = SumObjective((Tuple(HeatDutyObjective(fs, u) for u in hx.hot)..., Tuple(JacketHeatObjective(u) for u in jackets)...)),
         cooling = SumObjective(Tuple(HeatDutyObjective(fs, u; scale = -1.0) for u in hx.cold)),
-        equivalent_work = SumObjective(Tuple(EquivalentWorkObjective(fs, u; ambient_temperature = o.ambient_temperature) for u in hx.hot)))
+        equivalent_work = SumObjective((Tuple(EquivalentWorkObjective(fs, u; ambient_temperature = o.ambient_temperature) for u in hx.hot)...,
+            Tuple(JacketHeatObjective(u; ambient_temperature = o.ambient_temperature) for u in jackets)...)))
     return merge(builtin, (; p.integrals...))
 end
 
@@ -106,9 +115,9 @@ values of its integrals (see [`performance_integrals`](@ref)) and quantities
 - `specific_energy` [kWh per tonne of key component in the extract], from
   `s.energy`;
 - `productivity` [mol of key component per m³ of adsorbent per s];
-- with heat exchangers, `specific_heat_duty` [J per kg of key component], from
-  `s.heating`, and `specific_equivalent_work` [kWh per tonne], from
-  `s.energy + s.equivalent_work`;
+- with heat exchangers or heating jackets, `specific_heat_duty` [J per kg of
+  key component], from `s.heating`, and `specific_equivalent_work` [kWh per
+  tonne], from `s.energy + s.equivalent_work`;
 
 followed by those added with [`add_measure!`](@ref).
 """
@@ -119,7 +128,7 @@ function performance_measures(p::Process)
         recovery = s -> s.key_extract / s.key_feed,
         specific_energy = s -> s.energy / 3.6e6 / (s.key_extract * M / 1000),
         productivity = s -> s.key_extract / (s.adsorbent_volume * s.duration))
-    if _has_heat_exchangers(fs)
+    if _has_heat_exchangers(fs) || !isempty(_jacketed_units(p))
         builtin = merge(builtin, (specific_heat_duty = s -> s.heating / (s.key_extract * M),
             specific_equivalent_work = s -> (s.energy + s.equivalent_work) / 3.6e6 / (s.key_extract * M / 1000)))
     end
@@ -127,15 +136,16 @@ function performance_measures(p::Process)
 end
 
 """
-    performance_sums(p, states, timesteps; window = eachindex(states)) → NamedTuple
+    performance_sums(p, states, timesteps; window = eachindex(states), forces = nothing) → NamedTuple
 
 The values of the integrals of process `p` (see
 [`performance_integrals`](@ref)) over the steps in `window`, followed by its
 quantities (see [`performance_quantities`](@ref)), with the `duration` that
-of the steps: the argument of each of its measures.
+of the steps: the argument of each of its measures. `forces`, one per step,
+go to the integrals that read them, such as the heat of a jacket.
 """
-function performance_sums(p::Process, states, timesteps; window = eachindex(states))
-    I = integral_values(performance_integrals(p), p.model, states, timesteps, p.parameters; window = window)
+function performance_sums(p::Process, states, timesteps; window = eachindex(states), forces = nothing)
+    I = integral_values(performance_integrals(p), p.model, states, timesteps, p.parameters; window = window, forces = forces)
     return merge(I, performance_quantities(p), (duration = sum(timesteps[window]),))
 end
 

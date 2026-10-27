@@ -9,7 +9,7 @@ module Framework
 import Jutul
 import LinearAlgebra
 
-export AbstractSourceTerm, AbstractThermalModel, Adiabatic, component_names,
+export AbstractSourceTerm, AbstractThermalModel, Adiabatic, component_names, MIN_GAS_MOLEFRACTION,
     ComponentVariable, DistributedUnit, DistributedUnitModel, energy_source,
     energy_source_terms, FixedTemperatureEquation, FlowChannel, FlowElement, GAS_CONSTANT,
     GasMoleFractions, has_energy_balance, has_heat_exchanger, has_wall, heat_capacity,

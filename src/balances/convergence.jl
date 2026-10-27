@@ -92,3 +92,21 @@ function Jutul.convergence_criterion(model::DistributedUnitModel, storage, eq::J
     e = _cell_criterion(wall, r, 1, dt)
     return (ΔT = (errors = e, names = ["ΔT_wall"]),)
 end
+
+# The gas energy balance converges no tighter than this temperature error [K].
+# The round-off in the flow between two cells, about ε·p/Δp of the flow (see
+# above), is carried as enthalpy at the absolute temperature, so it puts a floor
+# of about T·ε·p/Δp on the error: 1.3e-8 K for the 1 cm bed of the direct air
+# capture process at 1 bar, with 0.5 Pa between its cells. Newton's method on
+# the cycle and the adjoints simulate at a nonlinear tolerance of 1e-8, where
+# steps that cannot reach the floor are cut, at places that move with the start
+# of the cycle, and the cycle map is no longer smooth.
+const ENERGY_TOLERANCE_FLOOR = 1e-7
+
+# The domain is spelt out: with DistributedUnitModel's `<:Any` for it, Jutul's
+# method for any SimulationModel is taken as the more specific
+function Jutul.set_default_tolerances!(tol_cfg, model::Jutul.SimulationModel{<:Jutul.JutulDomain, <:DistributedUnit}; tol = 1e-3)
+    tol_cfg[:default] = tol
+    haskey(model.equations, :energy_column) && (tol_cfg[:energy_column] = max(tol, ENERGY_TOLERANCE_FLOOR))
+    return tol_cfg
+end

@@ -77,16 +77,21 @@ end
 @inline Framework.energy_source(::WallExchange, model, state, state0, cell, Δt) = -_wall_exchange(state, cell)
 @inline Framework.wall_source(::WallExchange, model, state, state0, cell, Δt) = _wall_exchange(state, cell)
 
-"Heat loss from the outer wall surface to ambient, `A_out·h_out·(T_w − T_a)`."
+"""
+Heat lost from the outer wall surface to its surroundings,
+`A_out·h_out·(T_w − T_j)`, at the [`JacketTemperature`](@ref) `T_j`: the
+ambient temperature, unless the stage heats or cools the wall.
+"""
 struct AmbientLoss <: AbstractSourceTerm end
 
 @inline function Framework.wall_source(::AmbientLoss, model, state, state0, cell, Δt)
-    return -state.WallAreaOut[cell] * state.OuterHeatTransferCoeff[1] * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+    return -state.WallAreaOut[cell] * state.OuterHeatTransferCoeff[1] * (state.WallTemperature[cell] - state.JacketTemperature[1])
 end
 
 """
-Conduction along the wall out through its two ends to ambient, through a
-half-cell connection at the first and last cell.
+Conduction along the wall out through its two ends to the surroundings, at the
+[`JacketTemperature`](@ref), through a half-cell connection at the first and
+last cell.
 """
 struct WallEndConduction <: AbstractSourceTerm end
 
@@ -94,7 +99,7 @@ struct WallEndConduction <: AbstractSourceTerm end
     nc = Jutul.number_of_cells(model.domain)
     n_ends = (cell == 1) + (cell == nc)
     trans_wall = calc_bc_wall_trans(model, state, cell)
-    return -n_ends * trans_wall * (state.WallTemperature[cell] - state.AmbientTemperature[1])
+    return -n_ends * trans_wall * (state.WallTemperature[cell] - state.JacketTemperature[1])
 end
 
 """

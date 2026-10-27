@@ -765,7 +765,10 @@ through its devices (by their roles; see [`add_device!`](@ref)). Its measures
 - `energy` [J per cycle], of which `blower_energy` for the links,
   `cycle_time` [s], the component totals [mol per cycle] of the `feed`,
   `extract` and light `product`, and the `adsorbent_volume` [m³] and
-  `adsorbent_mass` [kg].
+  `adsorbent_mass` [kg];
+- `heating` [J per cycle]: heat given by heat transfer fluids and heating
+  jackets from outside the process (see [`performance_integrals`](@ref)). It
+  is not part of `energy`.
 """
 function performance(r::CyclicResult)
     p = r.process
@@ -774,10 +777,43 @@ function performance(r::CyclicResult)
     states, ts = r.states, r.timesteps
     total(role) = (ds = devices_with_role(fs, role); N = number_of_components(fs.gas);
         isempty(ds) ? zeros(N) : sum(d -> stream_totals(states, ts, d; window = w), ds))
-    s = performance_sums(p, states, ts; window = w)
-    return merge(_measure_values(p, s), (energy = s.energy, blower_energy = s.blower_energy, cycle_time = sum(ts[w]),
-        feed = total(:feed), extract = total(:extract), product = total(:product),
+    s = performance_sums(p, states, ts; window = w, forces = _step_forces(r))
+    return merge(_measure_values(p, s), (energy = s.energy, blower_energy = s.blower_energy, heating = s.heating,
+        cycle_time = sum(ts[w]), feed = total(:feed), extract = total(:extract), product = total(:product),
         adsorbent_volume = s.adsorbent_volume, adsorbent_mass = s.adsorbent_mass))
+end
+
+# The forces of each step of `r`, those of the stage it falls in, for the
+# integrals that read them, such as the heat of a jacket
+function _step_forces(r::CyclicResult)
+    p = r.process
+    sts = stages(p)
+    starts = cumsum(vcat(0.0, [st.duration for st in sts]))
+    T = starts[end]
+    stage_forces = [_stage_forces(p.flowsheet, p.model, st, starts[j]) for (j, st) in enumerate(sts)]
+    t_end = cumsum(r.timesteps)
+    return map(eachindex(r.timesteps)) do k
+        t = mod(t_end[k] - r.timesteps[k] / 2, T)
+        stage_forces[clamp(searchsortedlast(starts, t), 1, length(sts))]
+    end
+end
+
+"""
+    jacket_heat(r::CyclicResult; units = all beds) → Float64
+
+Heat [J] that heating jackets supply to the walls of `units` over the last
+cycle of `r`: in each stage that sets a unit's `jacket_temperature` `T_j`
+(see [`AbstractStep`](@ref)), the heat from the jacket into the wall at
+`T_w`, through the outer surface, `h_out·A_out·(T_j − T_w)`, and through the
+wall's two ends (see [`JacketHeatObjective`](@ref)). Heat a jacket takes out,
+while the wall is hotter, counts as negative. Stages at the ambient
+temperature do not count.
+"""
+function jacket_heat(r::CyclicResult; units = beds(r.process.flowsheet))
+    p = r.process
+    integrals = NamedTuple{Tuple(units)}(Tuple(JacketHeatObjective(u) for u in units))
+    Q = integral_values(integrals, p.model, r.states, r.timesteps, p.parameters; window = _last_cycle(r), forces = _step_forces(r))
+    return sum(values(Q); init = 0.0)
 end
 
 """
@@ -805,8 +841,11 @@ function Base.show(io::IO, ::MIME"text/plain", p::CyclicProcess)
     end
     println(io, "  cycle of $(length(sts)) stages, $(round(sum(s -> s.duration, sts), sigdigits = 5)) s:")
     for st in sts
-        open_ = [string(d) for d in unit_names(fs) if haskey(st.settings, d)]
-        println(io, "    ", rpad(st.name, 34), lpad(string(round(st.duration, sigdigits = 5)), 8), " s   ", isempty(open_) ? "all closed" : join(open_, ", "))
+        open_ = [string(d) for d in unit_names(fs) if haskey(st.settings, d) && is_device(fs, d)]
+        heated = ["$u jacket at $(round(st.settings[u].jacket_temperature - 273.15, sigdigits = 4)) °C" for u in holdup_units(fs)
+            if haskey(get(st.settings, u, NamedTuple()), :jacket_temperature)]
+        println(io, "    ", rpad(st.name, 34), lpad(string(round(st.duration, sigdigits = 5)), 8), " s   ",
+            join(vcat(isempty(open_) ? ["all closed"] : open_, heated), ", "))
     end
     if !isempty(p.variables)
         print(io, "  variables: ", join([string(v.name) for v in p.variables], ", "))

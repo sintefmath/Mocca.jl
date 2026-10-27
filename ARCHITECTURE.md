@@ -74,14 +74,14 @@ of the same name, whose methods are never called.
 
 | To add | Implement |
 |---|---|
-| An isotherm | `compute_equilibrium`, `compute_enthalpy`, and optionally `saturation_capacity` |
+| An isotherm | `compute_equilibrium`, `compute_enthalpy`, and optionally `saturation_capacity` and `minimum_mole_fraction` |
 | A mass transfer model | `compute_mass_transfer_rate` |
 | A gas thermodynamics model | `component_heat_capacities`, and optionally `component_enthalpies` |
 | A gas transport model | `mixture_viscosity` and `molecular_diffusivities` |
 | A source term | `mass_source`, `energy_source`, `wall_source` or `heat_capacity`, then list it for the unit |
 | A unit | A `MoccaSystem` with `ports`, `stream_equations` and `holds_sorbent`, in a module of its own like `Mocca.FixedBeds` or `Mocca.MovingBeds`; `moves_sorbent` if its sorbent moves |
 | A device law | `device_flow` for a subtype of `AbstractDeviceLaw` |
-| A step | `step_settings` for a subtype of `AbstractStep`, and `register_step!` for files |
+| A step | `step_settings` for a subtype of `AbstractStep`, and `register_step!` for files. A `jacket_temperature` field heats or cools the bed through its wall |
 | A connection | `connection_ports`, `check_connection` and `add_cross_terms!` |
 
 ## Changes from 0.1

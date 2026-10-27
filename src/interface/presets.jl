@@ -239,3 +239,105 @@ function dual_adsorbent_vsa_process(; ncells = 30, silica_gel_length = 0.41, zeo
     return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state,
         heat_capacity_ratio = 1.4)
 end
+
+# ------------------------------------------------------------------------------
+# Stampi-Bombelli et al. (2020): direct air capture
+# ------------------------------------------------------------------------------
+
+"""
+    stampi_bombelli_2020_gas()
+
+Humid air as CO2, H2O and N2, as in Stampi-Bombelli et al. (2020),
+Adsorption 26, 1183, which models the oxygen and argon of air as nitrogen.
+"""
+stampi_bombelli_2020_gas() = Gas(["CO2", "H2O", "N2"])
+
+"""
+    stampi_bombelli_2020_column()
+
+The column of Table 1 of Stampi-Bombelli et al. (2020): a bed 1 cm long and
+8 cm across of APDES-NFC at 55.4 kg/m³, in a wall with a heat capacity of
+4 MJ/(m³·K) and a heating jacket outside it. The porosity is the paper's
+total void fraction, `1 − 55.4/1590`, with the density of the material in
+[`load_adsorbent`](@ref)`("apdes_nfc_stampi_bombelli_2020")`. Axial
+conduction in the bed and in the wall is neglected, as in the paper.
+"""
+stampi_bombelli_2020_column() = Column(; length = 0.01, radius = 0.04, outer_radius = 0.041, porosity = 1 - 55.4 / 1590,
+    axial_conductivity = 0.0, wall = Wall(density = 8000.0, heat_capacity = 500.0, conductivity = 0.0),
+    inner_heat_transfer = 3.0, outer_heat_transfer = 26.0, ambient_temperature = 293.15)
+
+"""
+    dac_tvsa_process(; ncells = 10, air_flow = 50e-6, steam_flow = 25e-6, P_L = 0.05e5,
+        T_H = 368.15, durations = (13772.0, 30.0, 704.0, 30000.0), t_press = 30.0,
+        ramp_rate = 0.5, timestepping = TimeStepping(max_dt = 100.0, first_dt = 0.01),
+        permeability = nothing, dispersion = 0.0)
+
+Direct air capture by steam-assisted temperature–vacuum swing adsorption
+(S-TVSA) on an amine sorbent, after Stampi-Bombelli et al. (2020), Adsorption
+26, 1183, at its base case (Table 5). Humid air at 20 °C, with 400 ppm CO2 and
+50% relative humidity, flows at `air_flow` [m³/s] through a short bed of
+APDES-NFC. The cycle has the paper's four steps, after a short
+pressurisation:
+
+0. pressurisation with air through the feed end, over `t_press` [s]. The
+   paper instead opens the bed to 1 bar at the start of adsorption, which is
+   too abrupt a jump for the solver;
+1. adsorption at 1 bar, with the jacket at ambient temperature;
+2. blowdown through the vent to `P_L` [Pa];
+3. heating under vacuum with the jacket at `T_H` [K], which drives the
+   remaining air out through the vent;
+4. desorption with the jacket at `T_H`: steam at `T_H` and `P_L` enters the
+   bottom at `steam_flow` [m³/s] and the CO2 product leaves the top through
+   the vacuum pump. With `steam_flow = 0` the bed is only heated and evacuated
+   (the paper's cycle B).
+
+The `durations` [s] are those of the paper's four steps. All gas leaves the
+top:
+
+                                         ┌──V_product── air, 1 bar
+    air ─────V_feed──┐                   ├──V_vent───── air, vacuum pump
+                     bottom  Bed  top ───┤
+    steam ──V_steam──┘                   └──V_extract── CO2 product, vacuum pump
+
+The paper gives no permeability, only that the pressure drop stays below
+1 mbar. By default the `permeability` [m²] is Blake–Kozeny's for the 7.5 mm
+particles packed at the bed density, with 9% voids between them, which gives
+0.05 mbar.
+Axial dispersion is neglected, as in the paper, unless `dispersion` [m²/s] is
+given (`nothing` for Mocca's correlation).
+
+Heat is worth no work at the 20 °C of the air (`ambient_temperature` of the
+[`Process`](@ref)), for the equivalent work of the jacket.
+"""
+function dac_tvsa_process(; ncells = 10, air_flow = 50e-6, steam_flow = 25e-6, P_L = 0.05e5, T_H = 368.15,
+        durations = (13772.0, 30.0, 704.0, 30000.0), ramp_rate = 0.5,
+        t_press = 30.0, timestepping = TimeStepping(max_dt = 100.0, first_dt = 0.01), name = "S-TVSA direct air capture", dispersion = 0.0,
+        permeability = nothing,
+        initial_state = Dict{Symbol, Any}(), adsorbent = load_adsorbent("apdes_nfc_stampi_bombelli_2020"),
+        column = stampi_bombelli_2020_column(), gas = stampi_bombelli_2020_gas())
+    feed = Feed(gas; composition = (CO2 = 0.0004, H2O = 0.0115, N2 = 0.9881), temperature = 293.15, pressure = 1e5)
+    fs = Flowsheet(gas, feed)
+    # The voids between the particles, at a particle density of 61 kg/m³
+    ε_particles = 1 - 55.4 / 61
+    add_bed!(fs, :Bed, adsorbent, column; ncells = ncells, dispersion = dispersion,
+        permeability = something(permeability, compute_permeability(ε_particles, adsorbent.particle_diameter)))
+    add_device!(fs, :V_feed, :feed; at = (:Bed, :bottom))
+    add_device!(fs, :V_steam, :light_inlet; at = (:Bed, :bottom),
+        boundary = (pressure = P_L, temperature = T_H, composition = (H2O = 1.0,)))
+    add_device!(fs, :V_product, :product; at = (:Bed, :top))
+    add_device!(fs, :V_vent, :waste; at = (:Bed, :top))
+    add_device!(fs, :V_extract, :extract; at = (:Bed, :top))
+    t_ads, t_bd, t_heat, t_des = durations
+    desorption = steam_flow > 0 ?
+        Purge(t_des; flow_rate = steam_flow, jacket_temperature = T_H, name = "desorption") :
+        Evacuate(t_des; to = P_L, through = :top, device = :V_extract, jacket_temperature = T_H, name = "desorption")
+    cycle = Cycle([
+        Pressurise(t_press),
+        Adsorb(t_ads; flow_rate = air_flow),
+        Blowdown(t_bd; to = P_L, device = :V_vent),
+        Evacuate(t_heat; to = P_L, through = :top, device = :V_vent, jacket_temperature = T_H, name = "heating"),
+        desorption,
+    ])
+    return Process(fs, cycle; name = name, timestepping = timestepping, ramp_rate = ramp_rate, initial_state = initial_state,
+        ambient_pressure = 1e5, ambient_temperature = 293.15, heat_capacity_ratio = 1.4)
+end

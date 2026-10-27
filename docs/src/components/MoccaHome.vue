@@ -8,10 +8,10 @@ import cycle from '../assets/home_cycle.json'
 const link = (path: string) => withBase(path)
 
 // ---------------------------------------------------------------- steps
-type Step = 'pressurise' | 'adsorb' | 'blowdown' | 'evacuate' | 'equalise' | 'lpp' | 'idle'
+type Step = 'pressurise' | 'adsorb' | 'blowdown' | 'evacuate' | 'equalise' | 'lpp' | 'heat' | 'idle'
 const STEP_LABEL: Record<Step, string> = {
   pressurise: 'Pressurisation', adsorb: 'Adsorption', blowdown: 'Blowdown', evacuate: 'Evacuation',
-  equalise: 'Equalisation', lpp: 'Light product pressurisation', idle: 'Idle',
+  equalise: 'Equalisation', lpp: 'Light product pressurisation', heat: 'Heating', idle: 'Idle',
 }
 function stepOf(name: string): Step {
   const n = name.toLowerCase()
@@ -133,7 +133,7 @@ const STATUS_LABEL: Record<Status, string> = { available: 'Available', developme
 const units: { title: string, status: Status, text: string, href?: string, icon: string }[] = [
   {
     title: 'Fixed-bed adsorption', status: 'available', href: '/model',
-    text: 'Packed columns cycled through pressure and vacuum swing steps: PSA, VSA, equalisation, several beds, layered adsorbents.',
+    text: 'Packed columns cycled through pressure, vacuum and temperature swing steps: PSA, VSA, TVSA with a heating jacket, equalisation, several beds, layered adsorbents.',
     icon: '<rect x="22" y="4" width="20" height="48" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/>'
       + [10, 17, 24, 31, 38, 45].map(y => [27, 32, 37].map(x => `<circle cx="${x}" cy="${y}" r="2.2" fill="currentColor"/>`).join('')).join(''),
   },
@@ -200,8 +200,14 @@ const library: { title: string, cite: string, text: string, href: string, rows: 
       { label: '13X', steps: [['lpp', 20], ['adsorb', 46.2], ['blowdown', 56.3], ['evacuate', 101.2]] },
     ],
   },
+  {
+    title: 'Direct air capture, S-TVSA', cite: 'Stampi-Bombelli et al. 2020 · amine sorbent',
+    text: 'CO₂ from humid air: a heating jacket and a steam purge regenerate the bed under vacuum.',
+    href: '/examples/dac_stampi_bombelli_2020',
+    rows: [{ label: 'Bed', steps: [['pressurise', 30], ['adsorb', 13772], ['blowdown', 30], ['heat', 704], ['evacuate', 30000]] }],
+  },
 ]
-const legendSteps: Step[] = ['pressurise', 'adsorb', 'blowdown', 'evacuate', 'equalise', 'lpp']
+const legendSteps: Step[] = ['pressurise', 'adsorb', 'blowdown', 'evacuate', 'equalise', 'lpp', 'heat']
 const scheduleLabel = (rows: Row[]) =>
   rows.map(r => `${r.label}: ` + r.steps.map(([s, d]) => `${STEP_LABEL[s].toLowerCase()} ${d} s`).join(', ')).join('; ')
 
@@ -210,6 +216,7 @@ const examples = [
   { tag: 'Basics', title: 'Breakthrough curve', text: 'A single adsorption step, and what the heat of adsorption does to it.', href: '/examples/breakthrough' },
   { tag: 'Flowsheets', title: 'Two-bed VSA with pressure equalisation', text: 'Two beds working in turn, and what the equalisation is worth.', href: '/examples/two_bed_vsa' },
   { tag: 'Literature', title: 'Wet flue gas VSA', text: 'The processes of Krishnamurthy et al. (2014), against the paper.', href: '/examples/wet_flue_gas_lpp_vsa' },
+  { tag: 'Literature', title: 'Direct air capture by S-TVSA', text: 'CO₂ from air with a heating jacket and steam, after Stampi-Bombelli et al. (2020).', href: '/examples/dac_stampi_bombelli_2020' },
   { tag: 'Design', title: 'Gradients at cyclic steady state', text: 'How each setting moves purity and recovery, checked against finite differences.', href: '/examples/flowsheet_vsa_gradients' },
   { tag: 'Design', title: 'Optimization', text: 'Gradient-based optimisation of a cyclic process.', href: '/examples/optimization' },
 ]
@@ -566,12 +573,14 @@ optimise!(process;
 .st-evacuate { fill: var(--mc-step-evacuate); }
 .st-equalise { fill: var(--mc-step-equalise); }
 .st-lpp { fill: var(--mc-step-lpp); }
+.st-heat { fill: var(--mc-step-heat); }
 .bg-pressurise { background: var(--mc-step-pressurise); }
 .bg-adsorb { background: var(--mc-step-adsorb); }
 .bg-blowdown { background: var(--mc-step-blowdown); }
 .bg-evacuate { background: var(--mc-step-evacuate); }
 .bg-equalise { background: var(--mc-step-equalise); }
 .bg-lpp { background: var(--mc-step-lpp); }
+.bg-heat { background: var(--mc-step-heat); }
 .bg-idle {
   background: repeating-linear-gradient(135deg, var(--vp-c-divider) 0 3px, transparent 3px 6px);
 }

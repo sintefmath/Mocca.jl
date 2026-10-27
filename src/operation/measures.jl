@@ -156,6 +156,57 @@ function equivalent_work(fs::AbstractFlowsheet, state, parameters, unit::Symbol;
     return G(nothing, objective_state(state, parameters), 1.0, nothing, nothing)
 end
 
+"""
+    JacketHeatObjective(unit; ambient_temperature = nothing, scale = 1.0)
+
+Objective for adjoint gradients: `scale` times the heat [J] that a heating
+jacket gives the wall of `unit` in a stage that sets its jacket temperature
+`T_j` (see `JacketTemperature`), from the jacket to the wall at `T_w` through
+the wall's outer surface, `h_out·A_out·(T_j − T_w)`, and through its two ends.
+It is zero in a stage at the ambient temperature. With an
+`ambient_temperature` `T₀`, the work equivalent to that heat instead, weighted
+by the Carnot factor `1 − T₀/T_j`. The jacket temperature comes from the
+forces of the step, so the objective needs them.
+"""
+struct JacketHeatObjective
+    unit::Symbol
+    ambient_temperature::Union{Nothing, Float64}
+    scale::Float64
+end
+JacketHeatObjective(unit::Symbol; ambient_temperature = nothing, scale = 1.0) =
+    JacketHeatObjective(unit, isnothing(ambient_temperature) ? nothing : Float64(ambient_temperature), scale)
+
+# The jacket temperature of `unit` in the step with `forces`, or nothing
+function _jacket_temperature(forces, unit)
+    forces isa AbstractDict && haskey(forces, unit) || return nothing
+    f = forces[unit]
+    return hasproperty(f, :jacket_temperature) ? f.jacket_temperature : nothing
+end
+
+function (G::JacketHeatObjective)(model, state, dt, step_info, forces)
+    # The wall is read in every step, with no weight where the jacket is at
+    # ambient temperature, so that the objective reads the same values in
+    # every step (see the rules for differentiable models)
+    T = _jacket_temperature(forces, G.unit)
+    heated = !isnothing(T)
+    T_j = heated ? T : 0.0
+    s = state[G.unit]
+    Tw, A, dx = s[:WallTemperature], s[:WallAreaOut], s[:CellDx]
+    h, k_w, A_w = s[:OuterHeatTransferCoeff][1], s[:WallConductivity][1], s[:WallCrossSectionArea][1]
+    # From the model: the states of the adjoints are not to be iterated over
+    n = isnothing(model) ? length(dx) : Jutul.number_of_cells(model[G.unit].domain)
+    # Through the outer surface, and through the two ends, each half a cell of
+    # wall away
+    Q = A[1] * h * (T_j - Tw[1])
+    for i in 2:n
+        Q += A[i] * h * (T_j - Tw[i])
+    end
+    Q += k_w * A_w / (dx[1] / 2) * (T_j - Tw[1]) + k_w * A_w / (dx[n] / 2) * (T_j - Tw[n])
+    heated || return 0.0 * Q
+    f = isnothing(G.ambient_temperature) ? one(T_j) : 1 - G.ambient_temperature / T_j
+    return G.scale * dt * f * Q
+end
+
 # ------------------------------------------------------------------------------
 # Integrals and measures
 # ------------------------------------------------------------------------------
@@ -196,18 +247,21 @@ end
 (o::_WithParameters)(model, state, dt, step_info, forces) = o.G(model, objective_state(state, o.parameters), dt, step_info, forces)
 
 """
-    integral_values(integrals, model, states, timesteps, parameters; window = eachindex(states)) → NamedTuple
+    integral_values(integrals, model, states, timesteps, parameters; window = eachindex(states),
+        forces = nothing) → NamedTuple
 
 Value of each objective in the `NamedTuple` `integrals` summed over the steps
 in `window`, with the `parameters` added to each state (see
-[`objective_state`](@ref)). The objectives get no forces.
+[`objective_state`](@ref)). The objectives get the `forces` of each step, one
+per step, or none.
 """
-function integral_values(integrals::NamedTuple, model, states, timesteps, parameters; window = eachindex(states))
+function integral_values(integrals::NamedTuple, model, states, timesteps, parameters; window = eachindex(states), forces = nothing)
     N = length(window)
     t = cumsum(timesteps[window])
     s = [objective_state(states[k], parameters) for k in window]
     info = [Jutul.optimization_step_info(i, t[i], timesteps[k]; Nstep = N) for (i, k) in enumerate(window)]
-    return map(G -> sum((G(model, s[i], timesteps[k], info[i], nothing) for (i, k) in enumerate(window)); init = 0.0), integrals)
+    f(k) = isnothing(forces) ? nothing : forces[k]
+    return map(G -> sum((G(model, s[i], timesteps[k], info[i], f(k)) for (i, k) in enumerate(window)); init = 0.0), integrals)
 end
 
 """

@@ -99,6 +99,33 @@ function _read_virial(d)
 end
 register_isotherm!("virial", VirialData; read = _read_virial)
 
+const _TOTH_GAB_KEYS = ("ns0", "b0", "t0", "alpha", "chi", "dH0", "reference_temperature", "gamma", "beta", "cm", "cG", "K")
+
+function isotherm_to_dict(data::TothGABData)
+    vals = (data.ns0, data.b0, data.t0, data.α, data.χ, data.ΔH0, data.reference_temperature, data.γ, data.β, data.cm, data.cG, data.K)
+    d = _obj("type" => "toth_gab", "component" => data.toth, "water" => data.water, "basis" => String(data.basis))
+    for (k, v) in zip(_TOTH_GAB_KEYS, vals)
+        d[k] = v
+    end
+    d["heats"] = _by_name(data.heat_components, data.heats)
+    return d
+end
+
+function _read_toth_gab(d)
+    loc = "toth_gab isotherm"
+    _check_keys(d, ("type", "component", "water", "basis", "heats", _TOTH_GAB_KEYS...), loc)
+    v = Dict(Symbol(k) => _num(d[k], loc, k) for k in _TOTH_GAB_KEYS if haskey(d, k))
+    for k in ("ns0", "b0", "t0", "dH0", "reference_temperature", "cm", "cG", "K")
+        haskey(d, k) || input_error(loc, k, "is required")
+    end
+    heats = [String(n) => _num(x, loc, "heats") for (n, x) in _require(d, "heats", loc)]
+    return toth_gab(; component = get(d, "component", "CO2"), water = get(d, "water", "H2O"),
+        ns0 = v[:ns0], b0 = v[:b0], t0 = v[:t0], α = get(v, :alpha, 0.0), χ = get(v, :chi, 0.0), ΔH0 = v[:dH0],
+        reference_temperature = v[:reference_temperature], γ = get(v, :gamma, 0.0), β = get(v, :beta, 0.0),
+        cm = v[:cm], cG = v[:cG], K = v[:K], heats = heats, basis = Symbol(get(d, "basis", "mass")))
+end
+register_isotherm!("toth_gab", TothGABData; read = _read_toth_gab)
+
 function isotherm_from_dict(d, loc)
     d isa AbstractDict || input_error(loc, "isotherm", "expected an object with a \"type\"")
     t = String(_require(d, "type", "$loc isotherm"))
@@ -120,13 +147,20 @@ function _mass_transfer_to_dict(mt::LinearDrivingForce)
     end
     return o
 end
+_mass_transfer_to_dict(mt::LumpedLDFData) =
+    _obj("type" => "lumped_linear_driving_force", "rates" => _by_name(mt.components, mt.k), "default" => mt.default)
 _mass_transfer_to_dict(mt) = input_error("adsorbent", "mass_transfer", "mass transfer of type $(typeof(mt)) cannot be written to a file")
 
 function _mass_transfer_from_dict(d, loc)
     isnothing(d) && return nothing
+    if get(d, "type", "") == "lumped_linear_driving_force"
+        _check_keys(d, ("type", "rates", "default"), "$loc mass transfer")
+        rates = [String(n) => _num(k, loc, "rates") for (n, k) in _require(d, "rates", "$loc mass transfer")]
+        return lumped_ldf(rates...; default = something(_optnum(d, "default", loc), 1.0))
+    end
     _check_keys(d, ("type", "molecular_diffusivity", "tortuosity", "particle_porosity", "particle_diameter", "macropore_radius",
         "molar_masses"), "$loc mass transfer")
-    get(d, "type", "") == "linear_driving_force" || input_error(loc, "mass_transfer", "only \"linear_driving_force\" is known")
+    get(d, "type", "") == "linear_driving_force" || input_error(loc, "mass_transfer", "known types are \"linear_driving_force\" and \"lumped_linear_driving_force\"")
     D = d["molecular_diffusivity"]
     D_m = D isa AbstractVector ? SVector{length(D)}(Float64.(D)) : _num(D, loc, "molecular_diffusivity")
     M = get(d, "molar_masses", nothing)

@@ -29,6 +29,8 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
         "Wet flue gas: dual-adsorbent VSA" => "wet_flue_gas_dual_adsorbent_vsa"
         "Moving bed TSA" => "mbtsa_mondino_2022"
+        "Direct air capture: steam-assisted TVSA" => "dac_stampi_bombelli_2020"
+        "Optimising direct air capture" => "dac_optimisation"
         "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
         "Optimization" => "optimization"
         "Optimising the moving bed TSA" => "mbtsa_optimisation"
@@ -38,7 +40,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
 
     examples_markdown = []
     # Examples too long to run with every build: their code is shown, not run
-    not_run = ("mbtsa_optimisation",)
+    not_run = ("mbtsa_optimisation", "dac_optimisation")
 
 
     for (ex, pth) in examples

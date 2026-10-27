@@ -37,6 +37,7 @@
   --mc-step-evacuate: #3f63c9;
   --mc-step-equalise: #8d8a94;
   --mc-step-lpp: #c79ad9;
+  --mc-step-heat: #d9733b;
 
   /* VitePress */
   --vp-c-bg: #fbfafc;
@@ -82,6 +83,7 @@
   --mc-step-evacuate: #7393f0;
   --mc-step-equalise: #9b98a3;
   --mc-step-lpp: #d9b3e8;
+  --mc-step-heat: #ec9a6a;
 
   --vp-c-bg: #16131a;
   --vp-c-bg-alt: #120f15;

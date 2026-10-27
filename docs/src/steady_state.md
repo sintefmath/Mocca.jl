@@ -56,7 +56,7 @@ balance to that error in kelvin, so a step resolves
 | mole fraction | the nonlinear tolerance |
 | loading | the nonlinear tolerance times the cell's total loading |
 | pressure | the nonlinear tolerance times the pressure |
-| temperature | the nonlinear tolerance, in K |
+| temperature | the tolerance of its energy balance, in K: the nonlinear tolerance, but at least 10⁻⁷ K for the gas |
 
 A change within that is the noise of the steps, and asking for less would ask
 for more than the simulation gives. The change reported for a cycle, in the

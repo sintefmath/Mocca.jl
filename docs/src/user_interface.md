@@ -11,7 +11,7 @@ layer is a plain object that can be edited, saved and reused on its own:
 | Layer | Objects |
 |---|---|
 | Gas | [`Gas`](@ref), [`Feed`](@ref), [`Component`](@ref) |
-| Materials | [`Adsorbent`](@ref) with an isotherm by component ([`dual_site_langmuir`](@ref), [`langmuir`](@ref), [`virial`](@ref)), [`Column`](@ref), [`Wall`](@ref) |
+| Materials | [`Adsorbent`](@ref) with an isotherm by component ([`dual_site_langmuir`](@ref), [`langmuir`](@ref), [`virial`](@ref), [`toth_gab`](@ref)), [`Column`](@ref), [`Wall`](@ref) |
 | Flowsheet | [`Flowsheet`](@ref), beds ([`add_bed!`](@ref)), moving beds ([`add_moving_bed!`](@ref), [`connect_solids!`](@ref)) and devices with roles ([`add_device!`](@ref)) |
 | Operation | a [`Cycle`](@ref) of steps ([`Pressurise`](@ref), [`Adsorb`](@ref), [`Blowdown`](@ref), [`Evacuate`](@ref), [`Purge`](@ref), [`Equalise`](@ref), [`Idle`](@ref), [`Concurrent`](@ref), or your own), [`TimeStepping`](@ref); or device settings held steady |
 | Process | [`Process`](@ref), a [`CyclicProcess`](@ref) or a [`SteadyProcess`](@ref): [`simulate`](@ref), [`steady_state`](@ref) ([`cyclic_steady_state`](@ref)), [`performance`](@ref) |
@@ -103,6 +103,8 @@ dual_site_langmuir
 langmuir
 virial
 VirialData
+toth_gab
+lumped_ldf
 build_isotherm
 Adsorbent
 equilibrium_loading
@@ -164,6 +166,7 @@ steady_state(::CyclicProcess)
 cyclic_steady_state
 performance
 pump_heat_capacity_ratio
+jacket_heat
 validate
 MoccaInputError
 ```
@@ -268,10 +271,13 @@ four_stage_vsa_process
 two_bed_vsa_process
 lpp_vsa_process
 dual_adsorbent_vsa_process
+dac_tvsa_process
 haghpanah_2013_gas
 haghpanah_2013_column
 krishnamurthy_2014_gas
 krishnamurthy_2014_column
+stampi_bombelli_2020_gas
+stampi_bombelli_2020_column
 ```
 
 ## Index

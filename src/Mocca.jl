@@ -20,7 +20,7 @@ export cycle_window, stream_totals, purity, recovery, productivity, adsorbent_vo
 export stream_rates, heat_duty, equivalent_work, sorbent_inventory, sorbent_circulation_time
 export vacuum_pump_energy, compressor_energy, blower_energy, specific_energy_kwh_per_tonne, component_inventory
 export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance, CycleProgress
-export StreamObjective, VacuumPumpObjective, CompressorObjective, BlowerObjective, HeatDutyObjective, EquivalentWorkObjective
+export StreamObjective, VacuumPumpObjective, CompressorObjective, BlowerObjective, HeatDutyObjective, JacketHeatObjective, EquivalentWorkObjective
 export SumObjective, objective_state, integral_values, measure_partials
 export force_gradients, newton_cyclic_steady_state, cyclic_steady_state_gradient
 export number_of_components, component_names
@@ -37,9 +37,9 @@ export column_mesh
 export plot_state, plot_cell, plot_cell_comparison, plot_state_comparison, plot_flowsheet_streams, plot_profiles
 export plot_moving_bed_profiles
 
-export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir, Virial
+export AbstractIsotherm, compute_equilibrium, compute_enthalpy, DualSiteLangmuir, Virial, TothGAB, water_vapour_pressure, minimum_mole_fraction
 
-export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce
+export AbstractMassTransfer, compute_mass_transfer_rate, LinearDrivingForce, LumpedLinearDrivingForce
 
 export AbstractGasThermodynamics, IdealGasConstantCp, IdealGasShomate, component_heat_capacities,
     component_enthalpies, molar_heat_capacity, molar_enthalpy, molar_concentration, heat_capacity_ratio
@@ -50,17 +50,17 @@ export compute_permeability, compute_dispersion
 # User interface
 export Units, MoccaInputError, validate
 export Component, component, register_component!, Gas, Feed, composition
-export AbstractIsothermData, dual_site_langmuir, langmuir, virial, register_isotherm!
+export AbstractIsothermData, dual_site_langmuir, langmuir, virial, toth_gab, lumped_ldf, register_isotherm!
 export Adsorbent, Column, Wall, equilibrium_loading, isotherm_table
 export add_bed!, add_moving_bed!, add_device!, devices_with_role, print_flowsheet_diagram
 export AbstractStep, StepContext, step_settings, end_pressure, register_step!
 export Pressurise, Adsorb, Blowdown, Evacuate, Purge, Equalise, Idle, Concurrent, Cycle, TimeStepping
-export Process, CyclicProcess, ProcessResult, CyclicResult, simulate, cyclic_steady_state, performance, initial_state
+export Process, CyclicProcess, ProcessResult, CyclicResult, simulate, cyclic_steady_state, performance, jacket_heat, initial_state
 export SteadyProcess, SteadyResult, steady_state
 export Place, StepPlace, FeedPlace, ParameterPlace, SettingPlace, GeometryPlace, ScaledPlace, add_variable!, performance_gradient, optimise!, pareto_front!, explore, check_gradients, reset_step_pattern!
 export performance_integrals, performance_quantities, performance_measures, performance_sums, add_integral!, add_measure!
 export read_process, write_process, write_results, load_adsorbent, save_adsorbent, library_adsorbents, library_processes
-export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorbent_vsa_process, convert_constants
+export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorbent_vsa_process, dac_tvsa_process, convert_constants
 
 export haghpanah_DCB_input, haghpanah_cyclic_input
 

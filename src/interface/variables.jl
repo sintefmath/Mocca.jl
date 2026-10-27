@@ -316,7 +316,7 @@ function _fixed_point(p::CyclicProcess, ss)
     forces, dt = cycle_schedule(p)
     result = CyclicResult(p, ss.states, ss.timesteps, 1, ss.state0, ss.converged, ss.history, ss.iterations, ss.jacobian)
     return (forces = forces, timesteps = dt, state0 = ss.state0, jacobian = ss.jacobian, result = result,
-        measured = (states = ss.states, timesteps = ss.timesteps), scale = 1.0)
+        measured = (states = ss.states, timesteps = ss.timesteps, forces = _step_forces(result)), scale = 1.0)
 end
 
 _fixed_point(p::Process, ss) =
@@ -381,6 +381,28 @@ function _design_jacobian(p::Process, vars)
     return out
 end
 
+# Derivative of objective `G`, summed over the `measured` steps of the cycle,
+# with respect to the force vector of each stage, the states held fixed. The
+# adjoints give its dependence through the states; an objective that reads the
+# forces of a step, such as the heat of a jacket, also depends on them
+# directly. Nothing when the steps come without forces.
+function _direct_force_gradients(G, p::Process, measured)
+    step_forces = get(measured, :forces, nothing)
+    isnothing(step_forces) && return nothing
+    states, dt = measured.states, measured.timesteps
+    t = cumsum(dt)
+    s = [objective_state(x, p.parameters) for x in states]
+    info = [Jutul.optimization_step_info(k, t[k], dt[k]; Nstep = length(dt)) for k in eachindex(dt)]
+    # One force set per stage, in the order of the stages
+    return map(unique(objectid, step_forces)) do f
+        X, cfg = Jutul.vectorize_forces(f, p.model)
+        steps = findall(x -> x === f, step_forces)
+        F(X) = (fX = Jutul.devectorize_forces(f, p.model, X, cfg);
+            sum((G(p.model, s[k], dt[k], info[k], fX) for k in steps); init = zero(eltype(X))))
+        Jutul.ForwardDiff.gradient(F, X)
+    end
+end
+
 # A weighted sum of objectives, as one adjoint objective
 struct _WeightedObjective{T}
     terms::T
@@ -435,7 +457,7 @@ function performance_gradient(p::Process; variables = variable_names(p), measure
     # The partial derivatives of each measure with respect to the integrals
     # and quantities, at the steady state
     integrals = performance_integrals(p)
-    sums = performance_sums(p, fp.measured.states, fp.measured.timesteps)
+    sums = performance_sums(p, fp.measured.states, fp.measured.timesteps; forces = get(fp.measured, :forces, nothing))
     ∂ = map(f -> measure_partials(f, sums), fm)
     # The integrals the measures depend on here; an empty sum is zero
     needed = [k for k in keys(integrals) if !_is_empty_objective(integrals[k]) && any(d -> d[k] != 0, ∂)]
@@ -453,12 +475,14 @@ function performance_gradient(p::Process; variables = variable_names(p), measure
     g = isempty(objectives) ? NamedTuple() : cyclic_steady_state_gradient(p.model, fp.state0, p.parameters, forces, dt, objectives;
         with_forces = need_forces, jacobian = fp.jacobian, steps = get(fp, :steps, nothing), targets = targets, rtol = rtol, info_level = info_level)
     # Derivative of an objective with respect to each variable
-    function d_sum(r)
+    function d_sum(r, G)
+        direct = need_forces ? _direct_force_gradients(G, p, fp.measured) : nothing
         map(jac) do J
             total = 0.0
             if need_forces
                 for (s, dF) in enumerate(J.dF)
                     gv = first(Jutul.vectorize_forces(r.forces[s], p.model))
+                    isnothing(direct) || (gv = gv .+ direct[s])
                     total += sum(gv .* dF)
                 end
                 total += sum(r.durations .* J.dτ)
@@ -471,10 +495,10 @@ function performance_gradient(p::Process; variables = variable_names(p), measure
     end
     # And of each quantity, such as the cycle time or the adsorbent volume
     dq = map(k -> [J.dq[k] for J in jac], NamedTuple{keys(performance_quantities(p))}(keys(performance_quantities(p))))
-    dI = per_integral ? map(d_sum, g) : nothing
+    dI = per_integral ? NamedTuple{keys(g)}(Tuple(d_sum(g[k], objectives[k]) for k in keys(g))) : nothing
     grads = map(keys(fm)) do m
         d = ∂[m]
-        total = per_integral ? sum((d[k] .* dI[k] for k in needed); init = zeros(length(vars))) : d_sum(g[m])
+        total = per_integral ? sum((d[k] .* dI[k] for k in needed); init = zeros(length(vars))) : d_sum(g[m], objectives[m])
         for (k, v) in pairs(dq)
             total = total .+ d[k] .* v
         end

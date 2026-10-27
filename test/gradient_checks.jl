@@ -9,8 +9,8 @@
 #
 # The examples build these processes: the four-stage VSA (getting started,
 # process from parts, gradients, optimisation, flowsheet by hand), the two-bed
-# VSA, the wet flue gas LPP and dual-adsorbent VSAs and the MBTSA (moving bed
-# and its optimisation). The breakthrough and history matching examples run a
+# VSA, the wet flue gas LPP and dual-adsorbent VSAs, the MBTSA (moving bed
+# and its optimisation) and the direct air capture S-TVSA. The breakthrough and history matching examples run a
 # single step once, not to a steady state; history matching takes its
 # gradients from Jutul's adjoints directly.
 using Test
@@ -59,6 +59,16 @@ run_case(name) = isempty(_only) || any(k -> occursin(k, name), _only)
         add_variable!(p, :P_L_13X, ("13X", "evacuation", :to))
         add_variable!(p, :t_ads, ("silica gel", "adsorption", :duration), ("13X", "adsorption", :duration))
         add_variable!(p, :silica_gel_length, (:geometry, :SilicaGel, :length))
+        check(p)
+    end
+    run_case("S-TVSA direct air capture") && @testset "S-TVSA direct air capture" begin
+        # The jacket temperature is one variable on both heated steps; the
+        # heat measures read it from the forces as well as through the state
+        p = read_process("stampi_bombelli_2020_stvsa")
+        add_variable!(p, :t_des, ("desorption", :duration))
+        add_variable!(p, :T_H, ("heating", :jacket_temperature), ("desorption", :jacket_temperature))
+        add_variable!(p, :steam, ("desorption", :flow_rate))
+        add_variable!(p, :air, ("adsorption", :flow_rate))
         check(p)
     end
     run_case("MBTSA") && @testset "MBTSA" begin

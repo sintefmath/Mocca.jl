@@ -13,12 +13,18 @@ A step of a cycle, written in process terms. The built-in steps are
 [`Pressurise`](@ref), [`Adsorb`](@ref), [`Blowdown`](@ref),
 [`Evacuate`](@ref), [`Purge`](@ref), [`Equalise`](@ref) and [`Idle`](@ref).
 
+Every built-in step on one bed takes a `jacket_temperature` [K], the
+temperature of the medium outside the bed's wall during the step, such as the
+heating fluid of a temperature swing. Without it, the wall exchanges heat
+with the column's `ambient_temperature`.
+
 To add a kind of step, define a subtype with a `duration` field (and usually
-`bed` and `name` fields) and a method of [`step_settings`](@ref). Optionally
-add methods of [`end_pressure`](@ref) (if the step leaves its bed at a known
-pressure), [`step_beds`](@ref) (if it acts on several beds) and
-[`default_step_name`](@ref). Register it with [`register_step!`](@ref) to
-read and write it in files; files give its fields as keywords. For example, a
+`bed`, `jacket_temperature` and `name` fields) and a method of
+[`step_settings`](@ref). Optionally add methods of [`end_pressure`](@ref) (if
+the step leaves its bed at a known pressure), [`step_beds`](@ref) (if it acts
+on several beds) and [`default_step_name`](@ref). Register it with
+[`register_step!`](@ref) to read and write it in files; files give its fields
+as keywords. For example, a
 rinse of the bed with heavy product at the feed pressure:
 
 ```julia
@@ -89,6 +95,9 @@ The beds `step` acts on; by default its `bed` field, if set.
 step_beds(step::AbstractStep) = (hasfield(typeof(step), :bed) && !isnothing(step.bed)) ? [step.bed] : Symbol[]
 
 step_duration(step::AbstractStep) = step.duration
+
+"Jacket temperature [K] of the bed during `step`, or `nothing` for ambient."
+step_jacket_temperature(step::AbstractStep) = hasfield(typeof(step), :jacket_temperature) ? step.jacket_temperature : nothing
 
 "Name of a step of this kind, when it is not given one."
 default_step_name(step::AbstractStep) = lowercase(string(nameof(typeof(step))))
@@ -193,7 +202,8 @@ _other_port(p::Symbol) = p == :bottom ? :top : (p == :top ? :bottom : error("unk
 
 """
     Pressurise(duration; to = feed pressure, from = nothing, source = :feed, bed = nothing,
-        device = nothing, ramp_rate = nothing, conductance = nothing, name = "")
+        device = nothing, ramp_rate = nothing, conductance = nothing, jacket_temperature = nothing,
+        name = "")
 
 Raise the bed from `from` (by default where the step before left it) to `to`
 [Pa], through the bed's feed device (`source = :feed`) or its light inlet
@@ -209,6 +219,7 @@ Base.@kwdef mutable struct Pressurise <: AbstractStep
     device::Union{Nothing, Symbol} = nothing
     ramp_rate::Union{Nothing, Float64} = nothing
     conductance::Union{Nothing, Float64} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Pressurise(duration; kwarg...) = Pressurise(; duration = duration, kwarg...)
@@ -227,7 +238,7 @@ end_pressure(s::Pressurise, ctx) = something(s.to, ctx.fs.feed.pressure)
 """
     Adsorb(duration; velocity = nothing, superficial_velocity = nothing, flow_rate = nothing,
         pressure = feed pressure, bed = nothing, feed_device = nothing, outlet = nothing,
-        conductance = nothing, name = "")
+        conductance = nothing, jacket_temperature = nothing, name = "")
 
 Feed the bed at constant flow, given as one of an interstitial `velocity`
 [m/s], a `superficial_velocity` [m/s] or a `flow_rate` [m³/s at the bed
@@ -246,6 +257,7 @@ Base.@kwdef mutable struct Adsorb <: AbstractStep
     feed_device::Union{Nothing, Symbol} = nothing
     outlet::Union{Nothing, Symbol} = nothing
     conductance::Union{Nothing, Float64} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Adsorb(duration; kwarg...) = Adsorb(; duration = duration, kwarg...)
@@ -293,7 +305,7 @@ end_pressure(s::Adsorb, ctx) = something(s.pressure, ctx.fs.feed.pressure)
 
 """
     Blowdown(duration; to, from = nothing, through = :top, device = nothing, bed = nothing,
-        ramp_rate = nothing, conductance = nothing, name = "")
+        ramp_rate = nothing, conductance = nothing, jacket_temperature = nothing, name = "")
 
 Lower the bed to `to` [Pa] through an outlet device at its `through` end:
 the product device at the top (co-current), or a waste or extract device at
@@ -308,17 +320,19 @@ Base.@kwdef mutable struct Blowdown <: AbstractStep
     bed::Union{Nothing, Symbol} = nothing
     ramp_rate::Union{Nothing, Float64} = nothing
     conductance::Union{Nothing, Float64} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Blowdown(duration; kwarg...) = Blowdown(; duration = duration, kwarg...)
 
 """
     Evacuate(duration; to, from = nothing, through = :bottom, device = nothing, bed = nothing,
-        ramp_rate = nothing, conductance = nothing, name = "")
+        ramp_rate = nothing, conductance = nothing, jacket_temperature = nothing, name = "")
 
 Lower the bed to `to` [Pa] through an outlet device at its `through` end,
 by default the extract (vacuum) device at the bottom, which takes the heavy
-product.
+product. With `to` equal to the start pressure, it holds the bed under vacuum,
+as in the heating and desorption steps of a temperature–vacuum swing.
 """
 Base.@kwdef mutable struct Evacuate <: AbstractStep
     duration::Float64
@@ -329,6 +343,7 @@ Base.@kwdef mutable struct Evacuate <: AbstractStep
     bed::Union{Nothing, Symbol} = nothing
     ramp_rate::Union{Nothing, Float64} = nothing
     conductance::Union{Nothing, Float64} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Evacuate(duration; kwarg...) = Evacuate(; duration = duration, kwarg...)
@@ -347,7 +362,8 @@ end_pressure(s::Union{Blowdown, Evacuate}, ctx) = s.to
 
 """
     Purge(duration; velocity = nothing, superficial_velocity = nothing, flow_rate = nothing,
-        pressure = nothing, bed = nothing, conductance = nothing, name = "")
+        pressure = nothing, bed = nothing, conductance = nothing, jacket_temperature = nothing,
+        name = "")
 
 Light product enters through the bed's light inlet at a constant flow (one of
 an interstitial `velocity`, a `superficial_velocity` or a `flow_rate`) and
@@ -362,6 +378,7 @@ Base.@kwdef mutable struct Purge <: AbstractStep
     pressure::Union{Nothing, Float64} = nothing
     bed::Union{Nothing, Symbol} = nothing
     conductance::Union{Nothing, Float64} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Purge(duration; kwarg...) = Purge(; duration = duration, kwarg...)
@@ -426,13 +443,15 @@ function end_pressures(s::Equalise, ctx)
 end
 
 """
-    Idle(duration; bed = nothing, name = "")
+    Idle(duration; bed = nothing, jacket_temperature = nothing, name = "")
 
-Keep the bed closed.
+Keep the bed closed, heated or cooled through its wall if `jacket_temperature`
+is given.
 """
 Base.@kwdef mutable struct Idle <: AbstractStep
     duration::Float64
     bed::Union{Nothing, Symbol} = nothing
+    jacket_temperature::Union{Nothing, Float64} = nothing
     name::String = ""
 end
 Idle(duration; kwarg...) = Idle(; duration = duration, kwarg...)
@@ -615,6 +634,13 @@ function _compile_sequence(elems, fs, ramp_rate, label, pressures_seen, velociti
             for (d, v) in step_settings(s, ctx)
                 haskey(settings, d) && input_error(loc, "", "device $d is already set by another step of the same stage")
                 settings[d] = v
+            end
+            T_j = step_jacket_temperature(s)
+            if !isnothing(T_j)
+                isnothing(bed) && input_error(loc, "jacket_temperature", "the step acts on no single bed")
+                T_j > 0 || input_error(loc, "jacket_temperature", "must be positive (in K), got $T_j")
+                haskey(settings, bed) && input_error(loc, "jacket_temperature", "$bed is already heated by another step of the same stage")
+                settings[bed] = (jacket_temperature = T_j,)
             end
             ends = end_pressures(s, ctx)
             merge!(p, ends)

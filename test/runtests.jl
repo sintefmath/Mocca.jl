@@ -78,6 +78,10 @@ end
         include("transport.jl")
     end
 
+    @testset "Temperature swing and direct air capture" begin
+        include("dac.jl")
+    end
+
     @testset "Integration with Jutul" begin
         include("jutul_integration.jl")
     end

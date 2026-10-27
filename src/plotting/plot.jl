@@ -18,7 +18,8 @@ end
 const STEP_COLOURS = [
     "lpp" => "#c79ad9", "light product" => "#c79ad9", "purge" => "#c79ad9",
     "pressur" => "#8a63b8", "adsor" => "#3d8c47", "blowdown" => "#c48a1f",
-    "evacua" => "#3f63c9", "equali" => "#8d8a94", "idle" => "#b9b6bf",
+    "evacua" => "#3f63c9", "desorb" => "#3f63c9", "heat" => "#d9733b", "equali" => "#8d8a94",
+    "idle" => "#b9b6bf",
 ]
 const COMPONENT_COLOURS = Dict("CO2" => "#c4362e", "N2" => "#4a5a75", "H2O" => "#2b8cbe")
 const SINGLE_COLOUR = "#5b2f73"

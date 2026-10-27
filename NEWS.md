@@ -219,6 +219,37 @@
   `simulate_until_mass_balance` also take. Newton's method no longer prints
   its iterations at `info_level ≥ 0`.
 
+- **Temperature swing.** Every step on one bed takes a `jacket_temperature`
+  [K]: the wall exchanges heat with a jacket at that temperature during the
+  step, and with the ambient temperature otherwise. A `Stage` carries it as a
+  setting of the bed, `Bed = (jacket_temperature = T,)`, which reaches the
+  bed's new `JacketTemperature` parameter through its forces, so
+  `force_gradients` gives its derivative. `JacketHeatObjective` measures the
+  heat the jackets supply, from the jacket temperature in the forces of each
+  step; it is part of the `heating` and `equivalent_work` integrals, so
+  `specific_heat_duty` and `specific_equivalent_work` cover jackets, with
+  gradients. `jacket_heat` gives the heat of a result. Integrals now get the
+  forces of each step when performance is measured
+  (`integral_values(...; forces)`, `performance_sums(...; forces)`), and
+  `performance_gradient` adds the direct dependence of an integral on the
+  forces of each stage to the one the adjoints give through the state, so an
+  integral that reads its step's settings has the right gradient.
+- **CO₂–water co-adsorption on amine sorbents.** `toth_gab` gives the
+  isotherm of Stampi-Bombelli et al. (2020) by component (`TothGAB`): CO₂ on
+  a Toth isotherm whose capacity and affinity grow with the water loading,
+  and water on a GAB isotherm in the relative humidity
+  (`water_vapour_pressure`). `lumped_ldf` gives a linear driving force with
+  fitted rate coefficients per component (`LumpedLinearDrivingForce`). Both
+  can be written to and read from adsorbent files.
+- **Direct air capture.** The APDES-NFC sorbent
+  (`"apdes_nfc_stampi_bombelli_2020"`), the steam-assisted TVSA process of
+  Stampi-Bombelli et al. (2020) (`dac_tvsa_process`, library process
+  `"stampi_bombelli_2020_stvsa"`), and the example
+  `dac_stampi_bombelli_2020`, which compares it with the paper, with and
+  without steam. The example `dac_optimisation` finds the most productive
+  desorption time, and the steam flow that takes the least heat for 95% of
+  that production: 76% less heat, with a sixth of the steam.
+
 ### Changed
 
 - **Diffusivities at the feed.** `mass_transfer(adsorbent, gas, feed)` and
@@ -279,6 +310,20 @@
   in the flux between two nearly equal pressures kept the error above the
   tolerance on long steps: the solver cut every 60 s step five times, and the
   moving bed TSA at 1280 cells per metre took 200 s instead of a few seconds.
+- **Smallest gas mole fraction by isotherm.** An isotherm sets the smallest
+  mole fraction of the gas in its bed with `minimum_mole_fraction`, 10⁻¹² as
+  before by default and 10⁻²⁰ for `TothGAB`. An amine holds CO₂ so strongly
+  that the gas in equilibrium with a lightly loaded bed holds less than 10⁻¹²
+  of it, and Newton's method stalled at the bound.
+- **Gas energy tolerance floor.** The gas energy balance converges no tighter
+  than 10⁻⁷ K, also when the nonlinear tolerance is tighter, as in Newton's
+  method on the cycle and the adjoints (10⁻⁸). Round-off in the flow between
+  cells is carried as enthalpy at the absolute temperature, which puts a floor
+  of about T·ε·p/Δp on the error: 1.3·10⁻⁸ K on the 1 cm bed of the direct air
+  capture process. Steps that could not reach it were cut, at places that
+  moved with the start of the cycle, and the cycle map was not smooth enough
+  for Newton's method. The cycle change takes the gas temperature as resolved
+  to that floor.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a
@@ -364,6 +409,12 @@
   `breakthrough` (formerly `dcb_haghpanah_2013_co2_n2`, now comparing the
   thermal models), a new `two_bed_vsa` with pressure equalisation, and
   `unit_network` (formerly `flowsheet_vsa`).
+
+### Fixed
+
+- `cyclic_steady_state` failed with a `FieldError`, instead of going on with
+  Anderson acceleration, when Newton's method failed before its last
+  attempt.
 
 ## v0.2.0
 

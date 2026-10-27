@@ -51,12 +51,24 @@ end
 # balances/convergence.jl): each step converges the mass balances to `ntol`
 # of the cell's holdup, so a mole fraction to about `ntol`, a loading to
 # `ntol` of the cell's total loading and a pressure to `ntol` of itself, and
-# the energy balances to a temperature error of `ntol` K
+# the energy balances to a temperature error of their tolerance in K: `ntol`,
+# or what the unit sets for the equation, such as the floor of the gas energy
+# balance (see `set_default_tolerances!` in balances/convergence.jl)
 function _resolution(model, p, x, ntol)
     p == :y && return ntol
     p == :AdsorbedConcentration && return ntol .* sum(abs, x; dims = 1)
-    model.primary_variables[p] isa Temperature && return ntol
+    model.primary_variables[p] isa Temperature && return _equation_tolerance(model, get(_TEMPERATURE_EQUATIONS, p, nothing), ntol)
     return ntol .* abs.(x)
+end
+
+# The energy balance that converges each temperature of a unit
+const _TEMPERATURE_EQUATIONS = Dict(:Temperature => :energy_column, :WallTemperature => :energy_wall)
+
+# Tolerance of equation `eq` of `model` in a simulation at `ntol`
+function _equation_tolerance(model, eq, ntol)
+    (iszero(ntol) || isnothing(eq)) && return ntol
+    t = get(Jutul.set_default_tolerances(model; tol = ntol), eq, ntol)
+    return t isa Real ? t : ntol
 end
 
 # Per entry: how far |x1 − x0| exceeds the resolution of the steps, relative
@@ -88,7 +100,9 @@ simulation at `nonlinear_tolerance` resolve, since each step converges its
 balances only to that tolerance (see the docs, *Cyclic steady state*): for a
 mole fraction the tolerance itself, for a loading the tolerance times the
 cell's total loading, for a pressure the tolerance times the pressure, and for
-a temperature the tolerance in kelvin. Changes within that are the noise of
+a temperature the tolerance of its energy balance in kelvin (the nonlinear
+tolerance, but at least 10⁻⁷ K for the gas; see `set_default_tolerances!` in
+balances/convergence.jl). Changes within that are the noise of
 the steps and count as none. With the default `nonlinear_tolerance = 0`, the
 change is the plain relative change.
 

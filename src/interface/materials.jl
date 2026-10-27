@@ -209,6 +209,123 @@ function build_isotherm(data::VirialData, gas::Gas; density = nothing)
         B0 = pick(data.B0), B1 = pick(data.B1), density = density)
 end
 
+"""
+    TothGABData
+
+Parameters of the CO₂–water co-adsorption isotherm [`TothGAB`](@ref) by
+component name. Build it with [`toth_gab`](@ref).
+"""
+struct TothGABData <: AbstractIsothermData
+    toth::String
+    water::String
+    ns0::Float64
+    b0::Float64
+    t0::Float64
+    α::Float64
+    χ::Float64
+    ΔH0::Float64
+    reference_temperature::Float64
+    γ::Float64
+    β::Float64
+    cm::Float64
+    cG::Float64
+    K::Float64
+    heat_components::Vector{String}
+    heats::Vector{Float64}
+    basis::Symbol
+end
+
+"""
+    toth_gab(; component = "CO2", water = "H2O", ns0, b0, t0, α = 0, χ = 0, ΔH0,
+        reference_temperature, γ = 0, β = 0, cm, cG, K, heats, basis = :mass)
+
+CO₂–water co-adsorption on an amine sorbent (see [`TothGAB`](@ref)): water on a
+GAB isotherm with monolayer capacity `cm` and constants `cG` and `K`, and
+`component` on a Toth isotherm with capacity `ns0`, affinity `b0` [1/Pa] and
+exponent `t0` at the `reference_temperature` [K], their temperature
+dependence `χ`, `ΔH0` [J/mol, negative] and `α`, and their enhancement by the
+water loading, `γ` and `β`. `heats` gives the heat of adsorption [J/mol,
+negative] by component, such as `(CO2 = -57e3, H2O = -49e3)`.
+
+Capacities are in mol/kg and `γ`, `β` in kg/mol with `basis = :mass`, or per
+m³ of adsorbent and in m³/mol with `basis = :volume`. Stampi-Bombelli et al.
+(2020) give b0 in 1/kPa: divide it by 1000.
+"""
+function toth_gab(; component = "CO2", water = "H2O", ns0, b0, t0, α = 0.0, χ = 0.0, ΔH0, reference_temperature,
+        γ = 0.0, β = 0.0, cm, cG, K, heats, basis = :mass)
+    loc = "toth_gab isotherm"
+    basis in (:volume, :mass) || input_error(loc, "basis", "use :mass (mol/kg) or :volume (mol per m³ of adsorbent), got $basis")
+    c, w = String(component), String(water)
+    Interface.component(c); Interface.component(w)  # catch misspelt names
+    c == w && input_error(loc, "water", "must differ from the Toth component $c")
+    for (k, v) in (:ns0 => ns0, :b0 => b0, :t0 => t0, :reference_temperature => reference_temperature, :cm => cm, :cG => cG, :K => K)
+        v > 0 || input_error(loc, k, "must be positive, got $v")
+    end
+    γ >= 0 && β >= 0 || input_error(loc, "", "the water enhancements γ and β must not be negative")
+    names = [String(k) for (k, _) in pairs_of(heats)]
+    foreach(Interface.component, names)
+    return TothGABData(c, w, ns0, b0, t0, α, χ, ΔH0, reference_temperature, γ, β, cm, cG, K,
+        names, [Float64(v) for (_, v) in pairs_of(heats)], basis)
+end
+
+function build_isotherm(data::TothGABData, gas::Gas; density = nothing)
+    i = findfirst(==(data.toth), gas.names)
+    isnothing(i) && input_error("isotherm", "", "the gas has no $(data.toth), the component of the Toth isotherm; it has $(join(gas.names, ", "))")
+    j = something(findfirst(==(data.water), gas.names), 0)
+    scale = 1.0
+    if data.basis == :mass
+        isnothing(density) && input_error("isotherm", "basis", "capacities per kg need the adsorbent density")
+        scale = density
+    end
+    ΔH = [(k = findfirst(==(n), data.heat_components); isnothing(k) ? 0.0 : data.heats[k]) for n in gas.names]
+    return TothGAB(toth = i, water = j, ns0 = scale * data.ns0, b0 = data.b0, t0 = data.t0, α = data.α, χ = data.χ,
+        ΔH0 = data.ΔH0, T0 = data.reference_temperature, γ = data.γ / scale, β = data.β / scale,
+        cm = scale * data.cm, cG = data.cG, K = data.K, ΔH = ΔH)
+end
+
+# ------------------------------------------------------------------------------
+# Mass transfer by component
+# ------------------------------------------------------------------------------
+
+"""
+    LumpedLDFData
+
+Rate coefficients of a [`LumpedLinearDrivingForce`](@ref) by component name.
+Build it with [`lumped_ldf`](@ref).
+"""
+struct LumpedLDFData
+    components::Vector{String}
+    k::Vector{Float64}
+    default::Float64
+end
+
+"""
+    lumped_ldf(name => k, ...; default = 1.0)
+
+Linear driving force mass transfer with a fixed rate coefficient `k` [1/s]
+per component, such as `lumped_ldf("CO2" => 2e-4, "H2O" => 2e-3)`, for an
+adsorbent whose rates were fitted to breakthrough curves (see
+[`LumpedLinearDrivingForce`](@ref)). Components not named take `default`,
+fast enough that a component the isotherm does not take up stays unloaded.
+A rate of zero would leave its loading as it starts, and so the cyclic
+steady state undetermined.
+"""
+function lumped_ldf(entries::Pair...; default = 1.0)
+    names = [String(first(e)) for e in entries]
+    foreach(component, names)
+    allunique(names) || input_error("mass transfer", "", "components appear more than once: $(join(names, ", "))")
+    k = [Float64(last(e)) for e in entries]
+    all(>(0), k) && default > 0 || input_error("mass transfer", "", "rate coefficients must be positive")
+    return LumpedLDFData(names, k, Float64(default))
+end
+
+"The mass transfer model of `data` for the components of `gas`, in its order."
+build_mass_transfer(mt::AbstractMassTransfer, gas::Gas) = mt
+function build_mass_transfer(data::LumpedLDFData, gas::Gas)
+    k = [(i = findfirst(==(n), data.components); isnothing(i) ? data.default : data.k[i]) for n in gas.names]
+    return LumpedLinearDrivingForce(SVector{length(k)}(k))
+end
+
 # ------------------------------------------------------------------------------
 # Adsorbents
 # ------------------------------------------------------------------------------
@@ -231,7 +348,8 @@ An adsorbent material:
   component (a vector in gas order or by name; components not named take the
   gas heat capacity at 25 °C); by default the heat capacities of the gas,
   following its thermodynamics;
-- `mass_transfer`: an [`AbstractMassTransfer`](@ref); by default a
+- `mass_transfer`: an [`AbstractMassTransfer`](@ref) in gas order, or rates
+  by component from [`lumped_ldf`](@ref); by default a
   [`LinearDrivingForce`](@ref) from the particle properties, the gas
   diffusivity and, with a macropore radius, the gas molar masses;
 - `reference`: where the data come from.
@@ -263,7 +381,7 @@ function Adsorbent(name = ""; isotherm, density, heat_capacity, particle_diamete
     isnothing(macropore_radius) || macropore_radius > 0 || input_error(loc, "macropore_radius", "must be positive, got $macropore_radius")
     isnothing(macropore_radius) || isnothing(mass_transfer) ||
         input_error(loc, "macropore_radius", "sets the default mass transfer, so it cannot be given with mass_transfer")
-    isnothing(mass_transfer) || mass_transfer isa AbstractMassTransfer || input_error(loc, "mass_transfer", "expected an AbstractMassTransfer, got $(typeof(mass_transfer))")
+    isnothing(mass_transfer) || mass_transfer isa Union{AbstractMassTransfer, LumpedLDFData} || input_error(loc, "mass_transfer", "expected an AbstractMassTransfer or lumped_ldf(...), got $(typeof(mass_transfer))")
     return Adsorbent(String(name), isotherm, density, heat_capacity, particle_diameter, particle_porosity, tortuosity,
         isnothing(macropore_radius) ? nothing : Float64(macropore_radius), adsorbed_heat_capacity, mass_transfer, String(reference))
 end
@@ -273,7 +391,7 @@ isotherm(adsorbent::Adsorbent, gas::Gas) =
     _at(() -> build_isotherm(adsorbent.isotherm, gas; density = adsorbent.density), isempty(adsorbent.name) ? "adsorbent" : "adsorbent $(adsorbent.name)")
 
 function mass_transfer(adsorbent::Adsorbent, gas::Gas, feed)
-    isnothing(adsorbent.mass_transfer) || return adsorbent.mass_transfer
+    isnothing(adsorbent.mass_transfer) || return build_mass_transfer(adsorbent.mass_transfer, gas)
     D = gas.diffusivity isa Number ? gas.diffusivity : gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)
     D_m = D isa Number ? D : SVector{length(D)}(D)
     isnothing(adsorbent.macropore_radius) && return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
@@ -326,6 +444,7 @@ function Base.show(io::IO, ::MIME"text/plain", a::Adsorbent)
     println(io, "Adsorbent ", isempty(a.name) ? "(unnamed)" : a.name)
     a.isotherm isa DualSiteLangmuirData && println(io, "  dual-site Langmuir isotherm for ", join(a.isotherm.components, ", "))
     a.isotherm isa VirialData && println(io, "  Virial isotherm for ", join(a.isotherm.components, ", "))
+    a.isotherm isa TothGABData && println(io, "  Toth isotherm for ", a.isotherm.toth, " enhanced by ", a.isotherm.water, " on a GAB isotherm")
     println(io, "  density ", a.density, " kg/m³, heat capacity ", a.heat_capacity, " J/(kg·K)")
     print(io, "  particles ", 1e3 * a.particle_diameter, " mm, porosity ", a.particle_porosity, ", tortuosity ", a.tortuosity)
     isnothing(a.macropore_radius) || print(io, ", macropores ", round(1e6 * a.macropore_radius, sigdigits = 4), " µm in radius")

@@ -24,11 +24,70 @@ function Jutul.update_parameter_before_step!(x, ::TimeScale, storage, model, dt,
 end
 _time_scale_force(forces) = hasproperty(forces, :time_scale) ? forces.time_scale : nothing
 
-# Every distributed unit takes the time scale as a force
-Jutul.setup_forces(model::DistributedUnitModel; time_scale = nothing) = (time_scale = time_scale,)
+# Every distributed unit takes the jacket temperature and the time scale as
+# forces. The jacket temperature comes first: Jutul's generic loops look the
+# length of a force up by a counter that skips absent forces, and the time
+# scale is only set after the forces are devectorised (see force_gradients).
+Jutul.setup_forces(model::DistributedUnitModel; jacket_temperature = nothing, time_scale = nothing) =
+    (jacket_temperature = jacket_temperature, time_scale = time_scale)
 
 # The time step of a unit's time derivatives
 @inline _scaled_dt(state, Δt) = _state_has(state, :TimeScale) ? Δt * state.TimeScale[1] : Δt
+
+"""
+    JacketTemperature
+
+Temperature [K] of the medium outside the wall of a unit, such as the heating
+or cooling fluid of a jacket, which the wall exchanges heat with through its
+outer surface and its two ends. A stage sets it through the unit's
+`jacket_temperature` force, which a step's `jacket_temperature` gives; in a
+stage that does not, it is the unit's `AmbientTemperature`. Like the time
+scale, it is a parameter copied from the forces before each step.
+"""
+struct JacketTemperature <: Jutul.ScalarVariable end
+Jutul.associated_entity(::JacketTemperature) = Unit()
+function Jutul.default_parameter_values(data_domain, model, ::JacketTemperature, symb)
+    return copy(data_domain[:ambient_temperature, Unit()])
+end
+
+function Jutul.update_parameter_before_step!(x, ::JacketTemperature, storage, model, dt, forces)
+    T = hasproperty(forces, :jacket_temperature) ? forces.jacket_temperature : nothing
+    x .= isnothing(T) ? storage.state.AmbientTemperature : T
+    return x
+end
+
+# A jacket temperature is a number among the forces of a stage, with a
+# gradient. The loops over the forces are those of a device (see
+# devices/device.jl), since Jutul's generic ones assume that the unit's values
+# start at the beginning of the whole vector of a MultiModel.
+Jutul.vectorize_force!(v, model::DistributedUnitModel, f::Real, name, variant) = (v[1] = f; (names = [name],))
+Jutul.devectorize_force(f::Real, model::DistributedUnitModel, X, meta, name, variant) = X[1]
+
+function Jutul.vectorize_forces!(v, model::DistributedUnitModel, config, forces; update_config = false)
+    offset = first(config.offsets) - 1
+    for (i, (k, f)) in enumerate(pairs(forces))
+        n = config.lengths[i]
+        (isnothing(f) || isnothing(config.targets[k])) && continue
+        m = Jutul.vectorize_force!(view(v, offset .+ (1:n)), model, f, k, config.targets[k])
+        update_config && (config.meta[k] = m)
+        offset += n
+    end
+    return v
+end
+
+function Jutul.devectorize_forces(forces, model::DistributedUnitModel, X, config; offset = 0)
+    out = Dict{Symbol, Any}()
+    for (i, (k, f)) in enumerate(pairs(forces))
+        n = config.lengths[i]
+        if isnothing(f) || isnothing(config.targets[k])
+            out[k] = f
+        else
+            out[k] = Jutul.devectorize_force(f, model, view(X, offset .+ (1:n)), config.meta[k], k, config.targets[k])
+            offset += n
+        end
+    end
+    return Jutul.setup_forces(model; out...)
+end
 
 struct AdsorbentDensity <: Jutul.ScalarVariable end
 Jutul.associated_entity(::AdsorbentDensity) = Unit()
