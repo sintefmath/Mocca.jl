@@ -63,13 +63,10 @@ end
     @test_throws ArgumentError IdealGasShomate([(1.0, 2.0, 3.0)])
 
     # Automatic differentiation without allocating, as in the residuals
-    cp(model, T) = molar_heat_capacity(model, y, T)
-    h(model, T) = molar_enthalpy(model, y, T)
     T = ForwardDiff.Dual(330.0, 1.0)
     for model in (m, q, IdealGasConstantCp([37.0, 29.0]))
-        cp(model, T), h(model, T)
-        @test (@allocated cp(model, T)) == 0
-        @test (@allocated h(model, T)) == 0
+        @test allocations(molar_heat_capacity, model, y, T) == 0
+        @test allocations(molar_enthalpy, model, y, T) == 0
     end
 end
 

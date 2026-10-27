@@ -56,8 +56,8 @@ Mocca.molecular_diffusivities(::_FixedTransport, y, T, P) = SVector(one(T / P), 
     ys = SVector(0.15, 0.82, 0.03)
     T = ForwardDiff.Dual(330.0, 1.0)
     f(t, T) = (mixture_viscosity(t, ys, T), molecular_diffusivities(t, ys, T, 1e5))
-    f(t, T)
-    @test (@allocated f(t, T)) == 0
+    @test allocations(mixture_viscosity, t, ys, T) == 0
+    @test allocations(molecular_diffusivities, t, ys, T, 1e5) == 0
     h = 1e-3
     @test ForwardDiff.partials(f(t, T)[1])[1] ≈ (mixture_viscosity(t, ys, 330.0 + h) - mixture_viscosity(t, ys, 330.0 - h)) / 2h rtol = 1e-6
 end

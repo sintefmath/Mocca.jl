@@ -6,6 +6,10 @@ using StaticArrays
 
 include("haghpanah_cases.jl")
 
+# Bytes a call allocates, measured inside a function: on Julia 1.10, @allocated
+# at the call site also counts boxing the local variables of a test set
+allocations(f, args...) = (f(args...); @allocated f(args...))
+
 @testset "Mocca.jl Tests" begin
     @testset "Input Parsing" begin
         include("data_input.jl")
