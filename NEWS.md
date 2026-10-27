@@ -31,6 +31,9 @@
 - **Cubic heat capacities.** `Gas(...; thermodynamics = :polynomial)`, with the
   coefficients of Reid, Prausnitz and Poling (`IdealGasPolynomial`), as in the
   MATLAB model; within 2% of the NIST values from 300 to 500 K.
+- **Gas properties page.** A page of the manual's library on the gas property
+  models: how to choose them, the component data and its sources, their
+  accuracy against NIST, their limits and their effect on the presets.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,

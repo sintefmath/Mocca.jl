@@ -393,6 +393,8 @@ otherwise swing between its binary values with the ratio of the traces of the
 others, with derivatives too large for Newton's method in gases of three or
 more components. The bed's axial thermal conductivity, the wall's conductivity and
 the heat transfer coefficients stay as given.
+The component data, the accuracy of these models and their effect on the
+presets are on the [Gas properties](@ref) page.
 
 ### Isotherm: dual-site Langmuir
 

@@ -75,6 +75,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
             "Library" => [
                 "Processes and validation" => "processes.md",
                 "Adsorbents" => "adsorbents.md",
+                "Gas properties" => "gas_properties.md",
             ],
             "Examples" => examples_markdown[2:end],
             "Reference" => [
