@@ -4,7 +4,9 @@ function units_dict()
         :Pressure => "[Pa]",
         :AdsorbedConcentration => "[mol/m^{3}]",
         :Temperature => "[K]",
-        :WallTemperature => "[K]"
+        :WallTemperature => "[K]",
+        :TubeTemperature => "[K]",
+        :HXFluidTemperature => "[K]"
     )
 
     return unit_label
@@ -337,3 +339,52 @@ function plot_profiles(states, timesteps, model, times;
     return f
 end
 
+"""
+    plot_moving_bed_profiles(state, fs; units = reverse(sorbent_path(fs)), labels = String.(units))
+
+Profiles along a stack of moving bed sections, in the layout of Fig. 6 of
+Mondino et al. (2022): the mole fraction of each component in the gas, its
+loading on the sorbent [mol/kg], and the temperatures of the gas and sorbent
+and of the heat transfer fluid, against height. `units` lists the sections
+from the bottom of the stack to the top; by default the sections the sorbent
+passes through, from the first moving bed of `fs` (see
+[`sorbent_path`](@ref)), with the sorbent falling from the top. `state` is a
+flowsheet state, such as the last state of a simulation.
+"""
+function plot_moving_bed_profiles(state, fs::AbstractFlowsheet; units = reverse(sorbent_path(fs)), labels = String.(units))
+    first_unit = fs[first(units)]
+    names = component_names(first_unit.system)
+    colors = Makie.wong_colors()
+    f = Figure(size = (1000, 800))
+    ax_y = Axis(f[1, 1], ylabel = "Mole fraction in gas [-]")
+    ax_q = Axis(f[2, 1], ylabel = "Loading [mol/kg]")
+    ax_T = Axis(f[3, 1], ylabel = "Temperature [°C]", xlabel = "Height [m]")
+    linkxaxes!(ax_y, ax_q, ax_T)
+    hidexdecorations!(ax_y, grid = false)
+    hidexdecorations!(ax_q, grid = false)
+    z0 = 0.0
+    for (u, label) in zip(units, labels)
+        model = fs[u]
+        s = state[u]
+        dx = model.data_domain[:dx]
+        z = z0 .+ cumsum(dx) .- dx ./ 2
+        ρ = first(model.data_domain[:adsorbent_density, Framework.Unit()])
+        for i in eachindex(names)
+            lines!(ax_y, z, s[:y][i, :], color = colors[i], label = names[i])
+            lines!(ax_q, z, s[:AdsorbedConcentration][i, :] ./ ρ, color = colors[i], label = names[i])
+        end
+        lines!(ax_T, z, s[:Temperature] .- 273.15, color = :black, label = "Gas and sorbent")
+        if haskey(s, :HXFluidTemperature)
+            lines!(ax_T, z, s[:HXFluidTemperature] .- 273.15, color = colors[length(names) + 1], linestyle = :dash, label = "Heat transfer fluid")
+        end
+        for ax in (ax_y, ax_q, ax_T)
+            vlines!(ax, [z0], color = (:gray, 0.6), linewidth = 1)
+        end
+        text!(ax_y, z0 + sum(dx) / 2, 1.02, text = label, align = (:center, :bottom), fontsize = 12)
+        z0 += sum(dx)
+    end
+    ylims!(ax_y, 0, 1.12)
+    axislegend(ax_q, unique = true, position = :lt)
+    axislegend(ax_T, unique = true, position = :lt)
+    return f
+end

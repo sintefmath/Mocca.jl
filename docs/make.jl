@@ -28,6 +28,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Two-bed VSA with pressure equalisation" => "two_bed_vsa"
         "Wet flue gas: single-bed VSA" => "wet_flue_gas_lpp_vsa"
         "Wet flue gas: dual-adsorbent VSA" => "wet_flue_gas_dual_adsorbent_vsa"
+        "Moving bed TSA" => "mbtsa_mondino_2022"
         "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
         "Optimization" => "optimization"
         "History matching" => "history_matching"

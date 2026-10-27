@@ -106,7 +106,9 @@ end
 @testset "Convergence criteria do not depend on the size of a cell" begin
     model = haghpanah_bed(ncells = 2)
     crit(eq, state, r; dt = 2.0) = Jutul.convergence_criterion(model, (state = state,), model.equations[eq], nothing, r; dt = dt)
-    gas = (TotalMolarConcentration = [40.0, 20.0], FluidVolume = [1e-3, 2e-3])
+    # Equal pressures: no gas flows between the two cells
+    gas = (TotalMolarConcentration = [40.0, 20.0], FluidVolume = [1e-3, 2e-3],
+        Pressure = [1e5, 1e5], Transmissibilities = [1e-9], FluidViscosity = [2e-5])
     r = [1e-3 2e-3; 0.0 4e-4]
     # Mass: the residual over a step as a fraction of the gas in the cell
     c = crit(:mass_conservation, gas, r)
@@ -115,6 +117,12 @@ end
     # A cell ten times larger with ten times the residual converges alike
     big = crit(:mass_conservation, merge(gas, (FluidVolume = 10 .* gas.FluidVolume,)), 10 .* r)
     @test big.CNV.errors ≈ c.CNV.errors
+    # Gas flowing through a cell over the step counts with the gas it holds:
+    # each cell gets half the flow across the face between them
+    flowing = merge(gas, (Pressure = [1e5 + 10.0, 1e5],))
+    F = 1e-9 * 10.0 / 2e-5 * (40.0 + 20.0) / 2 / 2
+    f = crit(:mass_conservation, flowing, r)
+    @test f.CNV.errors ≈ [2e-3 * 2 / (0.04 + 2 * F), 4e-4 * 2 / (0.04 + 2 * F)]
 
     # Energy: the temperature error that the residual over a step amounts to
     state = merge(gas, (C_pg = [30.0, 30.0], SolidVolume = [2e-3, 4e-3],

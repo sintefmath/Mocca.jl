@@ -12,17 +12,19 @@ using ..Framework
 
 export AbstractAxialDispersion, AbstractGasThermodynamics, AbstractGasTransport,
     AbstractIsotherm, AbstractMassTransfer, binary_diffusivity, ChapmanEnskogTransport,
-    component_enthalpies, component_heat_capacities, component_viscosities,
-    compute_enthalpy, compute_equilibrium, compute_mass_transfer_rate, ConstantDispersion,
-    ConstantTransport, diffusivity_factors, dispersion_coefficient, DualSiteLangmuir,
+    component_enthalpies, component_heat_capacities, component_viscosities, compute_enthalpy,
+    compute_equilibrium, compute_mass_transfer_rate, ConstantDispersion, ConstantTransport,
+    diffusivity_factors, dispersion_coefficient, DualSiteLangmuir, has_knudsen,
     heat_capacity_ratio, IdealGasConstantCp, IdealGasPolynomial, IdealGasShomate,
     is_constant_transport, LinearDrivingForce, mixture_viscosity, molar_concentration,
     molar_enthalpy, molar_heat_capacity, molecular_diffusivities, polynomial_coefficients,
-    saturation_capacity, shomate_coefficients, THERMODYNAMIC_REFERENCE_TEMPERATURE,
-    TransportReference, viscosity_factor, WakaoFunazkri
+    pore_diffusivity, saturation_capacity, shomate_coefficients,
+    THERMODYNAMIC_REFERENCE_TEMPERATURE, TransportReference, Virial, viscosity_factor,
+    WakaoFunazkri
 
 include("isotherms/isotherms.jl")
 include("isotherms/dual_site_langmuir.jl")
+include("isotherms/virial.jl")
 include("mass_transfer/mass_transfer.jl")
 include("mass_transfer/ldf.jl")
 include("thermodynamics/thermodynamics.jl")

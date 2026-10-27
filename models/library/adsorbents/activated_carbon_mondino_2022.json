@@ -1,0 +1,33 @@
+{
+  "format": "mocca-adsorbent",
+  "version": 1,
+  "name": "activated carbon",
+  "reference": "Mondino et al., Int. J. Greenh. Gas Control 118 (2022) 103685, doi:10.1016/j.ijggc.2022.103685: Virial isotherm of Table 5, fitted to CO2 and N2 between 30 and 150 °C, with the Henry constants converted from per kPa to per Pa; bead properties of Table 2. Macropore radius of Table 2, for Knudsen diffusion in series with molecular diffusion (eqs. A.18–A.19). Loadings per kg of adsorbent. The paper also has film and micropore resistances, which the linear driving force leaves out.",
+  "density": 904.0,
+  "heat_capacity": 880.0,
+  "particle_diameter": 0.0007,
+  "particle_porosity": 0.5,
+  "tortuosity": 3.0,
+  "macropore_radius": 5.25e-7,
+  "isotherm": {
+    "type": "virial",
+    "components": {
+      "CO2": {
+        "Kinf": 2.6969e-10,
+        "dH": 30006.0,
+        "A0": -4.3235,
+        "A1": 1474.0,
+        "B0": 1.4239,
+        "B1": -465.2
+      },
+      "N2": {
+        "Kinf": 5.5486e-10,
+        "dH": 21934.0,
+        "A0": -22.982,
+        "A1": 7121.1,
+        "B0": 51.644,
+        "B1": -15756.0
+      }
+    }
+  }
+}

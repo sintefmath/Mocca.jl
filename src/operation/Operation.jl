@@ -12,10 +12,11 @@ using ..Framework, ..Physics, ..Devices, ..Networks
 
 export adsorbent_volume, component_inventory, compressor_energy, CompressorObjective,
     cycle_change, CycleProgress, cycle_window, cyclic_steady_state_gradient, force_gradients,
-    LOADING_SCALE_FRACTION, MOLE_FRACTION_SCALE_FLOOR, newton_cyclic_steady_state,
-    parallel_stages, productivity, purity, recovery, restart_state, setup_process_simulator,
-    setup_schedule, simulate_process, simulate_to_cyclic_steady_state,
-    simulate_until_mass_balance, sorbent_mass, specific_energy_kwh_per_tonne, Stage,
+    heat_duty, hx_fluid_inlet_temperature, LOADING_SCALE_FRACTION, MOLE_FRACTION_SCALE_FLOOR,
+    moving_sorbent_units, newton_cyclic_steady_state, parallel_stages, productivity, purity,
+    recovery, restart_state, setup_process_simulator, setup_schedule, simulate_process,
+    simulate_to_cyclic_steady_state, simulate_until_mass_balance, sorbent_circulation_time,
+    sorbent_inventory, sorbent_mass, specific_energy_kwh_per_tonne, Stage, stream_rates,
     stream_totals, StreamObjective, vacuum_pump_energy, VacuumPumpObjective
 
 include("simulator.jl")

@@ -8,6 +8,8 @@ How a distributed unit treats energy. Choose one when building the system:
 - [`Adiabatic`](@ref): gas-phase energy balance with no heat exchange through the
   side of the unit
 - [`Isothermal`](@ref): temperature held at a fixed value, no energy balance
+- [`HeatExchanger`](@ref): gas-phase energy balance plus tubes carrying a heat
+  transfer fluid through the unit
 """
 abstract type AbstractThermalModel end
 
@@ -28,11 +30,31 @@ struct Isothermal{T<:Real} <: AbstractThermalModel
     temperature::T
 end
 
+"""
+    HeatExchanger()
+
+Gas-phase energy balance plus tubes running through the unit, carrying a heat
+transfer fluid that heats or cools the gas and sorbent indirectly (Mondino et
+al. 2022, eqs. A.10–A.11). Each cell gets two more temperatures: the tube
+wall, `TubeTemperature`, exchanging heat with the gas and sorbent outside and
+with the fluid inside, and the fluid, `HXFluidTemperature`, which flows from
+the bottom of the unit to the top.
+
+The fluid enters at the `HXFluidInletTemperature` parameter, or at the outlet
+temperature of another unit's tubes when the two are joined by a
+`HeatTransferFluidConnection`. Cross-flow tube bundles are treated as
+counter-current along the unit, as in the paper.
+"""
+struct HeatExchanger <: AbstractThermalModel end
+
 "Whether `sys` solves a wall energy balance."
 has_wall(sys::MoccaSystem) = thermal_model(sys) isa WithWall
 
 "Whether `sys` solves a gas-phase energy balance (as opposed to a fixed temperature)."
 has_energy_balance(sys::MoccaSystem) = !(thermal_model(sys) isa Isothermal)
+
+"Whether `sys` has tubes carrying a heat transfer fluid through it; see [`HeatExchanger`](@ref)."
+has_heat_exchanger(sys::MoccaSystem) = thermal_model(sys) isa HeatExchanger
 
 "The [`AbstractThermalModel`](@ref) of `sys`."
 thermal_model(sys::MoccaSystem) = sys.thermal

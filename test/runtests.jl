@@ -42,6 +42,10 @@ end
         include("gradients.jl")
     end
 
+    @testset "Moving beds" begin
+        include("moving_bed.jl")
+    end
+
     @testset "User interface" begin
         include("interface.jl")
     end

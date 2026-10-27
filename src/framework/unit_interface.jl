@@ -87,3 +87,13 @@ sorbent counts in the productivity of a process.
 """
 holds_sorbent(model) = false
 holds_sorbent(::SorbentBedModel) = true
+
+"""
+    moves_sorbent(sys) → Bool
+
+Whether the sorbent of `sys` moves through the unit, from its top cell to its
+bottom cell, as in a moving bed. The loading equation then carries the loading
+with the sorbent, and a `SorbentConnection` can pass the sorbent leaving the
+unit to another.
+"""
+moves_sorbent(sys::MoccaSystem) = false

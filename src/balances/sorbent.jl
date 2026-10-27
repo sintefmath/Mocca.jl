@@ -54,7 +54,7 @@ Jutul.@jutul_secondary function update_adsorption_mass_transfer!(
         C = SVector{N, T}(@view MolarConcentration[:, cell])
         q = SVector{N, T}(@view AdsorbedConcentration[:, cell])
         qstar = compute_equilibrium(iso, C, Temperature[cell])
-        rate = compute_mass_transfer_rate(mt, C, q, qstar)
+        rate = compute_mass_transfer_rate(mt, C, q, qstar, Temperature[cell])
         for i in 1:N
             adsorption_mass_transfer[i, cell] = rate[i]
         end
@@ -89,7 +89,7 @@ Jutul.@jutul_secondary function update_scaled_adsorption_mass_transfer!(
         q = SVector{N, T}(@view AdsorbedConcentration[:, cell])
         qstar = compute_equilibrium(iso, C, Temperature[cell])
         s = diffusivity_factors(sys.transport, view(y, :, cell), Temperature[cell], sys.transport.pressure)
-        rate = compute_mass_transfer_rate(mt, C, q, qstar, s)
+        rate = compute_mass_transfer_rate(mt, C, q, qstar, Temperature[cell], s)
         for i in 1:N
             adsorption_mass_transfer[i, cell] = rate[i]
         end
@@ -140,7 +140,8 @@ Jutul.@jutul_secondary function update_heat_capacity_adsorbent!(cpa, tv::Adsorbe
     end
 end
 
-# Rate equation for the loading: V_s ∂q/∂t − V_s·rate = 0
+# Rate equation for the loading: V_s ∂q/∂t − V_s·rate = 0, plus
+# Q_s·(q − q_above) when the sorbent moves (see solid_advection.jl)
 function Jutul.update_equation_in_entity!(
     eq_buf::AbstractVector{T_e},
     self_cell,
@@ -163,7 +164,8 @@ function Jutul.update_equation_in_entity!(
         ∂M∂t = Jutul.accumulation_term(M, M₀, Δt, component, self_cell)
         eq_buf[component] =
             solid_volume[self_cell] * ∂M∂t -
-            solid_volume[self_cell] * forcing_term[component, self_cell]
+            solid_volume[self_cell] * forcing_term[component, self_cell] +
+            _loading_advection(model, state, component, self_cell)
     end
 end
 

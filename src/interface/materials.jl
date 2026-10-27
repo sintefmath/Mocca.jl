@@ -134,14 +134,89 @@ function build_isotherm(data::DualSiteLangmuirData, gas::Gas; density = nothing)
         qsd = scale .* pick(data.qsd), d0 = pick(data.d0), ΔUd = pick(data.ΔUd), T0 = data.reference_temperature)
 end
 
+"""
+    VirialData
+
+Parameters of the multicomponent Virial isotherm (see [`Virial`](@ref)) by
+component. Build it with [`virial`](@ref).
+"""
+struct VirialData <: AbstractIsothermData
+    components::Vector{String}
+    K∞::Vector{Float64}
+    ΔH::Vector{Float64}
+    A0::Vector{Float64}
+    A1::Vector{Float64}
+    B0::Vector{Float64}
+    B1::Vector{Float64}
+end
+
+const _VIRIAL_KEYS = (:K∞, :ΔH, :A0, :A1, :B0, :B1)
+const _VIRIAL_ALIASES = Dict(:Kinf => :K∞, :dH => :ΔH)
+
+"""
+    virial(name => parameters, ...)
+
+Virial isotherm data, one entry per component, on a mass basis:
+
+```julia
+virial(
+    "CO2" => (K∞ = 2.6969e-10, ΔH = 30.006kJ_per_mol, A0 = -4.3235, A1 = 1474.0, B0 = 1.4239, B1 = -465.20),
+    "N2" => (K∞ = 5.5486e-10, ΔH = 21.934kJ_per_mol, A0 = -22.982, A1 = 7121.1, B0 = 51.644, B1 = -15756.0))
+```
+
+The partial pressure is `Pᵢ = qᵢ/K_H,ᵢ·exp(Σⱼ Aᵢⱼqⱼ + Σⱼₖ Bᵢⱼₖqⱼqₖ)`, with
+loadings in mol/kg and:
+
+- `K∞` [mol/(kg·Pa)], the Henry constant at infinite temperature, and `ΔH`
+  [J/mol], the heat of adsorption at zero coverage, positive:
+  `K_H = K∞·exp(ΔH/(R·T))`;
+- `A0` [kg/mol] and `A1` [K·kg/mol]: `A = A0 + A1/T`;
+- `B0` [kg²/mol²] and `B1` [K·kg²/mol²]: `B = B0 + B1/T`.
+
+Omitted A and B values are zero. `Kinf` and `dH` may be written for `K∞` and
+`ΔH`. Henry constants are often given per kPa; divide them by 1000.
+"""
+function virial(entries::Pair...)
+    names = String[]
+    cols = Dict(k => Float64[] for k in _VIRIAL_KEYS)
+    for (name, p) in entries
+        n = String(name)
+        component(n)  # catch misspelt names
+        n in names && input_error("isotherm", n, "given more than once")
+        push!(names, n)
+        given = Dict{Symbol, Float64}()
+        for (k, v) in pairs_of(p)
+            key = get(_VIRIAL_ALIASES, Symbol(k), Symbol(k))
+            key in _VIRIAL_KEYS || input_error("isotherm for $n", String(k), "unknown parameter; the Virial isotherm takes $(join(_VIRIAL_KEYS, ", "))")
+            given[key] = v
+        end
+        haskey(given, :K∞) && haskey(given, :ΔH) || input_error("isotherm for $n", "", "K∞ and ΔH are required")
+        given[:K∞] > 0 || input_error("isotherm for $n", "K∞", "must be positive")
+        for k in _VIRIAL_KEYS
+            push!(cols[k], get(given, k, 0.0))
+        end
+    end
+    return VirialData(names, (cols[k] for k in _VIRIAL_KEYS)...)
+end
+
+function build_isotherm(data::VirialData, gas::Gas; density = nothing)
+    isnothing(density) && input_error("isotherm", "", "a Virial isotherm needs the adsorbent density, since its loadings are per kg")
+    any(n -> n in data.components, gas.names) || input_error("isotherm", "", "it has none of the gas components ($(join(gas.names, ", "))); it has $(join(data.components, ", "))")
+    missing_ = [n for n in gas.names if !(n in data.components)]
+    isempty(missing_) || input_error("isotherm", "", "a Virial isotherm needs parameters for every component of the gas; it has none for $(join(missing_, ", "))")
+    pick(v) = [v[findfirst(==(n), data.components)] for n in gas.names]
+    return Virial(K∞ = pick(data.K∞), ΔH = pick(data.ΔH), A0 = pick(data.A0), A1 = pick(data.A1),
+        B0 = pick(data.B0), B1 = pick(data.B1), density = density)
+end
+
 # ------------------------------------------------------------------------------
 # Adsorbents
 # ------------------------------------------------------------------------------
 
 """
     Adsorbent(name = ""; isotherm, density, heat_capacity, particle_diameter,
-        particle_porosity, tortuosity = 3.0, adsorbed_heat_capacity = nothing,
-        mass_transfer = nothing, reference = "")
+        particle_porosity, tortuosity = 3.0, macropore_radius = nothing,
+        adsorbed_heat_capacity = nothing, mass_transfer = nothing, reference = "")
 
 An adsorbent material:
 
@@ -150,13 +225,15 @@ An adsorbent material:
 - `density` [kg/m³] and `heat_capacity` [J/(kg·K)] of the adsorbent;
 - `particle_diameter` [m], `particle_porosity` and `tortuosity`, which set the
   macropore diffusion of the default linear driving force;
+- `macropore_radius` [m]: if given, Knudsen diffusion in the macropores adds
+  to the molecular diffusion of the default linear driving force;
 - `adsorbed_heat_capacity` [J/(kg·K)] of the adsorbed phase, constant, per
   component (a vector in gas order or by name; components not named take the
   gas heat capacity at 25 °C); by default the heat capacities of the gas,
   following its thermodynamics;
 - `mass_transfer`: an [`AbstractMassTransfer`](@ref); by default a
-  [`LinearDrivingForce`](@ref) from the particle properties and the gas
-  diffusivity;
+  [`LinearDrivingForce`](@ref) from the particle properties, the gas
+  diffusivity and, with a macropore radius, the gas molar masses;
 - `reference`: where the data come from.
 
 Load one from the library with [`load_adsorbent`](@ref).
@@ -169,22 +246,26 @@ struct Adsorbent
     particle_diameter::Float64
     particle_porosity::Float64
     tortuosity::Float64
+    macropore_radius::Union{Nothing, Float64}
     adsorbed_heat_capacity::Any
     mass_transfer::Any
     reference::String
 end
 
 function Adsorbent(name = ""; isotherm, density, heat_capacity, particle_diameter, particle_porosity,
-        tortuosity = 3.0, adsorbed_heat_capacity = nothing, mass_transfer = nothing, reference = "")
+        tortuosity = 3.0, macropore_radius = nothing, adsorbed_heat_capacity = nothing, mass_transfer = nothing, reference = "")
     loc = isempty(name) ? "adsorbent" : "adsorbent $name"
     isotherm isa Union{AbstractIsothermData, AbstractIsotherm} || input_error(loc, "isotherm", "expected isotherm data such as dual_site_langmuir(...), got $(typeof(isotherm))")
     for (k, v) in (:density => density, :heat_capacity => heat_capacity, :particle_diameter => particle_diameter, :tortuosity => tortuosity)
         v > 0 || input_error(loc, k, "must be positive, got $v")
     end
     0 < particle_porosity < 1 || input_error(loc, "particle_porosity", "must be between 0 and 1, got $particle_porosity")
+    isnothing(macropore_radius) || macropore_radius > 0 || input_error(loc, "macropore_radius", "must be positive, got $macropore_radius")
+    isnothing(macropore_radius) || isnothing(mass_transfer) ||
+        input_error(loc, "macropore_radius", "sets the default mass transfer, so it cannot be given with mass_transfer")
     isnothing(mass_transfer) || mass_transfer isa AbstractMassTransfer || input_error(loc, "mass_transfer", "expected an AbstractMassTransfer, got $(typeof(mass_transfer))")
     return Adsorbent(String(name), isotherm, density, heat_capacity, particle_diameter, particle_porosity, tortuosity,
-        adsorbed_heat_capacity, mass_transfer, String(reference))
+        isnothing(macropore_radius) ? nothing : Float64(macropore_radius), adsorbed_heat_capacity, mass_transfer, String(reference))
 end
 
 "Isotherm of `adsorbent` for the components of `gas`."
@@ -195,7 +276,9 @@ function mass_transfer(adsorbent::Adsorbent, gas::Gas, feed)
     isnothing(adsorbent.mass_transfer) || return adsorbent.mass_transfer
     D = gas.diffusivity isa Number ? gas.diffusivity : gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)
     D_m = D isa Number ? D : SVector{length(D)}(D)
-    return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
+    isnothing(adsorbent.macropore_radius) && return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter)
+    return LinearDrivingForce(D_m, adsorbent.tortuosity, adsorbent.particle_porosity, adsorbent.particle_diameter;
+        macropore_radius = adsorbent.macropore_radius, molar_masses = gas.molar_masses)
 end
 # Without a feed, for a gas whose diffusivities do not depend on one
 mass_transfer(adsorbent::Adsorbent, gas::Gas) = mass_transfer(adsorbent, gas, _no_feed(gas, "mass_transfer"))
@@ -242,8 +325,10 @@ end
 function Base.show(io::IO, ::MIME"text/plain", a::Adsorbent)
     println(io, "Adsorbent ", isempty(a.name) ? "(unnamed)" : a.name)
     a.isotherm isa DualSiteLangmuirData && println(io, "  dual-site Langmuir isotherm for ", join(a.isotherm.components, ", "))
+    a.isotherm isa VirialData && println(io, "  Virial isotherm for ", join(a.isotherm.components, ", "))
     println(io, "  density ", a.density, " kg/m³, heat capacity ", a.heat_capacity, " J/(kg·K)")
     print(io, "  particles ", 1e3 * a.particle_diameter, " mm, porosity ", a.particle_porosity, ", tortuosity ", a.tortuosity)
+    isnothing(a.macropore_radius) || print(io, ", macropores ", round(1e6 * a.macropore_radius, sigdigits = 4), " µm in radius")
     isempty(a.reference) || print(io, "\n  ", a.reference)
 end
 

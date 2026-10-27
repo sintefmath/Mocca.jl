@@ -90,6 +90,8 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     # variables), so it works on copies of its own
     fs = deepcopy(fs)
     cycle = deepcopy(cycle)
+    moving = moving_sorbent_units(fs)
+    isempty(moving) || input_error("process", "", "$(join(moving, ", ")) move$(length(moving) == 1 ? "s" : "") sorbent, which runs at steady state rather than in a cycle; use a SteadyProcess")
     k = key_component isa Integer ? Int(key_component) : component_index(fs.gas, key_component)
     1 <= k <= number_of_components(fs.gas) || input_error("process", "key_component", "the gas has $(number_of_components(fs.gas)) components, got $k")
     # A light product not given is the feed stripped of what is captured

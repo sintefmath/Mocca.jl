@@ -11,10 +11,10 @@ layer is a plain object that can be edited, saved and reused on its own:
 | Layer | Objects |
 |---|---|
 | Gas | [`Gas`](@ref), [`Feed`](@ref), [`Component`](@ref) |
-| Materials | [`Adsorbent`](@ref) with an isotherm by component ([`dual_site_langmuir`](@ref), [`langmuir`](@ref)), [`Column`](@ref), [`Wall`](@ref) |
-| Flowsheet | [`Flowsheet`](@ref), beds ([`add_bed!`](@ref)) and devices with roles ([`add_device!`](@ref)) |
-| Operation | a [`Cycle`](@ref) of steps ([`Pressurise`](@ref), [`Adsorb`](@ref), [`Blowdown`](@ref), [`Evacuate`](@ref), [`Purge`](@ref), [`Equalise`](@ref), [`Idle`](@ref), [`Concurrent`](@ref), or your own), [`TimeStepping`](@ref) |
-| Process | [`Process`](@ref): [`simulate`](@ref), [`cyclic_steady_state`](@ref), [`performance`](@ref) |
+| Materials | [`Adsorbent`](@ref) with an isotherm by component ([`dual_site_langmuir`](@ref), [`langmuir`](@ref), [`virial`](@ref)), [`Column`](@ref), [`Wall`](@ref) |
+| Flowsheet | [`Flowsheet`](@ref), beds ([`add_bed!`](@ref)), moving beds ([`add_moving_bed!`](@ref), [`connect_solids!`](@ref)) and devices with roles ([`add_device!`](@ref)) |
+| Operation | a [`Cycle`](@ref) of steps ([`Pressurise`](@ref), [`Adsorb`](@ref), [`Blowdown`](@ref), [`Evacuate`](@ref), [`Purge`](@ref), [`Equalise`](@ref), [`Idle`](@ref), [`Concurrent`](@ref), or your own), [`TimeStepping`](@ref); or device settings held steady |
+| Process | [`Process`](@ref): [`simulate`](@ref), [`cyclic_steady_state`](@ref), [`performance`](@ref); [`SteadyProcess`](@ref): [`steady_state`](@ref) |
 | Design | [`add_variable!`](@ref), [`performance_gradient`](@ref), [`optimise!`](@ref) |
 | Files | [`read_process`](@ref), [`write_process`](@ref), [`load_adsorbent`](@ref); see [Process files](@ref) |
 | Results | [`ProcessResult`](@ref), [`write_results`](@ref), plots; see [Results and plots](@ref) |
@@ -101,6 +101,8 @@ or removed without editing parallel arrays.
 AbstractIsothermData
 dual_site_langmuir
 langmuir
+virial
+VirialData
 build_isotherm
 Adsorbent
 equilibrium_loading
@@ -118,6 +120,7 @@ valve size, tells the steps which device to open, and tells
 ```@docs
 Flowsheet
 add_bed!
+add_moving_bed!
 add_device!
 DEVICE_ROLES
 print_flowsheet_diagram
@@ -155,6 +158,21 @@ performance
 pump_heat_capacity_ratio
 validate
 MoccaInputError
+```
+
+## Steady processes
+
+A moving bed process has no cycle of steps: its sorbent circulates through
+sections that each do one job, and its devices keep their settings. It runs
+as a [`SteadyProcess`](@ref) until nothing changes any more. The
+[Moving bed TSA](examples/mbtsa_mondino_2022.md) example builds one.
+
+```@docs
+SteadyProcess
+SteadyResult
+steady_state
+simulate(::SteadyProcess)
+operating_stage
 ```
 
 ## Design variables, gradients and optimisation

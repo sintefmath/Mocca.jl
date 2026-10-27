@@ -34,6 +34,65 @@
 - **Gas properties page.** A page of the manual's library on the gas property
   models: how to choose them, the component data and its sources, their
   accuracy against NIST, their limits and their effect on the presets.
+- **Moving beds.** `Mocca.MovingBeds` adds `MovingBed`, a column whose
+  sorbent moves down through it at the `SorbentMassFlow` parameter, carrying
+  its loading, its heat and the gas in its pores, while gas flows through it
+  either way. Its thermal
+  models are `Adiabatic`, `Isothermal`, `WithWall` and the new
+  `HeatExchanger`: tubes in each cell carrying a heat transfer fluid, with the
+  tube wall and fluid temperatures as unknowns. `SorbentConnection`
+  (`connect_solids!`) passes sorbent from one unit to the next and
+  `HeatTransferFluidConnection` (`connect_heat_transfer_fluid!`) the heat
+  transfer fluid, closed loops included. Two device laws come with them:
+  `FixedMolarFlow` and `BackPressureController`, a blower holding the
+  pressure at its inlet. All new parameters get adjoint gradients.
+- **Moving beds in the flowsheet interface.** `add_moving_bed!` adds a
+  section of a moving bed to a `Flowsheet`, with optional `tube_bundle` heat
+  exchanger and structured packing. A `SteadyProcess` runs a flowsheet whose
+  devices keep their settings, as moving beds do, to steady state
+  (`steady_state`), and `performance` gives its purity, recovery, power, heat
+  duties, sorbent inventory and circulation time. Process files read and
+  write moving beds, `sorbent_connections`, `fluid_connections` and a steady
+  `"operation"` in place of a cycle. A `Process` refuses moving beds.
+- **Virial isotherm.** `Virial`, the multicomponent Virial isotherm of
+  Mondino et al. (2022), and `virial` for its data by component, readable
+  from adsorbent files. The library has the activated carbon of that paper,
+  `activated_carbon_mondino_2022`.
+- **Temperature in mass transfer, and Knudsen diffusion.**
+  `compute_mass_transfer_rate` now takes the temperature, as
+  `compute_mass_transfer_rate(mt, C, q, qstar, T)`; models that do not use
+  it keep the four-argument method, which the new one falls back to. A bed
+  whose transport properties follow the state passes the diffusivity factors
+  after the temperature, `compute_mass_transfer_rate(mt, C, q, qstar, T,
+  diffusivity_factors)`.
+  `LinearDrivingForce` takes an optional `macropore_radius` and the
+  components' `molar_masses`, which add Knudsen diffusion in series with
+  molecular diffusion (`pore_diffusivity`). An `Adsorbent`, and an adsorbent
+  file, may give a `macropore_radius`.
+- **Limited second-order advection in moving beds.** What the sorbent
+  carries (loading, heat, pore gas) and the heat transfer fluid in the tubes
+  are reconstructed at the cell faces with a slope limiter, `VanAlbada()` by
+  default, set by the `limiter` keyword of `MovingBed` and `add_moving_bed!`
+  and in process files. `Upwind()` is the former first-order scheme, and
+  `VanLeer()` and `Minmod()` are also available; a new limiter is a subtype
+  of `AbstractLimiter` with a method of `limited_slope`. First-order
+  upwinding added a numerical axial conduction of about 10 W/(m·K) to the
+  MBTSA cooling section at 400 cells per metre, 50 times the physical one,
+  and the plant's capture rate drifted with the grid; with the limiter it
+  is grid-converged from 100 cells per metre.
+- **Metrics of moving bed processes.** `stream_rates`, `heat_duty`,
+  `sorbent_inventory`, `sorbent_circulation_time` and `sorbent_path`.
+- **Moving bed TSA of Mondino et al. (2022).** The "Moving bed TSA" example
+  builds the five-section MBTSA process for the flue gas of a waste-to-energy
+  plant, and `plot_moving_bed_profiles` draws the profiles through the
+  sections. With the purge at the paper's 15% of the flue gas and a
+  water-side heat transfer coefficient of 10000 W/(m²·K), which the paper does
+  not give and which matches its heat loads, it gives 99.7% purity, 93.1%
+  capture and 5.53 MJ/kg, against the paper's 97.2%, 90.8% and 5.7 MJ/kg, with
+  heat loads within 1.5%. The capture rate hangs on a threshold in the purge:
+  below about 7.9 kg/s no purge gas is left to strip CO₂ from the hot sorbent
+  in precooling, and it falls to 87%.
+
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -90,6 +149,13 @@
   `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
   `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the
   state.
+- **Gas balances converge against the gas flowing through each cell.** The
+  mass and energy errors of a cell are measured against the gas it holds plus
+  the gas that flows through it over the step, and its heat capacity. Before,
+  only the gas held counted, and on fine grids with a fast flow the round-off
+  in the flux between two nearly equal pressures kept the error above the
+  tolerance on long steps: the solver cut every 60 s step five times, and the
+  moving bed TSA at 1280 cells per metre took 200 s instead of a few seconds.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a

@@ -78,7 +78,7 @@ end
     # The linear driving force scales the molecular diffusivity of each component
     mt = LinearDrivingForce(D_m = 1.6e-5, τ = 3.0, ϵ_p = 0.35, d_p = 2e-3)
     C, q, qs = SVector(5.0, 30.0), SVector(100.0, 50.0), SVector(800.0, 60.0)
-    @test compute_mass_transfer_rate(mt, C, q, qs, SVector(2.0, 0.5)) ≈
+    @test compute_mass_transfer_rate(mt, C, q, qs, 300.0, SVector(2.0, 0.5)) ≈
         compute_mass_transfer_rate(LinearDrivingForce(D_m = SVector(3.2e-5, 0.8e-5), τ = 3.0, ϵ_p = 0.35, d_p = 2e-3), C, q, qs)
 
     # Wakao and Funazkri: ε D_ax = 20 D_m + 0.5 |u| d_p

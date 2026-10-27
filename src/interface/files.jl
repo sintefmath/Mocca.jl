@@ -79,6 +79,26 @@ function _read_dsl(d)
 end
 register_isotherm!("dual_site_langmuir", DualSiteLangmuirData; read = _read_dsl)
 
+function isotherm_to_dict(data::VirialData)
+    comps = _obj()
+    for (i, n) in enumerate(data.components)
+        comps[n] = _obj("Kinf" => data.K∞[i], "dH" => data.ΔH[i], "A0" => data.A0[i], "A1" => data.A1[i],
+            "B0" => data.B0[i], "B1" => data.B1[i])
+    end
+    return _obj("type" => "virial", "components" => comps)
+end
+
+function _read_virial(d)
+    loc = "virial isotherm"
+    _check_keys(d, ("type", "components"), loc)
+    entries = [begin
+            _check_keys(e, ("Kinf", "dH", "A0", "A1", "B0", "B1"), "$loc for $n")
+            String(n) => NamedTuple{Tuple(Symbol.(collect(keys(e))))}(Tuple(_num(v, "$loc for $n", k) for (k, v) in e))
+        end for (n, e) in _require(d, "components", loc)]
+    return virial(entries...)
+end
+register_isotherm!("virial", VirialData; read = _read_virial)
+
 function isotherm_from_dict(d, loc)
     d isa AbstractDict || input_error(loc, "isotherm", "expected an object with a \"type\"")
     t = String(_require(d, "type", "$loc isotherm"))
@@ -93,19 +113,28 @@ end
 _mass_transfer_to_dict(::Nothing) = nothing
 function _mass_transfer_to_dict(mt::LinearDrivingForce)
     D = mt.D_m isa Number ? mt.D_m : collect(mt.D_m)
-    return _obj("type" => "linear_driving_force", "molecular_diffusivity" => D, "tortuosity" => mt.τ,
+    o = _obj("type" => "linear_driving_force", "molecular_diffusivity" => D, "tortuosity" => mt.τ,
         "particle_porosity" => mt.ϵ_p, "particle_diameter" => mt.d_p)
+    if has_knudsen(mt)
+        o["macropore_radius"], o["molar_masses"] = mt.r_pore, collect(mt.molar_masses)
+    end
+    return o
 end
 _mass_transfer_to_dict(mt) = input_error("adsorbent", "mass_transfer", "mass transfer of type $(typeof(mt)) cannot be written to a file")
 
 function _mass_transfer_from_dict(d, loc)
     isnothing(d) && return nothing
-    _check_keys(d, ("type", "molecular_diffusivity", "tortuosity", "particle_porosity", "particle_diameter"), "$loc mass transfer")
+    _check_keys(d, ("type", "molecular_diffusivity", "tortuosity", "particle_porosity", "particle_diameter", "macropore_radius",
+        "molar_masses"), "$loc mass transfer")
     get(d, "type", "") == "linear_driving_force" || input_error(loc, "mass_transfer", "only \"linear_driving_force\" is known")
     D = d["molecular_diffusivity"]
     D_m = D isa AbstractVector ? SVector{length(D)}(Float64.(D)) : _num(D, loc, "molecular_diffusivity")
-    return LinearDrivingForce(D_m, _num(d["tortuosity"], loc, "tortuosity"), _num(d["particle_porosity"], loc, "particle_porosity"),
-        _num(d["particle_diameter"], loc, "particle_diameter"))
+    M = get(d, "molar_masses", nothing)
+    return _at(loc) do
+        LinearDrivingForce(D_m, _num(d["tortuosity"], loc, "tortuosity"), _num(d["particle_porosity"], loc, "particle_porosity"),
+            _num(d["particle_diameter"], loc, "particle_diameter"); macropore_radius = something(_optnum(d, "macropore_radius", loc), 0.0),
+            molar_masses = isnothing(M) ? nothing : [_num(x, loc, "molar_masses") for x in M])
+    end
 end
 
 """
@@ -124,7 +153,8 @@ function adsorbent_to_dict(a::Adsorbent; gas = nothing)
     end
     return _obj("format" => ADSORBENT_FORMAT, "version" => FILE_VERSION, "name" => a.name, "reference" => a.reference,
         "density" => a.density, "heat_capacity" => a.heat_capacity, "particle_diameter" => a.particle_diameter,
-        "particle_porosity" => a.particle_porosity, "tortuosity" => a.tortuosity, "adsorbed_heat_capacity" => cp,
+        "particle_porosity" => a.particle_porosity, "tortuosity" => a.tortuosity, "macropore_radius" => a.macropore_radius,
+        "adsorbed_heat_capacity" => cp,
         "isotherm" => isotherm_to_dict(a.isotherm),
         "mass_transfer" => _mass_transfer_to_dict(a.mass_transfer))
 end
@@ -132,7 +162,7 @@ end
 function adsorbent_from_dict(d; name = nothing)
     loc = "adsorbent" * (isnothing(name) ? "" : " $name")
     _check_keys(d, ("format", "version", "name", "reference", "density", "heat_capacity", "particle_diameter", "particle_porosity",
-        "tortuosity", "adsorbed_heat_capacity", "isotherm", "mass_transfer"), loc)
+        "tortuosity", "macropore_radius", "adsorbed_heat_capacity", "isotherm", "mass_transfer"), loc)
     get(d, "format", ADSORBENT_FORMAT) == ADSORBENT_FORMAT || input_error(loc, "format", "expected \"$ADSORBENT_FORMAT\"")
     cp = get(d, "adsorbed_heat_capacity", nothing)
     cp = isnothing(cp) ? nothing : Dict(String(k) => _num(v, loc, "adsorbed_heat_capacity") for (k, v) in cp)
@@ -143,6 +173,7 @@ function adsorbent_from_dict(d; name = nothing)
         particle_diameter = _num(_require(d, "particle_diameter", loc), loc, "particle_diameter"),
         particle_porosity = _num(_require(d, "particle_porosity", loc), loc, "particle_porosity"),
         tortuosity = something(_optnum(d, "tortuosity", loc), 3.0),
+        macropore_radius = _optnum(d, "macropore_radius", loc),
         adsorbed_heat_capacity = cp,
         mass_transfer = _mass_transfer_from_dict(get(d, "mass_transfer", nothing), loc),
         reference = String(get(d, "reference", "")))
@@ -241,11 +272,25 @@ end
 _thermal_to_json(::WithWall) = "with_wall"
 _thermal_to_json(::Adiabatic) = "adiabatic"
 _thermal_to_json(t::Isothermal) = _obj("type" => "isothermal", "temperature" => t.temperature)
+_thermal_to_json(::HeatExchanger) = "heat_exchanger"
+
+const LIMITER_NAMES = Dict{String, Any}("upwind" => Upwind(), "van_albada" => VanAlbada(), "van_leer" => VanLeer(), "minmod" => Minmod())
+function _limiter_to_json(l)
+    for (k, v) in LIMITER_NAMES
+        v == l && return k
+    end
+    input_error("moving bed", "limiter", "limiters of type $(typeof(l)) cannot be written to a file; known limiters are $(join(sort(collect(keys(LIMITER_NAMES))), ", "))")
+end
+function _limiter_from_json(x, loc)
+    haskey(LIMITER_NAMES, x) || input_error(loc, "limiter", "unknown limiter $(repr(x)); use $(join(sort(collect(keys(LIMITER_NAMES))), ", "))")
+    return LIMITER_NAMES[x]
+end
 function _thermal_from_json(x, loc)
     x == "with_wall" && return WithWall()
     x == "adiabatic" && return Adiabatic()
+    x == "heat_exchanger" && return HeatExchanger()
     x isa AbstractDict && get(x, "type", "") == "isothermal" && return Isothermal(_num(x["temperature"], loc, "temperature"))
-    input_error(loc, "thermal", "use \"with_wall\", \"adiabatic\" or {\"type\": \"isothermal\", \"temperature\": ...}")
+    input_error(loc, "thermal", "use \"with_wall\", \"adiabatic\", \"heat_exchanger\" or {\"type\": \"isothermal\", \"temperature\": ...}")
 end
 
 function _column_to_dict(c::Column)
@@ -303,12 +348,43 @@ end
 """
     process_to_dict(p) → Dict
 
-The JSON description of process `p`; see [`write_process`](@ref).
+The JSON description of process `p`, a [`Process`](@ref) or a
+[`SteadyProcess`](@ref); see [`write_process`](@ref).
 """
 function process_to_dict(p::Process)
-    fs = p.flowsheet
-    gas = fs.gas
     o = _obj("format" => PROCESS_FORMAT, "version" => FILE_VERSION, "name" => p.name)
+    _flowsheet_to_dict!(o, p.flowsheet)
+    gas = p.flowsheet.gas
+    o["cycle"] = cycle_to_dict(p.cycle)
+    _options_to_dict!(o, p)
+    if !isempty(p.variables)
+        o["variables"] = [_obj("name" => String(v.name), "places" => [_place_to_dict(x) for x in v.places],
+            "bounds" => [_json_float(v.lower), _json_float(v.upper)], "description" => isempty(v.description) ? nothing : v.description)
+            for v in p.variables]
+    end
+    return o
+end
+
+function process_to_dict(p::SteadyProcess)
+    o = _obj("format" => PROCESS_FORMAT, "version" => FILE_VERSION, "name" => p.name)
+    _flowsheet_to_dict!(o, p.flowsheet)
+    fs = p.flowsheet
+    settings = _obj()
+    for d in unit_names(fs)
+        haskey(p.settings, d) || continue
+        v = p.settings[d]
+        settings[String(d)] = _obj("law" => haskey(v, :law) ? _law_to_dict(v.law) : nothing,
+            "inlet" => haskey(v, :inlet) ? _condition_to_dict(fs, v.inlet) : nothing,
+            "outlet" => haskey(v, :outlet) ? _condition_to_dict(fs, v.outlet) : nothing)
+    end
+    o["operation"] = _obj("type" => "steady", "duration" => p.duration, "settings" => settings)
+    _options_to_dict!(o, p)
+    return o
+end
+
+# Gas, feed, adsorbents, columns, units, devices and connections of a flowsheet
+function _flowsheet_to_dict!(o, fs::Flowsheet)
+    gas = fs.gas
     custom = [component(n) for n in gas.names if !(n in BUILTIN_COMPONENTS)]
     isempty(custom) || (o["components"] = [_obj("name" => c.name, "formula" => c.formula, "cas" => c.cas,
         "molar_mass" => c.molar_mass, "heat_capacity" => c.heat_capacity, "viscosity" => c.viscosity,
@@ -332,8 +408,20 @@ function process_to_dict(p::Process)
     end
     units = Any[]
     for u in holdup_units(fs)
+        if haskey(fs.moving_specs, u)
+            m = fs.moving_specs[u]
+            ka = key_of(adsorbents, m.adsorbent, m.adsorbent.name, "adsorbent")
+            kc = key_of(columns, m.column, "", "column")
+            push!(units, _obj("name" => String(u), "type" => "moving_bed", "adsorbent" => ka, "column" => kc,
+                "ncells" => m.ncells, "thermal" => _thermal_to_json(m.thermal), "sorbent_mass_flow" => m.sorbent_mass_flow,
+                "packing_fraction" => m.packing_fraction,
+                "heat_exchanger" => isnothing(m.heat_exchanger) ? nothing : _obj((String(k) => v for (k, v) in pairs(m.heat_exchanger))...),
+                "dispersion" => m.dispersion, "dispersion_velocity" => m.dispersion_velocity, "permeability" => m.permeability,
+                "pore_gas" => m.pore_gas, "limiter" => _limiter_to_json(m.limiter)))
+            continue
+        end
         spec = get(fs.specs, u, nothing)
-        spec isa BedSpec || input_error("unit $u", "", "only beds added with add_bed! can be written to a file")
+        spec isa BedSpec || input_error("unit $u", "", "only beds added with add_bed! or add_moving_bed! can be written to a file")
         ka = key_of(adsorbents, spec.adsorbent, spec.adsorbent.name, "adsorbent")
         kc = key_of(columns, spec.column, "", "column")
         push!(units, _obj("name" => String(u), "type" => "fixed_bed", "adsorbent" => ka, "column" => kc,
@@ -364,7 +452,18 @@ function process_to_dict(p::Process)
         push!(devices, e)
     end
     o["devices"] = devices
-    o["cycle"] = cycle_to_dict(p.cycle)
+    solids = [[String(c.upstream), String(c.downstream)] for c in connections(fs) if c isa SorbentConnection]
+    fluids = [[String(c.upstream), String(c.downstream)] for c in connections(fs) if c isa HeatTransferFluidConnection]
+    isempty(solids) || (o["sorbent_connections"] = solids)
+    isempty(fluids) || (o["fluid_connections"] = fluids)
+    others = [c for c in connections(fs) if !(c isa Union{StreamConnection, SorbentConnection, HeatTransferFluidConnection})]
+    isempty(others) || input_error("flowsheet", "", "connections of type $(typeof(first(others))) cannot be written to a file")
+    return o
+end
+
+# Time stepping, options, initial state and parameter settings of a process
+function _options_to_dict!(o, p)
+    gas = p.flowsheet.gas
     ts = p.timestepping
     o["time_stepping"] = _obj("max_dt" => ts.max_dt, "first_dt" => ts.first_dt,
         "keep_step_pattern" => ts.keep_step_pattern isa Symbol ? String(ts.keep_step_pattern) : ts.keep_step_pattern)
@@ -378,12 +477,29 @@ function process_to_dict(p::Process)
     if !isempty(p.parameter_settings)
         o["parameters"] = _obj((String(u) => _obj((String(n) => v for (n, v) in d)...) for (u, d) in p.parameter_settings)...)
     end
-    if !isempty(p.variables)
-        o["variables"] = [_obj("name" => String(v.name), "places" => [_place_to_dict(x) for x in v.places],
-            "bounds" => [_json_float(v.lower), _json_float(v.upper)], "description" => isempty(v.description) ? nothing : v.description)
-            for v in p.variables]
-    end
     return o
+end
+
+# Device laws of a steady process
+_law_to_dict(::Closed) = _obj("type" => "closed")
+_law_to_dict(l::LinearValve) = _obj("type" => "valve", "conductance" => l.conductance, "opening" => l.opening)
+_law_to_dict(l::VolumetricFlow) = _obj("type" => "volumetric_flow", "rate" => l.rate)
+_law_to_dict(l::FixedMolarFlow) = _obj("type" => "molar_flow", "rate" => l.rate)
+_law_to_dict(l::BackPressureController) = _obj("type" => "back_pressure", "setpoint" => l.setpoint, "conductance" => l.conductance)
+_law_to_dict(l) = input_error("operation", "settings", "device laws of type $(typeof(l)) cannot be written to a file")
+
+function _law_from_dict(d, loc)
+    t = String(_require(d, "type", loc))
+    keys_ = Dict("closed" => (), "valve" => ("conductance", "opening"), "volumetric_flow" => ("rate",),
+        "molar_flow" => ("rate",), "back_pressure" => ("setpoint", "conductance"))
+    haskey(keys_, t) || input_error(loc, "type", "unknown device law $t; known laws are $(join(sort(collect(keys(keys_))), ", "))")
+    _check_keys(d, ("type", keys_[t]...), loc)
+    num(k) = _num(_require(d, k, loc), loc, k)
+    t == "closed" && return Closed()
+    t == "valve" && return LinearValve(num("conductance"); opening = something(_optnum(d, "opening", loc), 1.0))
+    t == "volumetric_flow" && return VolumetricFlow(num("rate"))
+    t == "molar_flow" && return FixedMolarFlow(num("rate"))
+    return BackPressureController(num("setpoint"), num("conductance"))
 end
 
 _place_to_dict(x::StepPlace) = _obj("step" => x.step, "field" => String(x.field), "sequence" => isempty(x.sequence) ? nothing : x.sequence)
@@ -407,13 +523,24 @@ design variables. Read it back with [`read_process`](@ref).
 write_process(path::AbstractString, p::Process) = (JSON.json(path, process_to_dict(p); pretty = true); path)
 
 """
-    read_process(path) → Process
+    write_process(path, p::SteadyProcess)
+
+Write steady process `p` to a JSON file: its flowsheet (moving beds, devices,
+sorbent and heat transfer fluid connections), an `"operation"` with the device
+settings and the duration in place of a cycle, and its time stepping, options,
+initial state and parameter settings.
+"""
+write_process(path::AbstractString, p::SteadyProcess) = (JSON.json(path, process_to_dict(p); pretty = true); path)
+
+"""
+    read_process(path) → Process or SteadyProcess
 
 Read a process from a JSON file written by [`write_process`](@ref) or by
 hand, or from the library by name (see [`library_processes`](@ref)). Numbers
 are SI, or strings with a unit such as `"0.1 bar"`. An adsorbent may be given
 by the name of a library adsorbent or the path of an adsorbent file, relative
-to the process file.
+to the process file. A file with an `"operation"` in place of a `"cycle"`
+is read as a [`SteadyProcess`](@ref).
 """
 function read_process(path::AbstractString)
     file = isfile(path) ? path : joinpath(PROCESS_LIBRARY, path * ".json")
@@ -426,9 +553,35 @@ library_processes() = isdir(PROCESS_LIBRARY) ? sort([splitext(f)[1] for f in rea
 
 function process_from_dict(d; base_dir = pwd())
     _check_keys(d, ("format", "version", "name", "components", "gas", "feed", "adsorbents", "columns", "units", "devices",
-        "cycle", "time_stepping", "options", "initial_state", "parameters", "variables"), "process")
+        "sorbent_connections", "fluid_connections", "cycle", "operation", "time_stepping", "options", "initial_state",
+        "parameters", "variables"), "process")
     get(d, "format", PROCESS_FORMAT) == PROCESS_FORMAT || input_error("process", "format", "expected \"$PROCESS_FORMAT\"")
     get(d, "version", FILE_VERSION) <= FILE_VERSION || input_error("process", "version", "file version $(d["version"]) is newer than this Mocca reads ($FILE_VERSION)")
+    fs, comp = _flowsheet_from_dict(d, base_dir)
+    haskey(d, "operation") && return _steady_process_from_dict(d, fs, comp)
+    cycle = cycle_from_dict(_require(d, "cycle", "process"))
+    timestepping, op, kc, ics, prm = _options_from_dict(d, comp)
+    p = Process(fs, cycle; name = String(get(d, "name", "")), timestepping = timestepping,
+        key_component = kc isa AbstractString ? kc : Int(kc),
+        ambient_pressure = something(_optnum(op, "ambient_pressure", "options"), 101325.0),
+        pump_efficiency = something(_optnum(op, "pump_efficiency", "options"), 0.72),
+        heat_capacity_ratio = _optnum(op, "heat_capacity_ratio", "options"),
+        ramp_rate = something(_optnum(op, "ramp_rate", "options"), 0.5),
+        initial_state = ics, parameters = prm)
+    for v in get(d, "variables", Any[])
+        loc = "variable $(get(v, "name", "?"))"
+        _check_keys(v, ("name", "places", "bounds", "description"), loc)
+        bnds = get(v, "bounds", [nothing, nothing])
+        lo = isnothing(bnds[1]) ? -Inf : _num(bnds[1], loc, "bounds")
+        hi = isnothing(bnds[2]) ? Inf : _num(bnds[2], loc, "bounds")
+        add_variable!(p, Symbol(_require(v, "name", loc)), [_place_from_dict(x, loc) for x in _require(v, "places", loc)]...;
+            bounds = (lo, hi), description = get(v, "description", ""))
+    end
+    return p
+end
+
+# The flowsheet of a process file, and the reader of compositions
+function _flowsheet_from_dict(d, base_dir)
     for c in get(d, "components", Any[])
         loc = "component $(get(c, "name", "?"))"
         _check_keys(c, ("name", "formula", "cas", "molar_mass", "heat_capacity", "viscosity", "shomate", "cp_polynomial",
@@ -476,12 +629,31 @@ function process_from_dict(d; base_dir = pwd())
     fs = Flowsheet(gas, feed)
     for u in _require(d, "units", "process")
         loc = "unit $(get(u, "name", "?"))"
-        _check_keys(u, ("name", "type", "adsorbent", "column", "ncells", "thermal", "dispersion_velocity", "dispersion", "permeability"), loc)
-        get(u, "type", "fixed_bed") == "fixed_bed" || input_error(loc, "type", "only \"fixed_bed\" units are known")
+        type = get(u, "type", "fixed_bed")
+        type in ("fixed_bed", "moving_bed") || input_error(loc, "type", "unknown unit type $type; use \"fixed_bed\" or \"moving_bed\"")
+        if type == "moving_bed"
+            _check_keys(u, ("name", "type", "adsorbent", "column", "ncells", "thermal", "sorbent_mass_flow", "packing_fraction",
+                "heat_exchanger", "dispersion", "dispersion_velocity", "permeability", "pore_gas", "limiter"), loc)
+        else
+            _check_keys(u, ("name", "type", "adsorbent", "column", "ncells", "thermal", "dispersion_velocity", "dispersion", "permeability"), loc)
+        end
         a = String(_require(u, "adsorbent", loc))
         a_ = haskey(adsorbents, a) ? adsorbents[a] : load_adsorbent(a)
         c = String(_require(u, "column", loc))
         haskey(columns, c) || input_error(loc, "column", "no column $c in \"columns\"")
+        if type == "moving_bed"
+            hx = get(u, "heat_exchanger", nothing)
+            hx = isnothing(hx) ? nothing : (; (Symbol(k) => _num(v, "$loc heat_exchanger", k) for (k, v) in hx)...)
+            thermal = haskey(u, "thermal") ? _thermal_from_json(u["thermal"], loc) : (isnothing(hx) ? Adiabatic() : HeatExchanger())
+            add_moving_bed!(fs, Symbol(_require(u, "name", loc)), a_, columns[c];
+                sorbent_mass_flow = _num(_require(u, "sorbent_mass_flow", loc), loc, "sorbent_mass_flow"),
+                ncells = Int(get(u, "ncells", 30)), heat_exchanger = hx, thermal = thermal,
+                packing_fraction = something(_optnum(u, "packing_fraction", loc), 0.0),
+                dispersion = _optnum(u, "dispersion", loc), dispersion_velocity = something(_optnum(u, "dispersion_velocity", loc), 0.0),
+                permeability = _optnum(u, "permeability", loc), pore_gas = Bool(get(u, "pore_gas", true)),
+                limiter = _limiter_from_json(get(u, "limiter", "van_albada"), loc))
+            continue
+        end
         dv = get(u, "dispersion_velocity", "adsorption")
         add_bed!(fs, Symbol(_require(u, "name", loc)), a_, columns[c]; ncells = Int(get(u, "ncells", 30)),
             thermal = _thermal_from_json(get(u, "thermal", "with_wall"), loc),
@@ -509,7 +681,21 @@ function process_from_dict(d; base_dir = pwd())
             add_device!(fs, name, role; at = pair(_require(e, "at", loc), loc, "at"), boundary = bnd)
         end
     end
-    cycle = cycle_from_dict(_require(d, "cycle", "process"))
+    pairs_of_units(key) = [begin
+            (x isa AbstractVector && length(x) == 2) || input_error(key, "", "expected [upstream, downstream], got $(repr(x))")
+            Symbol(x[1]) => Symbol(x[2])
+        end for x in get(d, key, Any[])]
+    for c in pairs_of_units("sorbent_connections")
+        _at(() -> connect_solids!(fs, c), "sorbent_connections")
+    end
+    for c in pairs_of_units("fluid_connections")
+        _at(() -> connect_heat_transfer_fluid!(fs, c), "fluid_connections")
+    end
+    return fs, comp
+end
+
+# Time stepping, options, initial state and parameter settings of a process file
+function _options_from_dict(d, comp)
     t = get(d, "time_stepping", Dict())
     _check_keys(t, ("max_dt", "first_dt", "keep_step_pattern"), "time_stepping")
     max_dt = something(_optnum(t, "max_dt", "time_stepping"), 1.0)
@@ -532,21 +718,36 @@ function process_from_dict(d; base_dir = pwd())
     end
     prm = Dict{Symbol, Any}(Symbol(u) => Dict{Symbol, Any}(Symbol(n) => (v isa AbstractVector ? Float64.(v) : _num(v, "parameters of $u", n)) for (n, v) in pd)
         for (u, pd) in get(d, "parameters", Dict()))
-    p = Process(fs, cycle; name = String(get(d, "name", "")), timestepping = timestepping,
-        key_component = kc isa AbstractString ? kc : Int(kc),
+    return timestepping, op, kc, ics, prm
+end
+
+function _steady_process_from_dict(d, fs, comp)
+    haskey(d, "cycle") && input_error("process", "operation", "a process has a cycle or a steady operation, not both")
+    haskey(d, "variables") && input_error("process", "variables", "design variables are not supported for a steady process")
+    o = d["operation"]
+    _check_keys(o, ("type", "duration", "settings"), "operation")
+    get(o, "type", "steady") == "steady" || input_error("operation", "type", "only \"steady\" operation is known")
+    settings = Dict{Symbol, Any}()
+    for (dev, v) in get(o, "settings", Dict())
+        loc = "operation settings of $dev"
+        _check_keys(v, ("law", "inlet", "outlet"), loc)
+        kw = Dict{Symbol, Any}()
+        haskey(v, "law") && (kw[:law] = _law_from_dict(v["law"], "$loc law"))
+        for port in ("inlet", "outlet")
+            haskey(v, port) || continue
+            b = v[port]
+            _check_keys(b, ("pressure", "temperature", "composition"), "$loc $port")
+            kw[Symbol(port)] = PortCondition(pressure = _num(_require(b, "pressure", "$loc $port"), loc, "pressure"),
+                temperature = _num(_require(b, "temperature", "$loc $port"), loc, "temperature"),
+                composition = composition(fs.gas, comp(_require(b, "composition", "$loc $port"), "$loc $port"); location = loc))
+        end
+        settings[Symbol(dev)] = (; kw...)
+    end
+    timestepping, op, kc, ics, prm = _options_from_dict(d, comp)
+    return SteadyProcess(fs, settings; name = String(get(d, "name", "")), duration = something(_optnum(o, "duration", "operation"), 3600.0),
+        timestepping = timestepping, key_component = kc isa AbstractString ? kc : Int(kc),
         ambient_pressure = something(_optnum(op, "ambient_pressure", "options"), 101325.0),
         pump_efficiency = something(_optnum(op, "pump_efficiency", "options"), 0.72),
         heat_capacity_ratio = _optnum(op, "heat_capacity_ratio", "options"),
-        ramp_rate = something(_optnum(op, "ramp_rate", "options"), 0.5),
         initial_state = ics, parameters = prm)
-    for v in get(d, "variables", Any[])
-        loc = "variable $(get(v, "name", "?"))"
-        _check_keys(v, ("name", "places", "bounds", "description"), loc)
-        bnds = get(v, "bounds", [nothing, nothing])
-        lo = isnothing(bnds[1]) ? -Inf : _num(bnds[1], loc, "bounds")
-        hi = isnothing(bnds[2]) ? Inf : _num(bnds[2], loc, "bounds")
-        add_variable!(p, Symbol(_require(v, "name", loc)), [_place_from_dict(x, loc) for x in _require(v, "places", loc)]...;
-            bounds = (lo, hi), description = get(v, "description", ""))
-    end
-    return p
 end

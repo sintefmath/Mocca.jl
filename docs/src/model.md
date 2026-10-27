@@ -644,6 +644,16 @@ of `first_dt` that double up to `max_dt` (see [`TimeStepping`](@ref)), which
 carries the solver through the abrupt start of a step. Gradients for
 optimisation come from the adjoint of the same discrete equations.
 
+In a moving bed, what the sorbent carries down (its loading, its heat and the
+gas in its pores) and the heat transfer fluid in its tubes are advected with
+a limited second-order upwind scheme: the value at a face is reconstructed
+from the two cells upstream of it, with a slope limiter, [`VanAlbada`](@ref)
+by default (see [`AbstractLimiter`](@ref)). First-order upwinding smears
+fronts with a numerical diffusion of ``v Δx/2``; for the sorbent's heat this
+can be many times the physical axial conduction of the gas, and the
+[Moving bed TSA](examples/mbtsa_mondino_2022.md) example converges with the
+grid only with the limiter.
+
 ## Nomenclature
 
 | Symbol | Meaning | Unit | Set by |

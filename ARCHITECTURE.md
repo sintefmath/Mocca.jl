@@ -15,11 +15,11 @@ layers underneath are open for new units, steps and physics.
 
 | Layer | Module | Source | Role | Main types |
 |---|---|---|---|---|
-| **Interface** | `Mocca.Interface` | `src/interface` | Describe a process in process terms, in SI units. Every part can be saved to and read from JSON, and a library holds the published processes. | `Gas`, `Feed`, `Adsorbent`, `Column`, `Flowsheet`, `add_bed!`, `add_device!`, `Cycle`, `Pressurise`, `Adsorb`, `Evacuate`, `Equalise`, `Process`, `add_variable!`, `optimise!` |
+| **Interface** | `Mocca.Interface` | `src/interface` | Describe a process in process terms, in SI units. Every part can be saved to and read from JSON, and a library holds the published processes. | `Gas`, `Feed`, `Adsorbent`, `Column`, `Flowsheet`, `add_bed!`, `add_moving_bed!`, `add_device!`, `Cycle`, `Pressurise`, `Adsorb`, `Evacuate`, `Equalise`, `Process`, `SteadyProcess`, `add_variable!`, `optimise!` |
 | **Process** | `Mocca.Operation` | `src/operation` | Stages and time steps, cyclic steady state, performance metrics, and adjoint gradients, including at cyclic steady state. | `Stage`, `setup_schedule`, `parallel_stages`, `newton_cyclic_steady_state`, `force_gradients`, `purity`, `recovery` |
-| **Flowsheet** | `Mocca.Networks` | `src/networks` | A network of named units, the connections between their ports and the boundary conditions, turned into one Jutul `MultiModel`. Connections become cross terms. | `UnitNetwork`, `connect!`, `StreamConnection`, `PortStateCT`, `StreamCT` |
-| **Units** | `Mocca.FixedBeds`, `Mocca.Devices` | `src/fixedbeds`, `src/devices` | One module per kind of unit. A fixed bed is a 1-D column of cells with holdup. Flow devices are one-cell models that own the molar flow between two ports. | `FixedBed`, `FlowDevice`, `LinearValve`, `VolumetricFlow`, `PortCondition`, `ExponentialRamp` |
-| **Balances** | `Mocca.Balances` | `src/balances` | Shared material and energy balances: gas mass, adsorbed loading, gas energy, wall energy. Each unit adds its physics as a tuple of source terms. Scale-free convergence checks, and the setup every bed of sorbent shares. | `SorptionUptake`, `HeatOfSorption`, `WallExchange`, `setup_process_state` |
+| **Flowsheet** | `Mocca.Networks` | `src/networks` | A network of named units, the connections between their ports and the boundary conditions, turned into one Jutul `MultiModel`. Connections become cross terms: gas streams through devices, and sorbent or heat transfer fluid passed directly between units. | `UnitNetwork`, `connect!`, `StreamConnection`, `SorbentConnection`, `HeatTransferFluidConnection`, `StreamCT` |
+| **Units** | `Mocca.FixedBeds`, `Mocca.MovingBeds`, `Mocca.Devices` | `src/fixedbeds`, `src/movingbeds`, `src/devices` | One module per kind of unit. A fixed bed is a 1-D column of cells with holdup; in a moving bed the sorbent also moves down through the column. Flow devices are one-cell models that own the molar flow between two ports. | `FixedBed`, `MovingBed`, `FlowDevice`, `LinearValve`, `VolumetricFlow`, `FixedMolarFlow`, `BackPressureController`, `PortCondition` |
+| **Balances** | `Mocca.Balances` | `src/balances` | Shared material and energy balances: gas mass, adsorbed loading, gas energy, wall energy, sorbent carried through a unit, and tubes of heat transfer fluid. Each unit adds its physics as a tuple of source terms. Scale-free convergence checks, and the setup every bed of sorbent shares. | `SorptionUptake`, `HeatOfSorption`, `WallExchange`, `SorbentHeatFlow`, `TubeExchange`, `setup_process_state` |
 | **Physics** | `Mocca.Physics` | `src/physics` | Pluggable material models behind small interfaces: isotherms, mass transfer, gas thermodynamics and transport properties. | `AbstractIsotherm`, `DualSiteLangmuir`, `AbstractMassTransfer`, `LinearDrivingForce`, `AbstractGasThermodynamics`, `IdealGasShomate`, `AbstractGasTransport`, `ChapmanEnskogTransport` |
 | **Core** | `Mocca.Framework` | `src/framework` | The system hierarchy, the core variables, thermal models, and the functions every unit implements. | `MoccaSystem`, `SorbentBed`, `ports`, `stream_equations`, `WithWall`, `Adiabatic`, `Isothermal` |
 | **Jutul** | dependency | | Discretisation, automatic differentiation, Newton solver and adjoints. | |
@@ -66,8 +66,9 @@ of the same name, whose methods are never called.
   durations and unit parameters such as axial dispersion all get adjoint
   gradients, also at cyclic steady state.
 - **Convergence is scale-free.** Mass errors are measured relative to the
-  cell's holdup and energy errors as a temperature change in K. Cycle-to-cycle
-  changes are measured per component, so trace components count.
+  cell's holdup and the gas flowing through it over the step, and energy
+  errors as a temperature change in K. Cycle-to-cycle changes are measured per
+  component, so trace components count.
 
 ## Extension points
 
@@ -78,7 +79,7 @@ of the same name, whose methods are never called.
 | A gas thermodynamics model | `component_heat_capacities`, and optionally `component_enthalpies` |
 | A gas transport model | `mixture_viscosity` and `molecular_diffusivities` |
 | A source term | `mass_source`, `energy_source`, `wall_source` or `heat_capacity`, then list it for the unit |
-| A unit | A `MoccaSystem` with `ports`, `stream_equations` and `holds_sorbent`, in a module of its own like `Mocca.FixedBeds` |
+| A unit | A `MoccaSystem` with `ports`, `stream_equations` and `holds_sorbent`, in a module of its own like `Mocca.FixedBeds` or `Mocca.MovingBeds`; `moves_sorbent` if its sorbent moves |
 | A device law | `device_flow` for a subtype of `AbstractDeviceLaw` |
 | A step | `step_settings` for a subtype of `AbstractStep`, and `register_step!` for files |
 | A connection | `connection_ports`, `check_connection` and `add_cross_terms!` |

@@ -109,9 +109,10 @@ gas = Gas(["CO2", "N2"]; transport = PowerLawTransport(0.7))
 A bed with a transport model other than `ConstantTransport` adds a per-cell
 variable `ViscosityFactor`, and evaluates its mass transfer as
 `ScaledAdsorptionMassTransfer`, which passes the diffusivity factors at the
-feed pressure to [`compute_mass_transfer_rate`](@ref). A mass transfer model
-whose rate depends on the molecular diffusivity adds a method with that fifth
-argument, as [`LinearDrivingForce`](@ref) does. Unless a `dispersion` is given,
+feed pressure to [`compute_mass_transfer_rate`](@ref) after the temperature.
+A mass transfer model whose rate depends on the molecular diffusivity adds a
+method with that sixth argument, as [`LinearDrivingForce`](@ref) does.
+Unless a `dispersion` is given,
 its axial dispersion is [`WakaoFunazkri`](@ref), with a per-cell
 `MolecularDiffusivity` and a `DispersionScale` parameter. A model of your own
 cannot be written to a process file.
@@ -157,6 +158,53 @@ holds_sorbent
 AxialDispersion
 ```
 
+## Moving beds
+
+A [`MovingBed`](@ref) carries its sorbent down through the unit.
+[`add_moving_bed!`](@ref) builds one with [`moving_bed_model`](@ref). Sections
+of a moving bed process pass sorbent to each other through a
+[`SorbentConnection`](@ref) and, if they have a [`HeatExchanger`](@ref), heat
+transfer fluid through a [`HeatTransferFluidConnection`](@ref). The
+[Moving bed TSA](examples/mbtsa_mondino_2022.md) example builds the process of
+Mondino et al. (2022). What the sorbent and the fluid carry is reconstructed at
+the cell faces with a slope limiter; a new limiter is a subtype of
+[`AbstractLimiter`](@ref) with a method of [`limited_slope`](@ref).
+
+```@docs
+MovingBed
+setup_moving_bed_model
+tube_bundle
+moving_bed_sorbent_htc
+HeatExchanger
+moves_sorbent
+SorbentConnection
+connect_solids!
+HeatTransferFluidConnection
+connect_heat_transfer_fluid!
+sorbent_path
+AbstractLimiter
+limited_slope
+Upwind
+VanAlbada
+VanLeer
+Minmod
+advection_limiter
+SolidStreamCT
+HXFluidStreamCT
+FixedMolarFlow
+BackPressureController
+Virial
+moving_bed_model
+MovingBedSpec
+stream_rates
+heat_duty
+hx_fluid_inlet_temperature
+moving_sorbent_units
+sorbent_inventory
+sorbent_circulation_time
+plot_moving_bed_profiles
+```
+
 ## Devices, schedules and steady states
 
 ```@docs
@@ -183,6 +231,8 @@ AbstractIsotherm
 AbstractMassTransfer
 compute_mass_transfer_rate
 LinearDrivingForce
+pore_diffusivity
+has_knudsen
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state
 simulate_until_mass_balance

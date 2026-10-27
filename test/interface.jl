@@ -77,7 +77,7 @@ end
     @test_throws MoccaInputError dual_site_langmuir("CO2" => (qsb = 1.0, b0 = 1e-6, ΔUb = -1.0, qs = 2.0))
     @test_throws MoccaInputError Adsorbent(; isotherm = perkg, density = 1000.0, heat_capacity = 900.0, particle_diameter = 1e-3, particle_porosity = 1.5)
     @test_throws MoccaInputError Column(; length = 1.0, radius = 0.1, porosity = 0.0)
-    @test library_adsorbents() == ["silica_gel_krishnamurthy_2014", "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
+    @test library_adsorbents() == ["activated_carbon_mondino_2022", "silica_gel_krishnamurthy_2014", "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
     # Writing and reading an adsorbent gives it back
     path = save_adsorbent(joinpath(mktempdir(), "a.json"), a)
     b = load_adsorbent(path)

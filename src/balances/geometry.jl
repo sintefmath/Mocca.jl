@@ -17,11 +17,15 @@ function Jutul.default_parameter_values(data_domain, model, param::CellDx, symb)
     return copy(data_domain[:dx])
 end
 
-# Cell volumes (solid + pore)
+# Cell volumes (solid + pore), or the particle volume when the domain gives
+# the volume fraction of sorbent particles (a moving bed, which may also hold
+# structured packing)
 struct BulkVolume <: Jutul.ScalarVariable end
 
 function Jutul.default_parameter_values(data_domain, model, param::BulkVolume, symb)
-    if haskey(data_domain, :volumes)
+    if haskey(data_domain, :volumes) && haskey(data_domain, :solid_fraction)
+        return data_domain[:volumes] .* data_domain[:solid_fraction]
+    elseif haskey(data_domain, :volumes)
         return copy(data_domain[:volumes])
     else
         error(":volumes must be present in DataDomain to initialize $symb")
