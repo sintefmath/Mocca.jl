@@ -6,7 +6,9 @@ const DEFAULT_NONLINEAR_TOLERANCE = 1e-6
 # Jutul gives up on a step after halving it 5 times. Opening a valve onto a bed
 # at another pressure can take more: the start of a cycle of the dual-adsorbent
 # example needs 7. Allowing more cuts changes nothing for a step that converges
-# with fewer.
+# with fewer. Newton's method can also wander so far in such a step that the
+# Jacobian is singular; that too cuts the step (`failure_cuts_timestep`) rather
+# than ending the simulation.
 const DEFAULT_MAX_TIMESTEP_CUTS = 10
 
 function setup_process_simulator(model, state0, parameters;
@@ -14,6 +16,7 @@ function setup_process_simulator(model, state0, parameters;
         initial_dt = 1.0,
         nonlinear_tolerance = DEFAULT_NONLINEAR_TOLERANCE,
         max_timestep_cuts = DEFAULT_MAX_TIMESTEP_CUTS,
+        failure_cuts_timestep = true,
         kwargs...
     )
 
@@ -42,6 +45,7 @@ function setup_process_simulator(model, state0, parameters;
         timestep_selectors = timesteppers,
         nonlinear_tolerance = nonlinear_tolerance,
         max_timestep_cuts = max_timestep_cuts,
+        failure_cuts_timestep = failure_cuts_timestep,
         kwargs...
     )
 
