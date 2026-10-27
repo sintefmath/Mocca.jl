@@ -35,6 +35,9 @@ with the function's full name, such as `Framework.ports(model::FlowDeviceModel)`
 Without it, Julia either rejects the method or quietly defines a new function
 of the same name, whose methods are never called.
 
+[CONVENTIONS.md](CONVENTIONS.md) lists the conventions of names, signs,
+units and code that the layers share.
+
 ## From a cycle to results
 
 1. The `Cycle` of steps is compiled into `Stage`s. Each step opens the devices

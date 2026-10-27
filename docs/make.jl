@@ -58,6 +58,13 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         end
     end
 
+    ## Conventions page
+    # CONVENTIONS.md at the root of the repository is the one copy; the page
+    # is written from it, with its link to ARCHITECTURE.md pointing to GitHub
+    conventions = read(joinpath(mocca_dir, "CONVENTIONS.md"), String)
+    conventions = replace(conventions, "](ARCHITECTURE.md)" => "](https://github.com/sintefmath/Mocca.jl/blob/main/ARCHITECTURE.md)")
+    write(joinpath(mocca_dir, "docs", "src", "conventions.md"), "```@meta\nCurrentModule = Mocca\n```\n\n" * conventions)
+
     ## Make docs
 
     makedocs(;
@@ -78,6 +85,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
                 "Cycle steps" => "cycle_steps.md",
                 "Cyclic steady state" => "steady_state.md",
                 "Results and plots" => "results.md",
+                "Optimisation" => "optimisation.md",
             ],
             "Library" => [
                 "Processes and validation" => "processes.md",
@@ -89,6 +97,7 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
                 "Functions" => "user_interface.md",
                 "Process files" => "json_input.md",
                 "Extending Mocca" => "extending.md",
+                "Conventions" => "conventions.md",
                 "Migrating from 0.1.0" => "migration.md",
             ],
         ],

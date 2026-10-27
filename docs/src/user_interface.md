@@ -212,6 +212,9 @@ add_measure!
 
 ## Design variables, gradients and optimisation
 
+The [Optimisation](optimisation.md) page of the manual shows how these fit
+together.
+
 A design variable sets one or more places of a process: a field of a step
 or of the feed, a unit parameter, the geometry of a bed, or for a steady
 process a device setting; several places tie them to one value, and a
