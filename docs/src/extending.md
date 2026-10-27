@@ -181,6 +181,7 @@ setup_flowsheet_parameters
 DualSiteLangmuir
 AbstractIsotherm
 AbstractMassTransfer
+compute_mass_transfer_rate
 LinearDrivingForce
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state
