@@ -1,5 +1,5 @@
 """
-    validate(p::Process) → Vector{MoccaInputError}
+    validate(p::CyclicProcess) → Vector{MoccaInputError}
 
 Check the description of a process and return the problems found, or an
 empty vector. Constructors already throw the first error they find; this
@@ -12,7 +12,7 @@ results:
   adsorption step;
 - design variables whose places cannot be read.
 """
-function validate(p::Process)
+function validate(p::CyclicProcess)
     issues = MoccaInputError[]
     fs = p.flowsheet
     note(loc, field, msg) = push!(issues, MoccaInputError(String(loc), String(field), String(msg)))

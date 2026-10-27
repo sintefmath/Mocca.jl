@@ -5,7 +5,7 @@ CurrentModule = Mocca
 # Results and plots
 
 [`simulate`](@ref) and [`cyclic_steady_state`](@ref) return a
-[`ProcessResult`](@ref). It holds the state of every bed and device after each
+[`CyclicResult`](@ref), the [`ProcessResult`](@ref) of a cyclic process. It holds the state of every bed and device after each
 time step the solver took:
 
 | Field | Contents |
@@ -243,7 +243,7 @@ Mocca.plot_state_comparison([label => first(r)[end] for (label, r) in runs], bed
 ```
 
 ```@docs
-ProcessResult
+CyclicResult
 write_results
 plot_cell
 plot_state
@@ -254,5 +254,6 @@ plot_state_comparison
 stream_totals
 vacuum_pump_energy
 compressor_energy
+blower_energy
 specific_energy_kwh_per_tonne
 ```

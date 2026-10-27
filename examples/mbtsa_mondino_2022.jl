@@ -92,7 +92,7 @@ end
 # Henry constants at infinite temperature (2.6969e-7 and 5.5486e-7
 # mol/(kg·kPa)), which suggests the Langmuir parameters were derived from
 # Table 5 without converting between the two forms. The process below uses
-# the Virial isotherm; section 8 repeats it with the Langmuir one.
+# the Virial isotherm; section 9 repeats it with the Langmuir one.
 
 # # 3. The sections
 # Five sections of a stack, listed in the order the sorbent passes through
@@ -152,7 +152,7 @@ heat_exchangers = (nothing,
 
 # # 4. The flowsheet
 # The flowsheet is built by a function of the adsorbent and the grid, so that
-# section 7 can rebuild it on other grids. The gas flows through seven
+# section 8 can rebuild it on other grids. The gas flows through seven
 # devices:
 #
 # * `V_feed` feeds the flue gas into the bottom of the adsorption section, at a
@@ -286,6 +286,29 @@ end
 # purity by less than 0.3 points, since the sorbent spends minutes in each
 # section.
 #
+# The work: the feed compressor, the vacuum pump on the product and the fans
+# and blowers that move the purge and the recycles up in pressure, and the
+# work equivalent to the heating, the heat weighted by the Carnot factor at
+# the temperatures the hot water gives it up at, against 25 °C:
+work = [
+    ("Compressor and vacuum pump [kW]", (perf.power - perf.blower_power) / 1e3),
+    ("Fans and blowers [kW]", perf.blower_power / 1e3),
+    ("Heating [MW]", perf.heating / 1e6),
+    ("Equivalent work of the heating [MW]", perf.equivalent_work / 1e6),
+    ("Equivalent work [MJ/kg CO₂]", 3.6 * perf.specific_equivalent_work / 1e3),
+]
+for (label, value) in work
+    println(rpad(label, 38), round(value, sigdigits = 3))
+end
+
+# The electrical work is small next to the heat: about 160 kW for the feed
+# compressor and the vacuum pump, and 8 kW for the fans and blowers, against
+# 47 MW of heating. Weighted by its temperature, the heating is worth about
+# 15 MW of work, a third of it, and the work equivalent to the whole process
+# comes to about 1.8 MJ per kg of CO₂. [`add_measure!`](@ref Mocca.add_measure!)
+# can weigh the heat differently, such as by the efficiency of the steam
+# turbine the heat would otherwise go to.
+
 # At steady state everything that enters leaves. The CO₂-free gas and the
 # product together carry the feed:
 state = result.states[end]
@@ -318,7 +341,40 @@ fig_profiles = Mocca.plot_moving_bed_profiles(state, process.flowsheet)
 # In the adsorption section the CO₂ front is sharper than in the paper and sits
 # near the top, with the sorbent below it close to equilibrium with the feed.
 
-# # 7. Grid resolution
+# # 7. Sensitivities
+# How the capture rate and the work per tonne of CO₂ change with three
+# operating settings: the sorbent flow, one variable that sets the flow of
+# all five sections, the temperature of the hot water and the purge rate. A
+# steady state is the fixed point of one long time step, so the adjoints that
+# give the gradients of a cyclic process at its cyclic steady state give them
+# here too, at the steady state found above (see
+# [`performance_gradient`](@ref Mocca.performance_gradient)). The sorbent-side
+# heat transfer coefficients were computed from the sorbent velocity when the
+# flowsheet was built, and stay as they are.
+Mocca.add_variable!(process, :sorbent_flow, ((:parameter, s, :SorbentMassFlow) for s in sections)...)
+Mocca.add_variable!(process, :hot_water, (:parameter, :Desorption, :HXFluidInletTemperature))
+Mocca.add_variable!(process, :purge, (:setting, :V_purge, :rate))
+g = Mocca.performance_gradient(process; steady_state = result, measures = [:recovery, :specific_equivalent_work])
+
+# As elasticities, the percentage change of each measure for a 1% increase of
+# each setting (the hot water temperature in kelvin):
+println(rpad("", 14), "capture   equivalent work")
+for n in Mocca.variable_names(process)
+    elasticity(m) = round(process[n] * g.gradients[m][n] / g.metrics[m], sigdigits = 3)
+    println(rpad(n, 14), rpad(elasticity(:recovery), 10), elasticity(:specific_equivalent_work))
+end
+
+# More sorbent and hotter water both raise the capture rate, by about 0.4%
+# for each 1% more, but at different costs. More sorbent raises the
+# equivalent work by about 0.5% for each 1%, as there is more of it to heat.
+# Water 1% hotter, about 4.6 K, raises it by over 4%: the heat is then given
+# at a higher temperature, where it is worth more work. More purge raises the
+# capture rate and lowers the work a little, as it strips more CO₂ from the
+# hot sorbent in precooling (section 5). These are slopes at this design: the
+# purge threshold of section 5 lies 6% below the purge used here, and beyond
+# it the slopes change.
+
+# # 8. Grid resolution
 # What the sorbent and the water carry is advected with a limited second-order
 # scheme, the van Albada limiter by default (see the `limiter` keyword of
 # `add_moving_bed!`), which keeps fronts sharp. First-order upwinding,
@@ -342,7 +398,7 @@ end
 # purity by less, and the default of 200 cells per metre is within 0.5 points
 # of 800.
 
-# # 8. With the Langmuir isotherm of the MATLAB parameter set
+# # 9. With the Langmuir isotherm of the MATLAB parameter set
 # The same plant with the Langmuir parameters captures little CO₂: the sorbent
 # circulation was sized for a capacity seventeen times larger. The desorption
 # gas is then almost pure CO₂, with the N₂ mole fraction at its lower bound,
@@ -353,7 +409,7 @@ println("Purity ", round(100 * perf_langmuir.purity, digits = 1), "%, capture ra
     round(100 * perf_langmuir.recovery, digits = 1), "%, specific heat duty ",
     round(perf_langmuir.specific_heat_duty / 1e6, digits = 0), " MJ/kg")
 
-# # 9. Saving the process
+# # 10. Saving the process
 # A steady process is saved like any other, with its moving beds, sorbent and
 # water connections, and an `"operation"` with the device settings in place of
 # a cycle:

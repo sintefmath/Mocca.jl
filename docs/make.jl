@@ -31,11 +31,14 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         "Moving bed TSA" => "mbtsa_mondino_2022"
         "Gradients at cyclic steady state" => "flowsheet_vsa_gradients"
         "Optimization" => "optimization"
+        "Optimising the moving bed TSA" => "mbtsa_optimisation"
         "History matching" => "history_matching"
         "A flowsheet by hand" => "unit_network"
     ]
 
     examples_markdown = []
+    # Examples too long to run with every build: their code is shown, not run
+    not_run = ("mbtsa_optimisation",)
 
 
     for (ex, pth) in examples
@@ -45,7 +48,8 @@ function build_mocca_docs(; build_examples = true, build_notebooks = true)
         push!(examples_markdown, ex => joinpath("examples", "$pth.md"))
         if build_examples
             upd(content) = update_footer(content, pth)
-            Literate.markdown(in_pth, out_dir, preprocess = upd, flavor = Literate.DocumenterFlavor())
+            fence = pth in not_run ? (codefence = "```julia" => "```",) : NamedTuple()
+            Literate.markdown(in_pth, out_dir; preprocess = upd, flavor = Literate.DocumenterFlavor(), fence...)
             if build_notebooks
                 Literate.notebook(in_pth, out_dir_notebooks; preprocess = upd, flavor = Literate.DocumenterFlavor(), execute = false)
             end

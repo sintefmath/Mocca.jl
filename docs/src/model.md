@@ -627,6 +627,39 @@ presets set 1.4, as their papers do. Haghpanah et al. count
 the vacuum pumps only; [`vacuum_pump_energy`](@ref) gives the energy of one
 device, to report it their way.
 
+A link between two units (role `:link`) counts as a fan or blower while it
+moves gas up in pressure, such as the recycle blowers of a moving bed
+process: the same adiabatic work, from the pressure and temperature of its
+upstream port to the pressure of its downstream one, whichever way the gas
+flows ([`BlowerObjective`](@ref)). A link that lets gas down in pressure,
+such as the valve of an equalisation, takes no work.
+
+A unit with a heat exchanger exchanges heat ``Q = \dot m\, c_p (T_{in} - T_{out})``
+with its heat transfer fluid. Fluids that come from outside the process
+hotter than the `ambient_temperature` ``T_0`` (298.15 K) heat it, the others
+cool it; fluids that come from another unit only pass heat around. Heat is
+worth less work the closer it is given to ``T_0``: the equivalent work of the
+heating weights each bit of heat by the Carnot factor at the temperature the
+fluid gives it up at,
+
+```math
+W_{eq} = \int \left(1 - \frac{T_0}{T}\right) \delta Q
+= \dot m\, c_p \left[(T_{in} - T_{out}) - T_0 \ln\frac{T_{in}}{T_{out}}\right],
+```
+
+the exergy the fluid gives up ([`EquivalentWorkObjective`](@ref)). Hot water
+at 187 °C gives up about a third of its heat as equivalent work.
+
+Every measure is a function of such integrals over the cycle (the moles
+``N``, the energy ``E``, the heat and its equivalent work) and of quantities
+that do not depend on the state, such as ``V_{ads}`` and ``t_{cycle}``; see
+[`performance_integrals`](@ref) and [`performance_measures`](@ref). At steady
+state the integrals are taken over one second, so they are rates. The
+gradients of the integrals come from adjoints, and those of the measures by
+the chain rule, which [`performance_gradient`](@ref) takes by automatic
+differentiation of the measure. A measure of the user's own
+([`add_measure!`](@ref)) gets its gradient the same way.
+
 ## Steady state of the cycle
 
 The cycle maps the state of the beds at its start, ``x``, to the state at its

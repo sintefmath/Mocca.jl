@@ -348,21 +348,39 @@ end
 """
     process_to_dict(p) → Dict
 
-The JSON description of process `p`, a [`Process`](@ref) or a
+The JSON description of process `p`, a [`CyclicProcess`](@ref) or a
 [`SteadyProcess`](@ref); see [`write_process`](@ref).
 """
-function process_to_dict(p::Process)
+function process_to_dict(p::CyclicProcess)
     o = _obj("format" => PROCESS_FORMAT, "version" => FILE_VERSION, "name" => p.name)
     _flowsheet_to_dict!(o, p.flowsheet)
     gas = p.flowsheet.gas
     o["cycle"] = cycle_to_dict(p.cycle)
     _options_to_dict!(o, p)
+    _variables_to_dict!(o, p)
+    return o
+end
+
+function _variables_to_dict!(o, p::Process)
     if !isempty(p.variables)
         o["variables"] = [_obj("name" => String(v.name), "places" => [_place_to_dict(x) for x in v.places],
             "bounds" => [_json_float(v.lower), _json_float(v.upper)], "description" => isempty(v.description) ? nothing : v.description)
             for v in p.variables]
     end
     return o
+end
+
+function _add_variables_from_dict!(p::Process, d)
+    for v in get(d, "variables", Any[])
+        loc = "variable $(get(v, "name", "?"))"
+        _check_keys(v, ("name", "places", "bounds", "description"), loc)
+        bnds = get(v, "bounds", [nothing, nothing])
+        lo = isnothing(bnds[1]) ? -Inf : _num(bnds[1], loc, "bounds")
+        hi = isnothing(bnds[2]) ? Inf : _num(bnds[2], loc, "bounds")
+        add_variable!(p, Symbol(_require(v, "name", loc)), [_place_from_dict(x, loc) for x in _require(v, "places", loc)]...;
+            bounds = (lo, hi), description = get(v, "description", ""))
+    end
+    return p
 end
 
 function process_to_dict(p::SteadyProcess)
@@ -379,6 +397,7 @@ function process_to_dict(p::SteadyProcess)
     end
     o["operation"] = _obj("type" => "steady", "duration" => p.duration, "settings" => settings)
     _options_to_dict!(o, p)
+    _variables_to_dict!(o, p)
     return o
 end
 
@@ -469,7 +488,8 @@ function _options_to_dict!(o, p)
         "keep_step_pattern" => ts.keep_step_pattern isa Symbol ? String(ts.keep_step_pattern) : ts.keep_step_pattern)
     op = p.options
     o["options"] = _obj("key_component" => gas.names[op.key_component], "ambient_pressure" => op.ambient_pressure,
-        "pump_efficiency" => op.pump_efficiency, "heat_capacity_ratio" => op.heat_capacity_ratio, "ramp_rate" => op.ramp_rate)
+        "pump_efficiency" => op.pump_efficiency, "heat_capacity_ratio" => op.heat_capacity_ratio, "ramp_rate" => op.ramp_rate,
+        "ambient_temperature" => op.ambient_temperature)
     if !isempty(p.initial_conditions)
         o["initial_state"] = _obj((String(b) => _obj(("$k" => (k == :composition ? _by_name(gas.names, composition(gas, v)) : v) for (k, v) in pairs(ic))...)
             for (b, ic) in p.initial_conditions)...)
@@ -505,35 +525,38 @@ end
 _place_to_dict(x::StepPlace) = _obj("step" => x.step, "field" => String(x.field), "sequence" => isempty(x.sequence) ? nothing : x.sequence)
 _place_to_dict(x::FeedPlace) = _obj("feed" => String(x.field))
 _place_to_dict(x::ParameterPlace) = _obj("unit" => String(x.unit), "parameter" => String(x.name))
+_place_to_dict(x::SettingPlace) = _obj("device" => String(x.device), "setting" => String(x.field), "port" => isnothing(x.port) ? nothing : String(x.port))
+_place_to_dict(x::GeometryPlace) = _obj("unit" => String(x.unit), "geometry" => String(x.field))
+_place_to_dict(x::ScaledPlace) = merge!(_place_to_dict(x.place), _obj("scale" => x.factor))
 
 function _place_from_dict(d, loc)
-    _check_keys(d, ("step", "field", "sequence", "feed", "unit", "parameter"), loc)
+    _check_keys(d, ("step", "field", "sequence", "feed", "unit", "parameter", "device", "setting", "port", "geometry", "scale"), loc)
+    if haskey(d, "scale")
+        inner = Dict(k => v for (k, v) in d if k != "scale")
+        return ScaledPlace(_place_from_dict(inner, loc), _num(d["scale"], loc, "scale"))
+    end
     haskey(d, "feed") && return FeedPlace(Symbol(d["feed"]))
     haskey(d, "parameter") && return ParameterPlace(Symbol(_require(d, "unit", loc)), Symbol(d["parameter"]))
+    haskey(d, "geometry") && return GeometryPlace(Symbol(_require(d, "unit", loc)), Symbol(d["geometry"]))
+    haskey(d, "setting") && return SettingPlace(_require(d, "device", loc), d["setting"]; port = get(d, "port", nothing))
     return StepPlace(_require(d, "step", loc), _require(d, "field", loc); sequence = get(d, "sequence", ""))
 end
 
 """
     write_process(path, p)
 
-Write process `p` to a JSON file: its gas, feed, adsorbents, columns, units,
-devices, cycle, time stepping, options, initial state, parameter settings and
-design variables. Read it back with [`read_process`](@ref).
+Write process `p` to a JSON file. A [`CyclicProcess`](@ref): its gas, feed,
+adsorbents, columns, units, devices, cycle, time stepping, options, initial
+state, parameter settings and design variables. A [`SteadyProcess`](@ref):
+its flowsheet (moving beds, devices, sorbent and heat transfer fluid
+connections), an `"operation"` with the device settings and the duration in
+place of a cycle, and its time stepping, options, initial state and parameter
+settings. Read it back with [`read_process`](@ref).
 """
 write_process(path::AbstractString, p::Process) = (JSON.json(path, process_to_dict(p); pretty = true); path)
 
 """
-    write_process(path, p::SteadyProcess)
-
-Write steady process `p` to a JSON file: its flowsheet (moving beds, devices,
-sorbent and heat transfer fluid connections), an `"operation"` with the device
-settings and the duration in place of a cycle, and its time stepping, options,
-initial state and parameter settings.
-"""
-write_process(path::AbstractString, p::SteadyProcess) = (JSON.json(path, process_to_dict(p); pretty = true); path)
-
-"""
-    read_process(path) → Process or SteadyProcess
+    read_process(path) → CyclicProcess or SteadyProcess
 
 Read a process from a JSON file written by [`write_process`](@ref) or by
 hand, or from the library by name (see [`library_processes`](@ref)). Numbers
@@ -566,18 +589,10 @@ function process_from_dict(d; base_dir = pwd())
         ambient_pressure = something(_optnum(op, "ambient_pressure", "options"), 101325.0),
         pump_efficiency = something(_optnum(op, "pump_efficiency", "options"), 0.72),
         heat_capacity_ratio = _optnum(op, "heat_capacity_ratio", "options"),
+        ambient_temperature = something(_optnum(op, "ambient_temperature", "options"), 298.15),
         ramp_rate = something(_optnum(op, "ramp_rate", "options"), 0.5),
         initial_state = ics, parameters = prm)
-    for v in get(d, "variables", Any[])
-        loc = "variable $(get(v, "name", "?"))"
-        _check_keys(v, ("name", "places", "bounds", "description"), loc)
-        bnds = get(v, "bounds", [nothing, nothing])
-        lo = isnothing(bnds[1]) ? -Inf : _num(bnds[1], loc, "bounds")
-        hi = isnothing(bnds[2]) ? Inf : _num(bnds[2], loc, "bounds")
-        add_variable!(p, Symbol(_require(v, "name", loc)), [_place_from_dict(x, loc) for x in _require(v, "places", loc)]...;
-            bounds = (lo, hi), description = get(v, "description", ""))
-    end
-    return p
+    return _add_variables_from_dict!(p, d)
 end
 
 # The flowsheet of a process file, and the reader of compositions
@@ -703,7 +718,7 @@ function _options_from_dict(d, comp)
     timestepping = TimeStepping(; max_dt = max_dt, first_dt = something(_optnum(t, "first_dt", "time_stepping"), min(0.05, max_dt)),
         keep_step_pattern = kp isa Bool ? kp : Symbol(kp))
     op = get(d, "options", Dict())
-    _check_keys(op, ("key_component", "ambient_pressure", "pump_efficiency", "heat_capacity_ratio", "ramp_rate"), "options")
+    _check_keys(op, ("key_component", "ambient_pressure", "pump_efficiency", "heat_capacity_ratio", "ramp_rate", "ambient_temperature"), "options")
     kc = get(op, "key_component", 1)
     ics = Dict{Symbol, Any}()
     for (b, ic) in get(d, "initial_state", Dict())
@@ -723,7 +738,6 @@ end
 
 function _steady_process_from_dict(d, fs, comp)
     haskey(d, "cycle") && input_error("process", "operation", "a process has a cycle or a steady operation, not both")
-    haskey(d, "variables") && input_error("process", "variables", "design variables are not supported for a steady process")
     o = d["operation"]
     _check_keys(o, ("type", "duration", "settings"), "operation")
     get(o, "type", "steady") == "steady" || input_error("operation", "type", "only \"steady\" operation is known")
@@ -744,10 +758,12 @@ function _steady_process_from_dict(d, fs, comp)
         settings[Symbol(dev)] = (; kw...)
     end
     timestepping, op, kc, ics, prm = _options_from_dict(d, comp)
-    return SteadyProcess(fs, settings; name = String(get(d, "name", "")), duration = something(_optnum(o, "duration", "operation"), 3600.0),
+    p = SteadyProcess(fs, settings; name = String(get(d, "name", "")), duration = something(_optnum(o, "duration", "operation"), 3600.0),
         timestepping = timestepping, key_component = kc isa AbstractString ? kc : Int(kc),
         ambient_pressure = something(_optnum(op, "ambient_pressure", "options"), 101325.0),
         pump_efficiency = something(_optnum(op, "pump_efficiency", "options"), 0.72),
         heat_capacity_ratio = _optnum(op, "heat_capacity_ratio", "options"),
+        ambient_temperature = something(_optnum(op, "ambient_temperature", "options"), 298.15),
         initial_state = ics, parameters = prm)
+    return _add_variables_from_dict!(p, d)
 end

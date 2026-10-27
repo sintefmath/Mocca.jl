@@ -69,7 +69,7 @@ write_process("my_vsa.json", process)
   ]},
   "time_stepping": {"max_dt": 1.0, "first_dt": 0.05, "keep_step_pattern": "auto"},
   "options": {"key_component": "CO2", "ambient_pressure": 1e5, "pump_efficiency": 0.72,
-              "heat_capacity_ratio": 1.4, "ramp_rate": 0.5},
+              "heat_capacity_ratio": 1.4, "ramp_rate": 0.5, "ambient_temperature": 298.15},
   "initial_state": {"Bed": {"pressure": "1 bar"}},
   "parameters": {"Bed": {"AdsorbentDensity": 1130}},
   "variables": [
@@ -97,7 +97,7 @@ The sections:
 | `options` | See [`Process`](@ref). Without `heat_capacity_ratio` the pumps take that of the feed. |
 | `initial_state` | Per bed: any of `pressure`, `temperature`, `wall_temperature` and `composition`. |
 | `parameters` | Per unit: Jutul parameters to override. |
-| `variables` | Design variables (see [`add_variable!`](@ref)), each with `places`: `{"step": ..., "field": ..., "sequence": ...}`, `{"feed": "pressure"}` or `{"unit": ..., "parameter": ...}`. |
+| `variables` | Design variables (see [`add_variable!`](@ref)), of a cyclic or a steady process, each with `places`: `{"step": ..., "field": ..., "sequence": ...}`, `{"feed": "pressure"}`, `{"unit": ..., "parameter": ...}`, `{"unit": ..., "geometry": "length"}` or, for a steady process, `{"device": ..., "setting": ..., "port": ...}`; any of them with `"scale": factor` sets the place to that factor times the variable. |
 
 ## Steps
 

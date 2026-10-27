@@ -50,7 +50,10 @@ start = Mocca.performance(process; progress = true)
 println("start: ", show_performance(start))
 
 # # 1. Maximise the recovery
-# The purity target is a penalty, so the optimum may miss it slightly.
+# The purity target is met by an augmented Lagrangian: each BFGS run
+# maximises the recovery less a penalty on any shortfall in purity, shifted by
+# a multiplier that grows after each run until the target is met. The first
+# run is the plain penalty method, which stops a little short of the target.
 max_recovery = Mocca.optimise!(process; maximise = :recovery, at_least = (purity = 0.9,),
     linear_constraints = blowdown_above_evacuation, max_it = 12, log = report)
 println("$(max_recovery.evaluations) evaluations: ", show_design(max_recovery.values))
@@ -63,12 +66,18 @@ println(show_performance(max_recovery.metrics))
 # sets the purity: blowing down further removes more of the nitrogen, but loses
 # more CO₂ with it.
 
+# The recovery rises along a ridge after the evacuation pressure reaches its
+# bound: a slower feed for longer gives nearly the same feed per cycle and a
+# little more recovery. The ridge is so flat that each BFGS run stops when the
+# objective barely changes, and the design found, 65.4%, is a feasible point
+# near its foot rather than its end: with 60 iterations in one run, the
+# penalty method goes on to 68.0%, with the adsorption time at its bound of
+# 100 s and the feed velocity at 0.19 m/s.
+
 # # 2. Minimise the energy
 # The optimiser starts from the design above, where the process was left.
-# Each target is a penalty of `weight` (1000 by default) times the square of
-# the shortfall, so the objective must be of order one: with the energy in
-# units of 100 kWh/t, a shortfall of 1 percentage point of recovery costs as
-# much as 10 kWh/t.
+# The objective and the targets are compared in units of their `scale`, so
+# they should all be of order one: here the energy in units of 100 kWh/t.
 min_energy = Mocca.optimise!(process; minimise = :specific_energy, at_least = (purity = 0.9, recovery = 0.6),
     scale = (specific_energy = 100.0,), linear_constraints = blowdown_above_evacuation, max_it = 15, log = report)
 println("$(min_energy.evaluations) evaluations: ", show_design(min_energy.values))
@@ -110,7 +119,7 @@ end
 axislegend(ax_purity, position = :rb)
 fig
 
-# Minimising the energy gives up five points of recovery for about a quarter
+# Minimising the energy gives up about five points of recovery for a quarter
 # less energy per tonne. It does not raise the evacuation pressure, which stays
 # at its bound: it blows down less deeply and feeds for longer and faster, so
 # that the pump work is spread over more CO₂ captured per cycle. That also

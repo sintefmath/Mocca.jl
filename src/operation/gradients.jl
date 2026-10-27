@@ -106,10 +106,12 @@ function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear
     return (states, dt, step_forces)
 end
 
-function _evaluate_objective(G, model, states, dt, forces)
+# The objective summed over the steps, with each state holding the parameters,
+# as in Jutul's adjoints (see objective_state)
+function _evaluate_objective(G, model, states, dt, forces, parameters = Dict{Symbol, Any}())
     N = length(dt)
     t = cumsum(dt)
-    return sum(G(model, states[i], dt[i], Jutul.optimization_step_info(i, t[i], dt[i]; Nstep = N), forces[i]) for i in 1:N)
+    return sum(G(model, objective_state(states[i], parameters), dt[i], Jutul.optimization_step_info(i, t[i], dt[i]; Nstep = N), forces[i]) for i in 1:N)
 end
 
 # ------------------------------------------------------------------------------
@@ -180,8 +182,9 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     end
     # One setup serves every objective: the residual's dependence on X, and
     # so its sparsity, does not depend on the objective. Sparsity from every
-    # step, so that every stage's forces are seen.
-    objectives = G isa NamedTuple ? G : (G = G,)
+    # step, so that every stage's forces are seen. The objectives get the
+    # parameters, which Jutul's generic adjoints leave out of the state.
+    objectives = map(Gi -> _WithParameters(Gi, parameters), G isa NamedTuple ? G : (G = G,))
     packed = Jutul.AdjointPackedResult(states, dt, forces)
     storage = Jutul.AdjointsDI.setup_adjoint_storage_generic(X, F, packed, first(objectives);
         state0 = state0, info_level = -1, single_step_sparsity = false, sparsity_step_type = :all)
@@ -233,7 +236,7 @@ Extra keywords go to `setup_process_simulator`.
 function force_gradients(model, state0, parameters, forces, timesteps, G; kwarg...)
     states, dt, step_forces = _simulate_steps(model, state0, parameters, forces, timesteps; kwarg...)
     g = _force_adjoint(model, state0, parameters, states, dt, step_forces, G)
-    return (objective = _evaluate_objective(G, model, states, dt, step_forces), forces = g.forces, durations = g.durations)
+    return (objective = _evaluate_objective(G, model, states, dt, step_forces, parameters), forces = g.forces, durations = g.durations)
 end
 
 # ------------------------------------------------------------------------------
@@ -715,7 +718,7 @@ end
 """
     cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
         targets = nothing, with_forces = false, rtol = 1e-8, maxiter = 100,
-        nonlinear_tolerance = 1e-8, kwarg...) → NamedTuple
+        steps = nothing, nonlinear_tolerance = 1e-8, kwarg...) → NamedTuple
 
 Gradient at cyclic steady state of the objective `G` over one cycle, given by
 its `forces` and `timesteps`. `state0` is the state at the start of a cycle at
@@ -745,6 +748,12 @@ starts taken in one long step can make it jump: the solver then lands on a
 different solution of that step for a slightly different start. Start each
 stage with short steps (`first_dt` in [`setup_schedule`](@ref)).
 
+The cycle is simulated from `state0`, unless `steps`, the `(states,
+timesteps, forces)` of every step of the cycle from `state0` as simulated
+(one entry per step), gives it. A steady state is the fixed point of a cycle
+of one long backward-Euler step, which returns the steady state itself, so
+its `steps` are that state alone, without solving the step.
+
 Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 - `objective`: the value of `G` over the cycle;
 - `parameters`: the gradient with respect to the parameters of each unit, laid
@@ -761,9 +770,9 @@ Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 Extra keywords go to `setup_process_simulator`.
 """
 function cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
-        targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, info_level = -1, kwarg...)
+        targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, steps = nothing, info_level = -1, kwarg...)
     x0 = restart_state(model, state0)
-    states, dt, step_forces = _simulate_steps(model, x0, parameters, forces, timesteps; kwarg...)
+    states, dt, step_forces = isnothing(steps) ? _simulate_steps(model, x0, parameters, forces, timesteps; kwarg...) : steps
     sensitivity, vmap, state_model = _state_adjoint(model, x0, parameters, states, dt, step_forces)
     storage_kwarg = isnothing(targets) ? NamedTuple() : (targets = targets,)
     storage = Jutul.setup_adjoint_storage(model; state0 = x0, parameters = parameters, use_sparsity = false, storage_kwarg...)
@@ -798,7 +807,7 @@ function cyclic_steady_state_gradient(model, state0, parameters, forces, timeste
     out = map(objectives, solves, gf) do Gi, s, f
         ∇p = Jutul.solve_adjoint_sensitivities(model, states, dt, s.Gμ;
             storage = storage, state0 = x0, forces = step_forces, raw_output = true, info_level = -1)
-        (objective = _evaluate_objective(Gi, model, states, dt, step_forces),
+        (objective = _evaluate_objective(Gi, model, states, dt, step_forces, parameters),
             parameters = Jutul.store_sensitivities(storage.parameter.model, ∇p, storage.parameter_map),
             forces = f.forces, durations = f.durations, state0 = Jutul.store_sensitivities(state_model, s.μ, vmap),
             iterations = s.stats.niter, converged = s.stats.solved)

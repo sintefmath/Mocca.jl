@@ -465,8 +465,39 @@ end
     @test Mocca.moving_sorbent_units(fs) == Mocca.sorbent_path(fs)
     diagram = sprint(Mocca.print_flowsheet_diagram, fs)
     @test occursin("moving bed of activated carbon", diagram) && occursin("sorbent to Preheating", diagram)
-    # A Process runs a cycle of steps, which a moving bed does not have
+    # A cyclic process runs a cycle of steps, which a moving bed does not have
     @test_throws Mocca.MoccaInputError Mocca.Process(fs, Mocca.Cycle([Mocca.Adsorb(10.0)]))
+    # A steady process is a process: one stage, and the places it has and
+    # none it does not
+    @test p isa Mocca.Process && Mocca.SteadyResult <: Mocca.ProcessResult
+    @test only(Mocca.stages(p)).settings == Mocca.operating_stage(p).settings
+    q = deepcopy(p)
+    Mocca.add_variable!(q, :water, (:parameter, :Desorption, :HXFluidMassFlow); bounds = (200.0, 300.0))
+    @test q[:water] == 267.6
+    q[:water] = 250.0
+    @test all(==(250.0), q.parameters[:Desorption][:HXFluidMassFlow]) && q.parameter_settings[:Desorption][:HXFluidMassFlow] == 250.0
+    @test Mocca.variable_values(q) == [250.0]
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(q, :t, ("adsorption", :duration))
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(q, :P, (:feed, :pressure))
+    # Variables of a steady process are written with it
+    Mocca.add_variable!(q, :extraction, (:setting, :V_product, :outlet, :pressure))
+    @test q[:extraction] == 90e3
+    q[:extraction] = 85e3
+    @test q.settings[:V_product].outlet.pressure == 85e3 && q.settings[:V_product].outlet.temperature == 460.15
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(q, :bad, (:setting, :V_link, :inlet, :pressure))
+    r = Mocca.read_process(Mocca.write_process(joinpath(mktempdir(), "steady.json"), q))
+    @test Mocca.variable_names(r) == [:water, :extraction] && r[:water] == 250.0 && r[:extraction] == 85e3
+    # A device setting: a field of the device's flow law
+    Mocca.add_variable!(q, :purge, (:setting, :V_purge, :rate))
+    Mocca.add_variable!(q, :setpoint, Mocca.SettingPlace(:V_recycle_preheat, :setpoint))
+    rate = q[:purge]
+    q[:purge] = 1.5 * rate
+    @test q.settings[:V_purge].law == Mocca.FixedMolarFlow(1.5 * rate) && p.settings[:V_purge].law.rate == rate
+    q[:setpoint] = 101.0e3
+    @test q.settings[:V_recycle_preheat].law.setpoint == 101.0e3 && q.settings[:V_recycle_preheat].law.conductance == p.settings[:V_recycle_preheat].law.conductance
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(q, :bad, (:setting, :V_purge, :conductance))
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(q, :bad, (:setting, :Adsorption, :rate))
+    @test_throws Mocca.MoccaInputError Mocca.add_variable!(Mocca.four_stage_vsa_process(ncells = 4), :bad, (:setting, :V_feed, :rate))
     # Settings name devices, and boundaries only unconnected ports
     @test_throws Mocca.MoccaInputError Mocca.SteadyProcess(fs, Dict(:Adsorption => Mocca.Closed()))
     @test_throws Mocca.MoccaInputError Mocca.SteadyProcess(fs, Dict(:V_link => (law = Mocca.Closed(),
@@ -520,4 +551,110 @@ end
     @test perf.purity ≈ 0.9884 atol = 1e-3
     @test perf.recovery ≈ 0.9121 atol = 1e-3
     @test perf.specific_heat_duty ≈ 5.669e6 rtol = 1e-3
+
+    # The recycle and purge blowers raise the gas they move; the valve that
+    # passes the purge on lets it down
+    fs, o, state = p.flowsheet, p.options, r.states[end]
+    one_step(d) = Mocca.blower_energy([state], [1.0], d)
+    @test one_step(:V_recycle_preheat) > 0 && one_step(:V_recycle_precool) > 0 && one_step(:V_purge) > 0
+    @test one_step(:V_link) == 0
+    @test perf.blower_power ≈ sum(one_step, (:V_purge, :V_link, :V_recycle_preheat, :V_recycle_precool))
+    pumps = Mocca.vacuum_pump_energy([state], [1.0], :V_product; discharge_pressure = o.ambient_pressure) +
+        Mocca.compressor_energy([state], [1.0], :V_feed; suction_pressure = o.ambient_pressure)
+    @test perf.power ≈ pumps + perf.blower_power
+    # The equivalent work of the hot water, ṁ·c_p·[(T_in − T_out) − T₀·ln(T_in/T_out)],
+    # about a third of the heat at 187 °C
+    prm = p.parameters[:Desorption]
+    T_in, T_out = prm[:HXFluidInletTemperature][1], state[:Desorption][:HXFluidTemperature][end]
+    mc = prm[:HXFluidMassFlow][1] * prm[:HXFluidHeatCapacity][1]
+    @test perf.equivalent_work ≈ mc * ((T_in - T_out) - 298.15 * log(T_in / T_out)) rtol = 1e-12
+    @test perf.equivalent_work ≈ Mocca.equivalent_work(fs, state, p.parameters, :Desorption)
+    @test 0.3 < perf.equivalent_work / perf.heating < 0.4
+    M = GAS.molar_masses[1]
+    @test perf.specific_equivalent_work ≈ (perf.power + perf.equivalent_work) / 3.6e6 / (perf.extract[1] * M / 1000)
+    # A measure of the user's own: the equivalent work per tonne of CO2 with
+    # the heat weighted by a second-law efficiency of 0.75
+    Mocca.add_measure!(p, :weighted_work, s -> (s.energy + 0.75 * s.equivalent_work) / (s.key_extract * M))
+    @test Mocca.performance(r).weighted_work ≈ (perf.power + 0.75 * perf.equivalent_work) / (perf.extract[1] * M)
+end
+
+@testset "Steady state gradients" begin
+    # At steady state, by the adjoint of one long step whose fixed point the
+    # steady state is, against central differences of steady states found by
+    # running the process
+    p = mbtsa_process(cells_per_metre = 10)
+    sections = (:Adsorption, :Preheating, :Desorption, :Precooling, :Cooling)
+    Mocca.add_variable!(p, :sorbent_flow, ((:parameter, u, :SorbentMassFlow) for u in sections)...)
+    Mocca.add_variable!(p, :T_cold, (:parameter, :Cooling, :HXFluidInletTemperature))
+    Mocca.add_variable!(p, :purge, (:setting, :V_purge, :rate))
+    # The height of the desorption section, and the pressure the product is
+    # drawn to, a boundary condition of the flowsheet
+    Mocca.add_variable!(p, :height, (:geometry, :Desorption, :length))
+    Mocca.add_variable!(p, :extraction, (:setting, :V_product, :outlet, :pressure))
+    ss = Mocca.steady_state(p; tol = 1e-9, max_spans = 20)
+    @test ss.converged
+    # The next solve starts from this steady state
+    again = Mocca.steady_state(p; tol = 1e-9, max_spans = 20)
+    @test again.converged && length(again.history) == 1
+    measures = [:recovery, :specific_heat_duty, :specific_equivalent_work]
+    g = Mocca.performance_gradient(p; measures = measures, steady_state = ss, progress = false)
+    @test g.metrics.recovery == Mocca.performance(ss).recovery
+    x_ss = Mocca.restart_state(p.model, ss.states[end])
+    function value(n, x)
+        x0 = p[n]
+        p[n] = x
+        r = Mocca.steady_state(p; tol = 1e-11, max_spans = 40, state0 = x_ss)
+        # Measured before the variable is reset, since the heat duty reads
+        # the process's parameters
+        perf = Mocca.performance(r)
+        p[n] = x0
+        return perf
+    end
+    for n in Mocca.variable_names(p)
+        x0 = p[n]
+        h = 1e-4 * x0
+        up, down = value(n, x0 + h), value(n, x0 - h)
+        for m in measures
+            @test g.gradients[m][n] ≈ (up[m] - down[m]) / 2h rtol = 1e-5
+        end
+    end
+end
+
+@testset "Adjoints of the blower and heat duty integrals" begin
+    Op = Mocca.Operation
+    p = mbtsa_process(cells_per_metre = 10)
+    fs, model, prm = p.flowsheet, p.model, p.parameters
+    forces, dt = Mocca.Interface._span_schedule(p, 30.0)
+    x0 = Mocca.initial_state(p)
+    G = (heat = Mocca.HeatDutyObjective(fs, :Desorption), loop = Mocca.HeatDutyObjective(fs, :Preheating),
+        blower = Mocca.BlowerObjective(:V_recycle_preheat), work = Mocca.EquivalentWorkObjective(fs, :Desorption),
+        valve = Mocca.BlowerObjective(:V_link))
+    function values(forces, prm)
+        local s, t, f = Op._simulate_steps(model, x0, prm, forces, dt)
+        return map(g -> Op._evaluate_objective(g, model, s, t, f, prm), G)
+    end
+    v = values(forces, prm)
+    @test v.blower > 0 && v.valve == 0
+    # Summed over the steps, the heat duty integral is the heat duty times the time
+    states, ts, sf = Op._simulate_steps(model, x0, prm, forces, dt)
+    @test v.heat ≈ sum(Mocca.heat_duty(fs, s, prm, :Desorption) * h for (s, h) in zip(states, ts)) rtol = 1e-12
+    # Against central differences in the purge rate, a setting of the stage
+    with_purge(rate) = [merge(f, Dict(:V_purge => merge(f[:V_purge], (law = Mocca.FixedMolarFlow(rate),)))) for f in forces]
+    r0 = forces[1][:V_purge].law.rate
+    h = 1e-4 * r0
+    up, down = values(with_purge(r0 + h), prm), values(with_purge(r0 - h), prm)
+    for k in keys(G)
+        g = Mocca.force_gradients(model, x0, prm, forces, dt, G[k])
+        @test g.objective ≈ v[k]
+        @test g.forces[1][:V_purge].law.rate ≈ (up[k] - down[k]) / 2h rtol = 1e-5 atol = 1e-8
+    end
+    # And in the hot water flow, a parameter read by the integrals themselves
+    m0 = prm[:Desorption][:HXFluidMassFlow][1]
+    hm = 1e-4 * m0
+    with_flow(m) = (q = deepcopy(prm); q[:Desorption][:HXFluidMassFlow] .= m; q)
+    up, down = values(forces, with_flow(m0 + hm)), values(forces, with_flow(m0 - hm))
+    for k in (:heat, :work, :blower)
+        g = Jutul.solve_adjoint_sensitivities(model, states, ts, G[k]; state0 = x0, parameters = prm, forces = sf, info_level = -1)
+        @test sum(g[:Desorption][:HXFluidMassFlow]) ≈ (up[k] - down[k]) / 2hm rtol = 1e-5
+    end
 end

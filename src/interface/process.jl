@@ -1,5 +1,37 @@
-# The Process: one object holding a flowsheet, its cycle, the initial state and
-# solver options, with simulation, cyclic steady state and performance.
+# Processes: the abstract Process, which every kind of process is, and the
+# CyclicProcess, one object holding a flowsheet, its cycle, the initial state
+# and solver options, with simulation, cyclic steady state and performance.
+
+"""
+    Process
+
+A process: a flowsheet and how it is operated. Every kind of process is a
+`Process`, and has the same interface:
+
+- [`simulate`](@ref) runs it, [`steady_state`](@ref) finds the state it
+  settles to, and [`initial_state`](@ref) is where it starts;
+- [`stages`](@ref): the device settings and durations it is operated by;
+- [`performance`](@ref) measures it from integrals over its operation (see
+  [`performance_integrals`](@ref) and [`performance_measures`](@ref)), with
+  measures of the user's own from [`add_measure!`](@ref);
+- design variables set its inputs ([`add_variable!`](@ref), `p[name]`), and
+  [`performance_gradient`](@ref) and [`optimise!`](@ref) differentiate and
+  optimise its performance with respect to them.
+
+The kinds are [`CyclicProcess`](@ref), operated by a cycle of steps, and
+[`SteadyProcess`](@ref), whose devices keep their settings.
+`Process(fs, cycle; kwarg...)` builds a [`CyclicProcess`](@ref).
+"""
+abstract type Process end
+
+"""
+    ProcessResult
+
+The result of running a [`Process`](@ref): a [`CyclicResult`](@ref) or a
+[`SteadyResult`](@ref). Its `process`, `states` and `timesteps` are those of
+every kind, and [`performance`](@ref) measures it.
+"""
+abstract type ProcessResult end
 
 """
 Options of a [`Process`](@ref) that set how its performance is measured.
@@ -10,12 +42,13 @@ struct ProcessOptions
     pump_efficiency::Float64
     heat_capacity_ratio::Union{Nothing, Float64}
     ramp_rate::Float64
+    ambient_temperature::Float64
 end
 
 """
     pump_heat_capacity_ratio(p::Process)
 
-Heat capacity ratio ``\\gamma`` of the vacuum pumps and compressors of `p`: its
+Heat capacity ratio ``\\gamma`` of the vacuum pumps, compressors and blowers of `p`: its
 `heat_capacity_ratio` option, or by default that of the feed gas at the feed
 temperature (see [`heat_capacity_ratio`](@ref)).
 """
@@ -34,9 +67,10 @@ end
 WarmStart() = WarmStart(nothing, nothing)
 
 """
-    Process(fs, cycle; name = "", timestepping = TimeStepping(), key_component = 1,
+    CyclicProcess(fs, cycle; name = "", timestepping = TimeStepping(), key_component = 1,
         ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing,
-        ramp_rate = 0.5, initial_state = Dict(), parameters = Dict())
+        ambient_temperature = 298.15, ramp_rate = 0.5, initial_state = Dict(), parameters = Dict())
+    Process(fs, cycle; kwarg...)
 
 A cyclic adsorption process: the flowsheet `fs` (built with
 [`Flowsheet(gas, feed)`](@ref Flowsheet), [`add_bed!`](@ref) and
@@ -47,8 +81,11 @@ A cyclic adsorption process: the flowsheet `fs` (built with
   [`performance`](@ref).
 - `ambient_pressure` [Pa]: vacuum pumps discharge to it and feed compressors
   take gas from it; `pump_efficiency` and `heat_capacity_ratio` are those of
-  both. The heat capacity ratio is by default that of the feed, from the
-  thermodynamics of the gas (see [`pump_heat_capacity_ratio`](@ref)).
+  both, and of the fans and blowers of links that raise the gas pressure. The
+  heat capacity ratio is by default that of the feed, from the thermodynamics
+  of the gas (see [`pump_heat_capacity_ratio`](@ref)).
+- `ambient_temperature` [K]: the temperature heat is worth no work at, for
+  the equivalent work of heat (see [`performance_integrals`](@ref)).
 - `ramp_rate` [1/s]: of the pressure ramps of steps that do not set their own.
 - `initial_state`: per unit with holdup, a NamedTuple with any of
   `pressure`, `temperature`, `wall_temperature` and `composition`. By default
@@ -60,13 +97,16 @@ A cyclic adsorption process: the flowsheet `fs` (built with
 
 Simulate it with [`simulate`](@ref), find its cyclic steady state with
 [`cyclic_steady_state`](@ref), and measure it with [`performance`](@ref).
+A process run once, such as a breakthrough, is a `CyclicProcess` of a single
+step simulated once: it is defined by its cycle of steps, whether or not the
+cycle repeats.
 
 The process keeps its own copies of `fs` and `cycle`, so changing them
 afterwards does not change the process, and several processes can be built
 from the same ones. Change a process through its design variables (see
 [`add_variable!`](@ref)); `p.flowsheet` and `p.cycle` are its copies.
 """
-mutable struct Process
+mutable struct CyclicProcess <: Process
     name::String
     flowsheet::Flowsheet
     cycle::Cycle
@@ -80,10 +120,12 @@ mutable struct Process
     compiled::Union{Nothing, CompiledCycle}
     reference_durations::Union{Nothing, Vector{Float64}}
     warm::WarmStart
+    integrals::Vector{Pair{Symbol, Any}}
+    measures::Vector{Pair{Symbol, Any}}
 end
 
-function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStepping(), key_component = 1,
-        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing, ramp_rate = 0.5,
+function CyclicProcess(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStepping(), key_component = 1,
+        ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing, ambient_temperature = 298.15, ramp_rate = 0.5,
         initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
     # The process sets up and later changes its flowsheet (dispersion
     # velocities, default boundaries, the feed) and its steps (design
@@ -98,7 +140,7 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
     fs.feed.light_product_given || (fs.feed.light_product = light_product_composition(fs.feed.composition; component = k))
     isnothing(heat_capacity_ratio) || heat_capacity_ratio > 1 ||
         input_error("process", "heat_capacity_ratio", "must be greater than 1, got $heat_capacity_ratio")
-    options = ProcessOptions(k, ambient_pressure, pump_efficiency, _maybe_float(heat_capacity_ratio), ramp_rate)
+    options = ProcessOptions(k, ambient_pressure, pump_efficiency, _maybe_float(heat_capacity_ratio), ramp_rate, ambient_temperature)
     compiled = _compile!(fs, cycle, ramp_rate)
     _set_dispersion_velocities!(fs, compiled)
     for u in holdup_units(fs)
@@ -110,12 +152,24 @@ function Process(fs::Flowsheet, cycle::Cycle; name = "", timestepping = TimeStep
         u in holdup_units(fs) || input_error("initial_state", String(u), "$u is not a unit with holdup of the flowsheet")
     end
     settings = Dict{Symbol, Dict{Symbol, Any}}(Symbol(u) => Dict{Symbol, Any}(Symbol(n) => v for (n, v) in pairs(d)) for (u, d) in pairs(parameters))
-    p = Process(String(name), fs, cycle, timestepping, options, ics, settings, Any[], model, Dict{Symbol, Any}(), compiled, nothing, WarmStart())
+    p = CyclicProcess(String(name), fs, cycle, timestepping, options, ics, settings, Any[], model, Dict{Symbol, Any}(), compiled, nothing, WarmStart(),
+        Pair{Symbol, Any}[], Pair{Symbol, Any}[])
     p.parameters = _process_parameters(p)
     return p
 end
 
-function _process_parameters(p::Process)
+Process(fs::Flowsheet, cycle::Cycle; kwarg...) = CyclicProcess(fs, cycle; kwarg...)
+
+# The model and parameters of the process again, after a unit of its
+# flowsheet was rebuilt; the cycle compiles again when next needed
+function _rebuild!(p::CyclicProcess)
+    p.model = setup_flowsheet_model(p.flowsheet)
+    p.parameters = _process_parameters(p)
+    p.compiled = nothing
+    return p
+end
+
+function _process_parameters(p::CyclicProcess)
     fs = p.flowsheet
     prm = setup_flowsheet_parameters(fs)
     for b in beds(fs)
@@ -179,22 +233,22 @@ function _compile!(fs, cycle, ramp_rate)
 end
 
 "Recompile the cycle after a change to its steps or the feed."
-function _refresh!(p::Process)
+function _refresh!(p::CyclicProcess)
     p.compiled = _compile!(p.flowsheet, p.cycle, p.options.ramp_rate)
     return p
 end
 
-_compiled(p::Process) = isnothing(p.compiled) ? _refresh!(p).compiled : p.compiled
+_compiled(p::CyclicProcess) = isnothing(p.compiled) ? _refresh!(p).compiled : p.compiled
 
 """
-    stages(p::Process) → Vector{Stage}
+    stages(p::CyclicProcess) → Vector{Stage}
 
 The stages of the process's cycle, with the device settings of each.
 """
-stages(p::Process) = _compiled(p).stages
+stages(p::CyclicProcess) = _compiled(p).stages
 
 "Duration [s] of one cycle."
-cycle_time(p::Process) = sum(st -> st.duration, stages(p))
+cycle_time(p::CyclicProcess) = sum(st -> st.duration, stages(p))
 
 """
     reset_step_pattern!(p)
@@ -202,15 +256,15 @@ cycle_time(p::Process) = sum(st -> st.duration, stages(p))
 Take the current stage durations as the pattern of time steps that changed
 durations stretch (see [`TimeStepping`](@ref)).
 """
-reset_step_pattern!(p::Process) = (p.reference_durations = nothing; p)
+reset_step_pattern!(p::CyclicProcess) = (p.reference_durations = nothing; p)
 
-function _keeps_step_pattern(p::Process)
+function _keeps_step_pattern(p::CyclicProcess)
     k = p.timestepping.keep_step_pattern
     k isa Bool && return k
     return any(v -> any(pl -> pl isa StepPlace && pl.field == :duration, v.places), p.variables)
 end
 
-function _reference_durations(p::Process)
+function _reference_durations(p::CyclicProcess)
     _keeps_step_pattern(p) || return nothing
     d = [st.duration for st in stages(p)]
     if isnothing(p.reference_durations) || length(p.reference_durations) != length(d)
@@ -225,7 +279,7 @@ end
 Forces and time steps for `cycles` cycles of the process; see
 [`setup_schedule`](@ref).
 """
-function cycle_schedule(p::Process; cycles = 1)
+function cycle_schedule(p::CyclicProcess; cycles = 1)
     ts = p.timestepping
     return setup_schedule(p.flowsheet, p.model, stages(p); num_cycles = cycles, max_dt = ts.max_dt,
         first_dt = ts.first_dt, reference_durations = _reference_durations(p))
@@ -236,7 +290,7 @@ end
 
 The initial state of every unit; see `initial_state` in [`Process`](@ref).
 """
-function initial_state(p::Process)
+function initial_state(p::CyclicProcess)
     fs = p.flowsheet
     compiled = _compiled(p)
     unit_states = Dict{Symbol, Any}()
@@ -257,14 +311,14 @@ end
 # ------------------------------------------------------------------------------
 
 """
-Result of simulating a [`Process`](@ref): the `states` and `timesteps` of
+Result of simulating a [`CyclicProcess`](@ref): the `states` and `timesteps` of
 every step the solver took, the number of `cycles` they span, the initial
 state `state0` of the last of them, and for a cyclic steady state whether it
 `converged`, the change per iteration or cycle in `history` and the cycle
 Jacobian if Newton's method found it.
 """
-struct ProcessResult
-    process::Process
+struct CyclicResult <: ProcessResult
+    process::CyclicProcess
     states::Vector{Any}
     timesteps::Vector{Float64}
     cycles::Int
@@ -276,12 +330,12 @@ struct ProcessResult
 end
 
 """
-    simulate(p::Process; cycles = 1, state0 = initial_state(p), info_level = -1, kwarg...) → ProcessResult
+    simulate(p::CyclicProcess; cycles = 1, state0 = initial_state(p), info_level = -1, kwarg...) → CyclicResult
 
 Simulate `cycles` cycles of the process. Extra keywords go to
 `simulate_process`.
 """
-function Jutul.simulate(p::Process; cycles = 1, state0 = nothing, info_level = -1, kwarg...)
+function Jutul.simulate(p::CyclicProcess; cycles = 1, state0 = nothing, info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p; cycles = cycles)
     x0 = isnothing(state0) ? initial_state(p) : state0
     states, ts, ok = _simulate_schedule(p.model, x0, p.parameters, forces, dt; info_level = info_level, kwarg...)
@@ -293,7 +347,7 @@ function Jutul.simulate(p::Process; cycles = 1, state0 = nothing, info_level = -
     else
         last0 = x0
     end
-    return ProcessResult(p, collect(Any, states), ts, n, last0, nothing, Float64[], 0, nothing)
+    return CyclicResult(p, collect(Any, states), ts, n, last0, nothing, Float64[], 0, nothing)
 end
 
 # Newton's method starts after this many plain cycles. Each time it does not
@@ -308,7 +362,7 @@ const DEFAULT_COARSE_CELLS = 40
 """
     cyclic_steady_state(p; method = :newton, tol = nothing, max_cycles = 500,
         warm_start = true, handover = 3, krylov = :auto, coarse_cells = 40,
-        progress = isinteractive(), info_level = -1, kwarg...) → ProcessResult
+        progress = isinteractive(), info_level = -1, kwarg...) → CyclicResult
 
 The cyclic steady state of the process, with the states of its last cycle:
 
@@ -353,7 +407,7 @@ estimate of the cycles and time left. In a terminal the line is rewritten in
 place, so only the end of each phase stays on screen. `progress` can also be
 an `IO` to print to, or a [`CycleProgress`](@ref).
 """
-function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cycles = 500, warm_start = true,
+function cyclic_steady_state(p::CyclicProcess; method = :newton, tol = nothing, max_cycles = 500, warm_start = true,
         handover = DEFAULT_HANDOVER, krylov = :auto, coarse_cells = DEFAULT_COARSE_CELLS, progress = isinteractive(),
         info_level = -1, kwarg...)
     forces, dt = cycle_schedule(p)
@@ -368,7 +422,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
             input_error("cyclic_steady_state", "handover", "give a number of cycles, or a cycle change below 1, got $handover")
         (krylov isa Integer || krylov === :auto) ||
             input_error("cyclic_steady_state", "krylov", "use true, false, :auto or a number of variables, got $(repr(krylov))")
-        grids = has_warm ? Process[] : _coarse_grids(p, coarse_cells)
+        grids = has_warm ? CyclicProcess[] : _coarse_grids(p, coarse_cells)
         start = "$(_handover_text(handover)), then Newton's method"
         middle = [_cells_text(q) for q in grids[2:end]]
         report_note!(pr, "Cyclic steady state of $name: " * (has_warm ? "Newton's method to $(_sci(tol)) from the last steady state" :
@@ -386,7 +440,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
         # Only a steady state is a good start for the next solve; otherwise the
         # last one found, if any, stays
         r.converged && ((p.warm.state, p.warm.jacobian) = (r.state0, r.jacobian))
-        return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
+        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, s.history, s.cycles, r.jacobian)
     elseif method == :anderson
         tol = something(tol, 1e-6)
         report_note!(pr, "Cyclic steady state of $name: Anderson acceleration to $(_sci(tol))" * (has_warm ? " from the last steady state" : ""))
@@ -394,7 +448,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
             progress = pr, info_level = info_level, kwarg...)
         finish_progress!(pr, r.converged)
         r.converged && (p.warm.state = r.state0)
-        return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
+        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     elseif method == :mass_balance
         fs = p.flowsheet
         inflow = Tuple(vcat(devices_with_role(fs, :feed), devices_with_role(fs, :light_inlet)))
@@ -405,7 +459,7 @@ function cyclic_steady_state(p::Process; method = :newton, tol = nothing, max_cy
         r = simulate_until_mass_balance(model, x0, prm, forces, dt; inflow = inflow, outflow = outflow,
             component = k, max_cycles = max_cycles, progress = pr, info_level = info_level, kw..., kwarg...)
         finish_progress!(pr, r.converged)
-        return ProcessResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
+        return CyclicResult(p, collect(Any, r.states), r.timesteps, 1, r.state0, r.converged, r.history, r.cycles, nothing)
     else
         input_error("cyclic_steady_state", "method", "use :newton, :anderson or :mass_balance, got $method")
     end
@@ -423,7 +477,7 @@ const COARSE_TOL = 1e-6
 # plain cycles or Anderson acceleration, with Anderson acceleration to
 # tighter hand-overs as the fallback. Returns the result of the last Newton
 # solve, the change of every cycle or iteration and the cycles simulated.
-function _newton_steady_state(p::Process, pr; tol, warm = false, handover = DEFAULT_HANDOVER, krylov = :auto,
+function _newton_steady_state(p::CyclicProcess, pr; tol, warm = false, handover = DEFAULT_HANDOVER, krylov = :auto,
         coarse_cells = DEFAULT_COARSE_CELLS, max_cycles = 500, info_level = -1, in_sequence = false, kwarg...)
     forces, dt = cycle_schedule(p)
     model, prm = p.model, p.parameters
@@ -518,7 +572,7 @@ end
 # per cell). Settings made through the constructor, the design variables, the
 # feed or the steps carry over; the coarse grid only gives a start, so a
 # setting that does not changes the time taken, not the steady state.
-function _coarse_copy(p::Process, coarse_cells)
+function _coarse_copy(p::CyclicProcess, coarse_cells)
     (isnothing(coarse_cells) || coarse_cells === false) && return nothing
     fs = p.flowsheet
     bs = beds(fs)
@@ -536,8 +590,9 @@ function _coarse_copy(p::Process, coarse_cells)
     end
     o = p.options
     q = try
-        Process(coarse, p.cycle; name = p.name, timestepping = p.timestepping, key_component = o.key_component,
+        CyclicProcess(coarse, p.cycle; name = p.name, timestepping = p.timestepping, key_component = o.key_component,
             ambient_pressure = o.ambient_pressure, pump_efficiency = o.pump_efficiency, heat_capacity_ratio = o.heat_capacity_ratio,
+            ambient_temperature = o.ambient_temperature,
             ramp_rate = o.ramp_rate, initial_state = p.initial_conditions, parameters = p.parameter_settings)
     catch e
         e isa Union{MoccaInputError, DimensionMismatch} || rethrow()
@@ -552,8 +607,8 @@ function _coarse_copy(p::Process, coarse_cells)
 end
 
 # The coarser grids _newton_steady_state goes through, coarsest first
-function _coarse_grids(p::Process, coarse_cells)
-    grids = Process[]
+function _coarse_grids(p::CyclicProcess, coarse_cells)
+    grids = CyclicProcess[]
     q = _coarse_copy(p, coarse_cells)
     while !isnothing(q)
         pushfirst!(grids, q)
@@ -562,7 +617,7 @@ function _coarse_grids(p::Process, coarse_cells)
     return grids
 end
 
-function _cells_text(p::Process)
+function _cells_text(p::CyclicProcess)
     n = [p.flowsheet.specs[b].ncells for b in beds(p.flowsheet) if haskey(p.flowsheet.specs, b)]
     isempty(n) && return "the grid"
     allequal(n) && return "$(first(n)) cells" * (length(n) > 1 ? " per bed" : "")
@@ -574,7 +629,7 @@ end
 # cell centre to cell centre, along its uniform cells (mole fractions stay
 # normalised, as their weights add up to one); a unit on the same cells is
 # taken as it is
-function _interpolate_state(p::Process, x)
+function _interpolate_state(p::CyclicProcess, x)
     out = initial_state(p)
     for u in holdup_units(p.flowsheet), k in keys(p.model[u].primary_variables)
         xc, xf = x[u][k], out[u][k]
@@ -622,68 +677,61 @@ end
 # Performance
 # ------------------------------------------------------------------------------
 
-_last_cycle(r::ProcessResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
+_last_cycle(r::CyclicResult) = r.cycles == 1 ? eachindex(r.timesteps) : cycle_window(r.timesteps, cycle_time(r.process), r.cycles)
 
-Operation.adsorbent_volume(p::Process) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
-adsorbent_mass(p::Process) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
+Operation.adsorbent_volume(p::CyclicProcess) = sum(b -> adsorbent_volume(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
+adsorbent_mass(p::CyclicProcess) = sum(b -> sorbent_mass(p.flowsheet[b], p.parameters[b]), beds(p.flowsheet))
 
 """
-    performance(r::ProcessResult) → NamedTuple
+    performance(r::CyclicResult) → NamedTuple
 
 Performance of the process over the last cycle of `r`, from the streams
-through its devices (by their roles; see [`add_device!`](@ref)):
+through its devices (by their roles; see [`add_device!`](@ref)). Its measures
+(see [`performance_measures`](@ref)) are functions of integrals over the cycle
+(see [`performance_integrals`](@ref)):
 
 - `purity`: mole fraction of the key component in the extract;
 - `recovery`: fraction of the key component fed that leaves in the extract;
 - `specific_energy` [kWh per tonne of key component in the extract]: vacuum
   pumps on every outlet device whose gas leaves below ambient pressure, and
   compressors on every inlet device whose gas enters a bed above it, as in
-  Haghpanah et al. (2013);
+  Haghpanah et al. (2013), and the fans and blowers of links that move gas up
+  in pressure;
 - `productivity` [mol of key component per m³ of adsorbent per s];
-- `energy` [J per cycle], `cycle_time` [s], the component totals [mol per
-  cycle] of the `feed`, `extract` and light `product`, and the
-  `adsorbent_volume` [m³] and `adsorbent_mass` [kg].
+- any measure added with [`add_measure!`](@ref);
+- `energy` [J per cycle], of which `blower_energy` for the links,
+  `cycle_time` [s], the component totals [mol per cycle] of the `feed`,
+  `extract` and light `product`, and the `adsorbent_volume` [m³] and
+  `adsorbent_mass` [kg].
 """
-function performance(r::ProcessResult)
+function performance(r::CyclicResult)
     p = r.process
-    fs, o = p.flowsheet, p.options
+    fs = p.flowsheet
     w = _last_cycle(r)
     states, ts = r.states, r.timesteps
     total(role) = (ds = devices_with_role(fs, role); N = number_of_components(fs.gas);
         isempty(ds) ? zeros(N) : sum(d -> stream_totals(states, ts, d; window = w), ds))
-    n_feed, n_extract, n_product = total(:feed), total(:extract), total(:product)
-    E = 0.0
-    γ = pump_heat_capacity_ratio(p)
-    for role in OUTLET_ROLES, d in devices_with_role(fs, role)
-        E += vacuum_pump_energy(states, ts, d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ, window = w)
-    end
-    for role in INLET_ROLES, d in devices_with_role(fs, role)
-        E += compressor_energy(states, ts, d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ, window = w)
-    end
-    k = o.key_component
-    T = sum(ts[w])
-    V = adsorbent_volume(p)
-    return (purity = purity(n_extract; component = k), recovery = recovery(n_extract, n_feed; component = k),
-        specific_energy = specific_energy_kwh_per_tonne(E, n_extract, fs.gas.molar_masses[k]; component = k),
-        productivity = productivity(n_extract, T, V; component = k), energy = E, cycle_time = T,
-        feed = n_feed, extract = n_extract, product = n_product, adsorbent_volume = V, adsorbent_mass = adsorbent_mass(p))
+    s = performance_sums(p, states, ts; window = w)
+    return merge(_measure_values(p, s), (energy = s.energy, blower_energy = s.blower_energy, cycle_time = sum(ts[w]),
+        feed = total(:feed), extract = total(:extract), product = total(:product),
+        adsorbent_volume = s.adsorbent_volume, adsorbent_mass = s.adsorbent_mass))
 end
 
 """
-    performance(p::Process; kwarg...) → NamedTuple
+    steady_state(p::CyclicProcess; kwarg...) → CyclicResult
 
-Performance at cyclic steady state; keywords go to
-[`cyclic_steady_state`](@ref).
+The cyclic steady state, the state a cyclic process settles to; see
+[`cyclic_steady_state`](@ref), which the keywords go to.
 """
-performance(p::Process; kwarg...) = performance(cyclic_steady_state(p; kwarg...))
+steady_state(p::CyclicProcess; kwarg...) = cyclic_steady_state(p; kwarg...)
 
 # ------------------------------------------------------------------------------
 # Inspection
 # ------------------------------------------------------------------------------
 
-function Base.show(io::IO, ::MIME"text/plain", p::Process)
+function Base.show(io::IO, ::MIME"text/plain", p::CyclicProcess)
     fs = p.flowsheet
-    println(io, "Process", isempty(p.name) ? "" : " $(p.name)", ": ", join(fs.gas.names, "/"), " feed at ",
+    println(io, "Cyclic process", isempty(p.name) ? "" : " $(p.name)", ": ", join(fs.gas.names, "/"), " feed at ",
         _bar(fs.feed.pressure), ", ", fs.feed.temperature, " K, capturing ", fs.gas.names[p.options.key_component])
     print_flowsheet_diagram(io, fs)
     sts = try

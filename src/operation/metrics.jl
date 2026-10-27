@@ -172,10 +172,8 @@ outlet temperature of the unit feeding it through a
 [`HeatTransferFluidConnection`](@ref), or its `HXFluidInletTemperature`.
 """
 function hx_fluid_inlet_temperature(fs::AbstractFlowsheet, state, parameters, unit::Symbol)
-    for c in connections(fs)
-        c isa HeatTransferFluidConnection && c.downstream == unit && return state[c.upstream][:HXFluidTemperature][end]
-    end
-    return first(parameters[unit][:HXFluidInletTemperature])
+    up = _hx_upstream(fs, unit)
+    return isnothing(up) ? first(parameters[unit][:HXFluidInletTemperature]) : state[up][:HXFluidTemperature][end]
 end
 
 """
@@ -184,14 +182,11 @@ end
 Heat [W] that the heat transfer fluid gives the gas and sorbent of `unit`, a
 unit with a [`HeatExchanger`](@ref): `ṁ·c_p·(T_in − T_out)` of the fluid,
 which equals the heat exchanged at steady state. Negative where the fluid
-takes heat away.
+takes heat away. See [`HeatDutyObjective`](@ref) for its adjoint gradients.
 """
 function heat_duty(fs::AbstractFlowsheet, state, parameters, unit::Symbol)
     has_heat_exchanger(fs[unit].system) || error("Unit $unit has no heat exchanger")
-    p = parameters[unit]
-    T_in = hx_fluid_inlet_temperature(fs, state, parameters, unit)
-    T_out = state[unit][:HXFluidTemperature][end]
-    return first(p[:HXFluidMassFlow]) * first(p[:HXFluidHeatCapacity]) * (T_in - T_out)
+    return HeatDutyObjective(fs, unit)(nothing, objective_state(state, parameters), 1.0, nothing, nothing)
 end
 
 "Units of `fs` whose sorbent moves (see [`moves_sorbent`](@ref)), in flowsheet order."

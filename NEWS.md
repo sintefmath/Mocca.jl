@@ -93,6 +93,115 @@
   below about 7.9 kg/s no purge gas is left to strip CO₂ from the hot sorbent
   in precooling, and it falls to 87%.
 
+- **Gradient checks.** `check_gradients(p)` compares the gradients of a
+  process with central differences of its steady state at two step sizes,
+  and marks each pair of variable and measure as passing, inconclusive (the
+  two differences disagree, as at a kink or a jump) or failing (they agree
+  with each other but not with the gradient). `test/gradient_checks.jl` runs
+  it on every process of the library and every process the examples build,
+  with `MOCCA_GRADIENT_CHECKS=true`. The extending guide has the rules for
+  differentiable models.
+- **Optimisers.** `optimise!` meets its targets on measures with an
+  augmented Lagrangian (`constraints = :lagrangian`, the default): after each
+  BFGS run the multiplier of a target grows by the shortfall left, and the
+  penalty tenfold where the shortfall did not shrink, until every target is
+  met to `constraint_tol`. Its first run is the former penalty method,
+  `constraints = :penalty`, which stops there and gives the former results.
+  Each design is evaluated once (the restarts reuse it). `method = :pattern`
+  searches without gradients, by a compass search in the box, for
+  objectives with kinks or jumps. A design where the process does not settle
+  or fails to simulate is flagged in the history (`settled`), left out of the
+  best, and the optimiser steps back from it. The result has `feasible`,
+  `multipliers` and, per evaluation, `settled` and `violation`.
+  `pareto_front!` traces a Pareto front by ε-constraints, each optimum
+  started from the last, and `explore` evaluates designs spread over the box
+  (a Halton sequence), each from the initial state, to find the regimes and
+  a start before following gradients. A `SteadyProcess` starts each
+  `steady_state` from the last one it found (`warm_start = true`).
+  In the "Optimization" example the targets are now met exactly: 65.4%
+  recovery at 90.0% purity (65.5% at 89.9% before), and 115 kWh/t at 90.0%
+  purity and 60.0% recovery (116 kWh/t at 89.9% and 59.9% before), in 28 and
+  56 evaluations (20 and 24 before).
+  Neither is the end of the flat ridge the recovery rises along: one BFGS
+  run of 60 iterations reaches 68.0%, with the adsorption time at its bound.
+  The library has the MBTSA, `mondino_2022_mbtsa`, at 50 cells per metre,
+  and a new example, "Optimising the moving bed TSA", finds its least
+  equivalent work for 95% purity and 90% capture over the purge, the hot
+  water temperature, the sorbent flow and the height of the desorption
+  section, and its trade-off with productivity.
+- **Gradients for any place, and geometry as a design variable.** The
+  change of the model's inputs with a design variable comes from setting it
+  a little up and down, without simulating: the stage settings and
+  durations, now also every unit parameter, and the quantities such as the
+  adsorbent volume, by central differences with a power-of-two step, exact
+  for the built-in places, whose effect is linear (the gradients of step and
+  feed variables move by about 4e-11 as the rounding of the former step
+  goes). The adjoints then take only the parameters that change. A new kind
+  of place needs only a way to read and write its value. New places:
+  `GeometryPlace(unit, field)`, a field of a bed's or moving bed section's
+  `Column`, such as its length, radius or porosity, or the packing fraction,
+  which rebuilds the unit on as many cells (a new radius keeps the wall
+  thickness); `ScaledPlace(place, factor)`, a place set to a multiple of the
+  variable; and `SettingPlace(device, field; port)` for the pressure or
+  temperature at a boundary port, such as the extraction pressure. `Place`,
+  their abstract type, is exported and documented with what a new kind
+  implements. Gradients
+  match central differences to within 1e-5 for the column length and radius
+  of the four-stage VSA and the height of the MBTSA's desorption section and
+  its extraction pressure. Process files read and write the new places, and
+  the variables of steady processes.
+- **Gradients of steady processes.** `performance_gradient` and `optimise!`
+  work on a `SteadyProcess`, such as the MBTSA. A steady state is the fixed
+  point of a cycle of one long backward-Euler step, which returns any state
+  that satisfies the steady equations, so `cyclic_steady_state_gradient`
+  gives its gradients unchanged: the adjoint of the steady equations at the
+  steady state, linearised there without solving the step (its new `steps`
+  keyword). Variables set unit parameters (`ParameterPlace`), such as the
+  sorbent flow of every section or the water temperatures, or device
+  settings, with the new `SettingPlace(device, field)` for a field of a
+  device's flow law, such as the purge rate. On the MBTSA at 10 cells per
+  metre the gradients of six measures with respect to the sorbent flow, the
+  hot and cold water temperatures and the purge match central differences
+  of the steady state to within 4e-6, and at the example's 200 cells per
+  metre within 2e-5. The MBTSA example gains a section on the sensitivities
+  of its capture rate and equivalent work to the sorbent flow, the hot water
+  temperature and the purge. `steady_state` takes `progress`.
+- **Measures as functions of integrals.** Every performance measure is now
+  a function of integrals over the cycle (rates at steady state), such as
+  the moles of the key component in the extract or the pump work, and of
+  quantities that do not depend on the state, such as the cycle time:
+  `performance_integrals`, `performance_quantities`, `performance_measures`
+  and `performance_sums` list them. `performance_gradient` takes the chain
+  rule from the integrals to each measure by automatic differentiation
+  (`measure_partials`), in place of the quotient rules written out by hand,
+  and gives the same gradients to rounding. `add_measure!` adds a measure of
+  the user's own, from these or from an integral added with `add_integral!`
+  (any Jutul sum objective), which `performance` reports and
+  `performance_gradient` and `optimise!` differentiate with no derivative
+  code. `performance_gradient` takes `measures`, the measures to
+  differentiate. When
+  the measures depend on more integrals than there are measures, each
+  measure takes one adjoint of its linearisation instead of one per integral.
+- **Fan and blower work on links.** A `:link` device that moves gas up in
+  pressure, such as the recycle and purge blowers of the MBTSA, counts as a
+  fan or blower: `BlowerObjective` and `blower_energy`, with the pumps'
+  efficiency and heat capacity ratio. Its work is part of the `energy` (per
+  cycle) and `power` (steady), and reported as `blower_energy` and
+  `blower_power`. A link that lets gas down, such as the valve of an
+  equalisation, takes none, so VSA results do not change.
+- **Heat duty and its equivalent work as integrals.** `HeatDutyObjective`
+  gives the heat `ṁ·c_p·(T_in − T_out)` of a unit's heat transfer fluid for
+  adjoints, and `EquivalentWorkObjective` (`equivalent_work`) the work it is
+  worth against the new `ambient_temperature` option (298.15 K) of `Process`
+  and `SteadyProcess`: each bit of heat weighted by the Carnot factor at the
+  temperature the fluid gives it up at, `ṁ·c_p·[(T_in − T_out) − T₀·ln(T_in/T_out)]`.
+  The performance of a process with heat exchangers adds
+  `equivalent_work` and `specific_equivalent_work`, the electrical and
+  equivalent work together per tonne of key component. `heating` and
+  `cooling` now count the units whose fluid enters from outside above or at
+  and below the ambient temperature, which for the MBTSA is the same as
+  before. Objectives now see each unit's parameters in the state in every
+  adjoint (`objective_state`), as Jutul's own adjoints give them.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -138,7 +247,8 @@
   5% higher in a mixture.
 - **Heat capacity ratio of the pumps from the feed.** A `Process` without
   `heat_capacity_ratio` takes `γ = c_p/(c_p − R)` of the feed at its
-  temperature (`pump_heat_capacity_ratio`), instead of 1.4. The presets and
+  temperature (`pump_heat_capacity_ratio`), instead of 1.4, for its vacuum
+  pumps, compressors and blowers, cyclic or steady. The presets and
   library processes set 1.4, as their papers do.
 - **`TimeScale` in every residual.** Units checked for the `TimeScale`
   parameter with `hasproperty`, which is false on the local
@@ -149,6 +259,19 @@
   `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
   `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the
   state.
+- **`Process` is the abstract type of every process.** The cyclic process
+  is now `CyclicProcess`, and its result `CyclicResult`; `SteadyProcess` is a
+  `Process` too, and `SteadyResult` a `ProcessResult`. `Process(fs, cycle)`
+  still builds a cyclic process, every `p::Process` annotation accepts both
+  kinds, and process files do not name the type, so existing code and files
+  work unchanged. Both kinds share one interface: `steady_state` finds the
+  state a process settles to (the cyclic steady state of a cyclic process),
+  `stages` its operation, `performance(p)` measures it there, and design
+  variables, measures and integrals are added the same way; a steady process
+  takes variables at `ParameterPlace`s, with gradients still to come. A
+  cyclic process shows as "Cyclic process". The extending guide lists what a
+  new kind of process implements.
+
 - **Gas balances converge against the gas flowing through each cell.** The
   mass and energy errors of a cell are measured against the gas it holds plus
   the gas that flows through it over the step, and its heat capacity. Before,

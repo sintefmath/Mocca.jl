@@ -82,6 +82,10 @@ end
         include("jutul_integration.jl")
     end
 
+    if get(ENV, "MOCCA_GRADIENT_CHECKS", "false") == "true"
+        include("gradient_checks.jl")
+    end
+
     @testset "Regression Tests" begin
         include("regression/dcb_regression.jl")
         include("regression/cyclic_regression.jl")

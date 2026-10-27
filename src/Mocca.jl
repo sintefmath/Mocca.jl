@@ -17,10 +17,12 @@ export SorbentConnection, HeatTransferFluidConnection, connect_solids!, connect_
 export setup_flowsheet_state, setup_flowsheet_parameters
 export Stage, setup_schedule
 export cycle_window, stream_totals, purity, recovery, productivity, adsorbent_volume, sorbent_mass
-export stream_rates, heat_duty, sorbent_inventory, sorbent_circulation_time
-export vacuum_pump_energy, specific_energy_kwh_per_tonne, component_inventory
+export stream_rates, heat_duty, equivalent_work, sorbent_inventory, sorbent_circulation_time
+export vacuum_pump_energy, compressor_energy, blower_energy, specific_energy_kwh_per_tonne, component_inventory
 export restart_state, cycle_change, simulate_to_cyclic_steady_state, simulate_until_mass_balance, CycleProgress
-export StreamObjective, VacuumPumpObjective, CompressorObjective, force_gradients, newton_cyclic_steady_state, cyclic_steady_state_gradient
+export StreamObjective, VacuumPumpObjective, CompressorObjective, BlowerObjective, HeatDutyObjective, EquivalentWorkObjective
+export SumObjective, objective_state, integral_values, measure_partials
+export force_gradients, newton_cyclic_steady_state, cyclic_steady_state_gradient
 export number_of_components, component_names
 export MoccaCase
 
@@ -53,9 +55,10 @@ export Adsorbent, Column, Wall, equilibrium_loading, isotherm_table
 export add_bed!, add_moving_bed!, add_device!, devices_with_role, print_flowsheet_diagram
 export AbstractStep, StepContext, step_settings, end_pressure, register_step!
 export Pressurise, Adsorb, Blowdown, Evacuate, Purge, Equalise, Idle, Concurrent, Cycle, TimeStepping
-export Process, simulate, cyclic_steady_state, performance, initial_state
+export Process, CyclicProcess, ProcessResult, CyclicResult, simulate, cyclic_steady_state, performance, initial_state
 export SteadyProcess, SteadyResult, steady_state
-export StepPlace, FeedPlace, ParameterPlace, add_variable!, performance_gradient, optimise!, reset_step_pattern!
+export Place, StepPlace, FeedPlace, ParameterPlace, SettingPlace, GeometryPlace, ScaledPlace, add_variable!, performance_gradient, optimise!, pareto_front!, explore, check_gradients, reset_step_pattern!
+export performance_integrals, performance_quantities, performance_measures, performance_sums, add_integral!, add_measure!
 export read_process, write_process, write_results, load_adsorbent, save_adsorbent, library_adsorbents, library_processes
 export four_stage_vsa_process, two_bed_vsa_process, lpp_vsa_process, dual_adsorbent_vsa_process, convert_constants
 

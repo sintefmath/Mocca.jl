@@ -10,6 +10,46 @@ that a [`Process`](@ref) builds. That model is a
 [Jutul](https://github.com/sintefmath/Jutul.jl) `MultiModel`, with one model
 per bed and device, and the steps of the cycle become its forces.
 
+## Adding a kind of process
+
+A kind of process is a subtype of [`Process`](@ref), and its result one of
+[`ProcessResult`](@ref) with fields `process`, `states` and `timesteps`. It
+needs fields `flowsheet`, `options` ([`ProcessOptions`](@ref)), `model`,
+`parameters`, `parameter_settings`, `variables`, `integrals` and `measures`,
+and these methods:
+
+- [`simulate`](@ref), [`initial_state`](@ref) and [`steady_state`](@ref),
+  which finds the state it settles to;
+- [`stages`](@ref), the device settings and durations it is operated by;
+- [`performance_quantities`](@ref) and [`performance`](@ref) of its result,
+  from [`performance_sums`](@ref) over the steps that make up one period of
+  its operation;
+- for design variables of its own kinds of place, `_get(p, place)` and
+  `_set!(p, place, value)` (a [`ParameterPlace`](@ref) works for every kind),
+  and `_rebuild!(p)`, which sets up its model and parameters again after a
+  [`GeometryPlace`](@ref) rebuilt a unit; gradients then need nothing more;
+- for gradients, `_fixed_point(p, result)`: the forces and time steps of one
+  period, the state at its start, at the fixed point the result settled to,
+  and the result to measure.
+
+[`performance_integrals`](@ref), [`performance_measures`](@ref),
+[`add_measure!`](@ref), [`add_variable!`](@ref), [`performance`](@ref) of
+the process, [`performance_gradient`](@ref) and [`optimise!`](@ref) then
+work unchanged.
+
+```@docs
+ProcessOptions
+```
+
+## Adding a kind of place
+
+A new kind of place, such as a field of a device or unit that no place
+reaches yet, is a subtype of [`Place`](@ref) with methods `_get(p, place)` and
+`_set!(p, place, value)` for the kinds of process that have it, and
+`_describe(place)` for messages. Its gradients then come from the general
+design Jacobian, with no derivative code. To read and write it in process
+files, add methods of `_place_to_dict` and a case in `_place_from_dict`.
+
 ## Adding a kind of step
 
 The set of steps is open: define a subtype of [`AbstractStep`](@ref) and a
@@ -158,6 +198,64 @@ holds_sorbent
 AxialDispersion
 ```
 
+## Rules for differentiable models
+
+Every gradient in Mocca comes from Jutul's automatic differentiation and
+adjoints of the model's own equations, so a new kind of unit, device law,
+objective or measure needs no derivative code. It does need to follow these
+rules, each learned the hard way; a model that breaks one gives gradients that
+are wrong without any error.
+
+1. **A branch must not change which cells, entities or parameters a term
+   reads.** Jutul finds what each equation, cross term and objective depends
+   on by tracing it once, at the state it starts from, often a uniform one,
+   and keeps only those dependencies for the whole run. A term that reads a
+   neighbour only where a slope is steep, or one port only when the gas flows
+   one way, is traced along one branch and its other dependencies are
+   dropped. Read every value on every branch, with zero weight where it does
+   not count: `ifelse`, which evaluates both sides, rather than `if`; the
+   limiters read both neighbours through `_stencil_anchor`
+   (`src/balances/limiters.jl`), and cross terms touch their target through
+   `_target_anchor` (`src/networks/ports.jl`). Branching between variables of
+   one entity is fine, such as the upstream port of a device, whose variables
+   all live in its one cell.
+2. **Do not compare a value that carries derivatives with zero.** A dual
+   number of value 0 with a positive derivative compares as greater than 0,
+   and in an adjoint the parameters are dual numbers, so a test such as
+   `Σc > 0` takes the wrong branch exactly where the amount vanishes, and
+   divides by zero. Use smooth forms, or a positive threshold well away from
+   the values that occur.
+3. **Keep denominators, and their derivatives, finite without a branch.**
+   Adding a tiny amount works for a denominator that is a sum of amounts of
+   ordinary size, such as `Σc + 1e-20` for the gas in the pores
+   (`src/balances/solid_advection.jl`). Where the denominator is the square of
+   a small difference, as in a slope limiter, an amount small enough not to
+   matter has a square that underflows in the derivative: return zero below a
+   cutoff on the value instead (`_LIMITER_TINY = 1e-75`).
+4. **What a design changes must reach the equations as a parameter.** A
+   quantity computed once when the model is built, from the geometry or a
+   flow, keeps its value when the design changes, and its effect is lost from
+   the gradient. Cell sizes, volumes, areas and transmissibilities are
+   parameters, and the default valve conductances are recomputed when the
+   cycle compiles, so geometry gets gradients (see [`GeometryPlace`](@ref));
+   a heat transfer coefficient computed from the sorbent velocity outside the
+   unit does not follow it.
+5. **Objectives and measures are generic Julia functions.** An integral (see
+   [`add_integral!`](@ref)) reads the state and the unit's parameters, which
+   carry dual numbers in the adjoints, and a measure (see
+   [`add_measure!`](@ref)) is differentiated by ForwardDiff, so neither may
+   convert its arguments to `Float64`.
+
+[`check_gradients`](@ref) compares the gradients of a process with central
+differences at two step sizes and reports a failure when the two differences
+agree with each other but not with the gradient. `test/gradient_checks.jl`
+runs it on every process of the library and every process the examples
+build; set `MOCCA_GRADIENT_CHECKS=true` to include it in the tests.
+
+```@docs
+check_gradients
+```
+
 ## Moving beds
 
 A [`MovingBed`](@ref) carries its sorbent down through the unit.
@@ -198,6 +296,7 @@ moving_bed_model
 MovingBedSpec
 stream_rates
 heat_duty
+equivalent_work
 hx_fluid_inlet_temperature
 moving_sorbent_units
 sorbent_inventory
@@ -243,5 +342,12 @@ force_gradients
 StreamObjective
 VacuumPumpObjective
 CompressorObjective
+BlowerObjective
+HeatDutyObjective
+EquivalentWorkObjective
+SumObjective
+objective_state
+integral_values
+measure_partials
 SimulationFailure
 ```

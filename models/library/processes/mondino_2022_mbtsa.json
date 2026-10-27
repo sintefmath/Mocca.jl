@@ -1,0 +1,488 @@
+{
+  "format": "mocca-process",
+  "version": 1,
+  "name": "MBTSA of Mondino et al. (2022), 50 cells per metre",
+  "gas": {
+    "components": [
+      "CO2",
+      "N2"
+    ],
+    "molar_masses": {
+      "CO2": 0.04401,
+      "N2": 0.0280134
+    },
+    "heat_capacities": {
+      "CO2": 846.0,
+      "N2": 1040.0
+    },
+    "viscosity": 1.8e-5,
+    "diffusivity": 1.6e-5
+  },
+  "feed": {
+    "composition": {
+      "CO2": 0.11,
+      "N2": 0.89
+    },
+    "temperature": 303.15,
+    "pressure": 101500.0,
+    "light_product": {
+      "CO2": 1.0e-6,
+      "N2": 0.999999
+    }
+  },
+  "adsorbents": {
+    "activated carbon": {
+      "format": "mocca-adsorbent",
+      "version": 1,
+      "name": "activated carbon",
+      "reference": "Mondino et al., Int. J. Greenh. Gas Control 118 (2022) 103685, doi:10.1016/j.ijggc.2022.103685: Virial isotherm of Table 5, fitted to CO2 and N2 between 30 and 150 °C, with the Henry constants converted from per kPa to per Pa; bead properties of Table 2. Macropore radius of Table 2, for Knudsen diffusion in series with molecular diffusion (eqs. A.18–A.19). Loadings per kg of adsorbent. The paper also has film and micropore resistances, which the linear driving force leaves out.",
+      "density": 904.0,
+      "heat_capacity": 880.0,
+      "particle_diameter": 0.0007,
+      "particle_porosity": 0.5,
+      "tortuosity": 3.0,
+      "macropore_radius": 5.25e-7,
+      "isotherm": {
+        "type": "virial",
+        "components": {
+          "CO2": {
+            "Kinf": 2.6969e-10,
+            "dH": 30006.0,
+            "A0": -4.3235,
+            "A1": 1474.0,
+            "B0": 1.4239,
+            "B1": -465.2
+          },
+          "N2": {
+            "Kinf": 5.5486e-10,
+            "dH": 21934.0,
+            "A0": -22.982,
+            "A1": 7121.1,
+            "B0": 51.644,
+            "B1": -15756.0
+          }
+        }
+      }
+    }
+  },
+  "columns": {
+    "column_1": {
+      "length": 0.9,
+      "radius": 6.4,
+      "outer_radius": 6.4,
+      "porosity": 0.7,
+      "axial_conductivity": 0.3358695742121149,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 502.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    },
+    "column_2": {
+      "length": 0.4,
+      "radius": 6.65,
+      "outer_radius": 6.65,
+      "porosity": 0.5,
+      "axial_conductivity": 0.20323333333333332,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 502.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    },
+    "column_3": {
+      "length": 0.8,
+      "radius": 6.65,
+      "outer_radius": 6.65,
+      "porosity": 0.5,
+      "axial_conductivity": 0.20323333333333332,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 502.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    },
+    "column_4": {
+      "length": 0.6,
+      "radius": 6.65,
+      "outer_radius": 6.65,
+      "porosity": 0.5,
+      "axial_conductivity": 0.20323333333333332,
+      "wall": {
+        "density": 7800.0,
+        "heat_capacity": 502.0,
+        "conductivity": 16.0
+      },
+      "inner_heat_transfer": 8.6,
+      "outer_heat_transfer": 2.5,
+      "ambient_temperature": 298.15
+    }
+  },
+  "units": [
+    {
+      "name": "Adsorption",
+      "type": "moving_bed",
+      "adsorbent": "activated carbon",
+      "column": "column_1",
+      "ncells": 45,
+      "thermal": "adiabatic",
+      "sorbent_mass_flow": 650.0,
+      "packing_fraction": 0.05,
+      "dispersion": 0.0006383079759169328,
+      "dispersion_velocity": 0.0,
+      "pore_gas": true,
+      "limiter": "van_albada"
+    },
+    {
+      "name": "Preheating",
+      "type": "moving_bed",
+      "adsorbent": "activated carbon",
+      "column": "column_2",
+      "ncells": 20,
+      "thermal": "heat_exchanger",
+      "sorbent_mass_flow": 650.0,
+      "packing_fraction": 0.0,
+      "heat_exchanger": {
+        "outer_area_density": 229.0,
+        "inner_area_density": 134.89213456351175,
+        "tube_volume_fraction": 0.2556617981547324,
+        "fluid_volume_fraction": 0.2023382018452676,
+        "tube_density": 4420.0,
+        "tube_heat_capacity": 526.0,
+        "fluid_density": 1000.0,
+        "fluid_heat_capacity": 4200.0,
+        "sorbent_side_htc": 133.54127644192036,
+        "fluid_side_htc": 10000.0,
+        "fluid_mass_flow": 160.6,
+        "fluid_inlet_temperature": 303.15
+      },
+      "dispersion": 0.0006749999999999999,
+      "dispersion_velocity": 0.0,
+      "pore_gas": true,
+      "limiter": "van_albada"
+    },
+    {
+      "name": "Desorption",
+      "type": "moving_bed",
+      "adsorbent": "activated carbon",
+      "column": "column_3",
+      "ncells": 40,
+      "thermal": "heat_exchanger",
+      "sorbent_mass_flow": 650.0,
+      "packing_fraction": 0.0,
+      "heat_exchanger": {
+        "outer_area_density": 229.0,
+        "inner_area_density": 134.89213456351175,
+        "tube_volume_fraction": 0.2556617981547324,
+        "fluid_volume_fraction": 0.2023382018452676,
+        "tube_density": 4420.0,
+        "tube_heat_capacity": 526.0,
+        "fluid_density": 1000.0,
+        "fluid_heat_capacity": 4200.0,
+        "sorbent_side_htc": 133.54127644192036,
+        "fluid_side_htc": 10000.0,
+        "fluid_mass_flow": 267.6,
+        "fluid_inlet_temperature": 460.15
+      },
+      "dispersion": 0.0006749999999999999,
+      "dispersion_velocity": 0.0,
+      "pore_gas": true,
+      "limiter": "van_albada"
+    },
+    {
+      "name": "Precooling",
+      "type": "moving_bed",
+      "adsorbent": "activated carbon",
+      "column": "column_2",
+      "ncells": 20,
+      "thermal": "heat_exchanger",
+      "sorbent_mass_flow": 650.0,
+      "packing_fraction": 0.0,
+      "heat_exchanger": {
+        "outer_area_density": 229.0,
+        "inner_area_density": 134.89213456351175,
+        "tube_volume_fraction": 0.2556617981547324,
+        "fluid_volume_fraction": 0.2023382018452676,
+        "tube_density": 4420.0,
+        "tube_heat_capacity": 526.0,
+        "fluid_density": 1000.0,
+        "fluid_heat_capacity": 4200.0,
+        "sorbent_side_htc": 133.54127644192036,
+        "fluid_side_htc": 10000.0,
+        "fluid_mass_flow": 160.6,
+        "fluid_inlet_temperature": 303.15
+      },
+      "dispersion": 0.0006749999999999999,
+      "dispersion_velocity": 0.0,
+      "pore_gas": true,
+      "limiter": "van_albada"
+    },
+    {
+      "name": "Cooling",
+      "type": "moving_bed",
+      "adsorbent": "activated carbon",
+      "column": "column_4",
+      "ncells": 30,
+      "thermal": "heat_exchanger",
+      "sorbent_mass_flow": 650.0,
+      "packing_fraction": 0.0,
+      "heat_exchanger": {
+        "outer_area_density": 229.0,
+        "inner_area_density": 134.89213456351175,
+        "tube_volume_fraction": 0.2556617981547324,
+        "fluid_volume_fraction": 0.2023382018452676,
+        "tube_density": 4420.0,
+        "tube_heat_capacity": 526.0,
+        "fluid_density": 1000.0,
+        "fluid_heat_capacity": 4200.0,
+        "sorbent_side_htc": 133.54127644192036,
+        "fluid_side_htc": 10000.0,
+        "fluid_mass_flow": 267.6,
+        "fluid_inlet_temperature": 283.15
+      },
+      "dispersion": 0.0006749999999999999,
+      "dispersion_velocity": 0.0,
+      "pore_gas": true,
+      "limiter": "van_albada"
+    }
+  ],
+  "devices": [
+    {
+      "name": "V_feed",
+      "role": "feed",
+      "at": [
+        "Adsorption",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_raffinate",
+      "role": "product",
+      "at": [
+        "Adsorption",
+        "top"
+      ],
+      "boundary": {
+        "pressure": 101325.0,
+        "temperature": 303.15,
+        "composition": {
+          "CO2": 1.0e-6,
+          "N2": 0.999999
+        }
+      }
+    },
+    {
+      "name": "V_purge",
+      "role": "link",
+      "from": [
+        "Adsorption",
+        "top"
+      ],
+      "to": [
+        "Cooling",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_link",
+      "role": "link",
+      "from": [
+        "Cooling",
+        "top"
+      ],
+      "to": [
+        "Precooling",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_recycle_preheat",
+      "role": "link",
+      "from": [
+        "Preheating",
+        "top"
+      ],
+      "to": [
+        "Adsorption",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_recycle_precool",
+      "role": "link",
+      "from": [
+        "Precooling",
+        "top"
+      ],
+      "to": [
+        "Adsorption",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_product",
+      "role": "extract",
+      "at": [
+        "Desorption",
+        "bottom"
+      ],
+      "boundary": {
+        "pressure": 90000.0,
+        "temperature": 460.15,
+        "composition": {
+          "CO2": 0.97,
+          "N2": 0.03
+        }
+      }
+    }
+  ],
+  "sorbent_connections": [
+    [
+      "Adsorption",
+      "Preheating"
+    ],
+    [
+      "Preheating",
+      "Desorption"
+    ],
+    [
+      "Desorption",
+      "Precooling"
+    ],
+    [
+      "Precooling",
+      "Cooling"
+    ],
+    [
+      "Cooling",
+      "Adsorption"
+    ]
+  ],
+  "fluid_connections": [
+    [
+      "Precooling",
+      "Preheating"
+    ],
+    [
+      "Preheating",
+      "Precooling"
+    ]
+  ],
+  "operation": {
+    "type": "steady",
+    "duration": 3600.0,
+    "settings": {
+      "V_feed": {
+        "law": {
+          "type": "molar_flow",
+          "rate": 1877.5384134619032
+        }
+      },
+      "V_raffinate": {
+        "law": {
+          "type": "valve",
+          "conductance": 8.90007665421841,
+          "opening": 1.0
+        }
+      },
+      "V_purge": {
+        "law": {
+          "type": "molar_flow",
+          "rate": 299.3208682945947
+        }
+      },
+      "V_link": {
+        "law": {
+          "type": "valve",
+          "conductance": 0.6303263865782738,
+          "opening": 1.0
+        }
+      },
+      "V_recycle_preheat": {
+        "law": {
+          "type": "back_pressure",
+          "setpoint": 101325.0,
+          "conductance": 1.1042422097391653
+        }
+      },
+      "V_recycle_precool": {
+        "law": {
+          "type": "back_pressure",
+          "setpoint": 101325.0,
+          "conductance": 1.1042422097391653
+        }
+      },
+      "V_product": {
+        "law": {
+          "type": "valve",
+          "conductance": 1.2606527731565476,
+          "opening": 1.0
+        }
+      }
+    }
+  },
+  "time_stepping": {
+    "max_dt": 60.0,
+    "first_dt": 0.05,
+    "keep_step_pattern": "auto"
+  },
+  "options": {
+    "key_component": "CO2",
+    "ambient_pressure": 101325.0,
+    "pump_efficiency": 0.72,
+    "heat_capacity_ratio": 1.4,
+    "ramp_rate": 0.5,
+    "ambient_temperature": 298.15
+  },
+  "initial_state": {
+    "Precooling": {
+      "temperature": 393.15,
+      "pressure": 101325.0,
+      "composition": {
+        "CO2": 0.5,
+        "N2": 0.5
+      }
+    },
+    "Preheating": {
+      "temperature": 383.15,
+      "pressure": 101325.0,
+      "composition": {
+        "CO2": 0.5,
+        "N2": 0.5
+      }
+    },
+    "Adsorption": {
+      "temperature": 303.15,
+      "pressure": 101500.0,
+      "composition": {
+        "CO2": 0.11,
+        "N2": 0.89
+      }
+    },
+    "Cooling": {
+      "temperature": 313.15,
+      "pressure": 101325.0,
+      "composition": {
+        "CO2": 0.02,
+        "N2": 0.98
+      }
+    },
+    "Desorption": {
+      "temperature": 453.15,
+      "pressure": 90000.0,
+      "composition": {
+        "CO2": 0.95,
+        "N2": 0.05
+      }
+    }
+  }
+}

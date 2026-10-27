@@ -6,7 +6,7 @@
     SteadyProcess(fs, settings; name = "", duration = 3600.0,
         timestepping = TimeStepping(max_dt = 60.0, first_dt = 0.05), key_component = 1,
         ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing,
-        initial_state = Dict(), parameters = Dict())
+        ambient_temperature = 298.15, initial_state = Dict(), parameters = Dict())
 
 A process on flowsheet `fs` whose devices keep the same settings, run until it
 reaches steady state, such as a moving bed process (see
@@ -34,7 +34,7 @@ one span. [`performance`](@ref) measures the steady state: devices with the
 tubes and their fluid at the temperature of the unit. `parameters` overrides
 unit parameters, as for a [`Process`](@ref).
 """
-mutable struct SteadyProcess
+mutable struct SteadyProcess <: Process
     name::String
     flowsheet::Flowsheet
     settings::Dict{Symbol, Any}
@@ -45,11 +45,15 @@ mutable struct SteadyProcess
     parameter_settings::Dict{Symbol, Dict{Symbol, Any}}
     model::Jutul.MultiModel
     parameters::Dict{Symbol, Any}
+    warm::WarmStart
+    variables::Vector{Any}
+    integrals::Vector{Pair{Symbol, Any}}
+    measures::Vector{Pair{Symbol, Any}}
 end
 
 function SteadyProcess(fs::Flowsheet, settings; name = "", duration = 3600.0, timestepping = TimeStepping(max_dt = 60.0, first_dt = 0.05),
         key_component = 1, ambient_pressure = 101325.0, pump_efficiency = 0.72, heat_capacity_ratio = nothing,
-        initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
+        ambient_temperature = 298.15, initial_state = Dict{Symbol, Any}(), parameters = Dict{Symbol, Any}())
     fs = deepcopy(fs)
     duration > 0 || input_error("steady process", "duration", "must be positive, got $duration")
     k = key_component isa Integer ? Int(key_component) : component_index(fs.gas, key_component)
@@ -57,7 +61,7 @@ function SteadyProcess(fs::Flowsheet, settings; name = "", duration = 3600.0, ti
     fs.feed.light_product_given || (fs.feed.light_product = light_product_composition(fs.feed.composition; component = k))
     isnothing(heat_capacity_ratio) || heat_capacity_ratio > 1 ||
         input_error("steady process", "heat_capacity_ratio", "must be greater than 1, got $heat_capacity_ratio")
-    options = ProcessOptions(k, ambient_pressure, pump_efficiency, _maybe_float(heat_capacity_ratio), 0.5)
+    options = ProcessOptions(k, ambient_pressure, pump_efficiency, _maybe_float(heat_capacity_ratio), 0.5, ambient_temperature)
     s = Dict{Symbol, Any}()
     for (d, v) in pairs(settings)
         d = Symbol(d)
@@ -73,7 +77,8 @@ function SteadyProcess(fs::Flowsheet, settings; name = "", duration = 3600.0, ti
         u in holdup_units(fs) || input_error("initial_state", String(u), "$u is not a unit with holdup of the flowsheet")
     end
     prm_settings = Dict{Symbol, Dict{Symbol, Any}}(Symbol(u) => Dict{Symbol, Any}(Symbol(n) => v for (n, v) in pairs(d)) for (u, d) in pairs(parameters))
-    p = SteadyProcess(String(name), fs, s, Float64(duration), timestepping, options, ics, prm_settings, model, Dict{Symbol, Any}())
+    p = SteadyProcess(String(name), fs, s, Float64(duration), timestepping, options, ics, prm_settings, model, Dict{Symbol, Any}(),
+        WarmStart(), Any[], Pair{Symbol, Any}[], Pair{Symbol, Any}[])
     p.parameters = _steady_parameters(p)
     return p
 end
@@ -95,6 +100,14 @@ function _device_setting(fs, d, v)
     return v
 end
 
+# The model and parameters of the process again, after a unit of its
+# flowsheet was rebuilt
+function _rebuild!(p::SteadyProcess)
+    p.model = setup_flowsheet_model(p.flowsheet)
+    p.parameters = _steady_parameters(p)
+    return p
+end
+
 function _steady_parameters(p::SteadyProcess)
     fs = p.flowsheet
     prm = setup_flowsheet_parameters(fs)
@@ -114,6 +127,54 @@ end
 "The device settings of steady process `p`, as one [`Stage`](@ref) lasting `duration`."
 operating_stage(p::SteadyProcess; duration = p.duration) = Stage(isempty(p.name) ? "steady operation" : p.name, duration, p.settings...)
 
+"""
+    stages(p::SteadyProcess) → Vector{Stage}
+
+The one stage of a steady process, its [`operating_stage`](@ref).
+"""
+stages(p::SteadyProcess) = [operating_stage(p)]
+
+# A steady process has no steps whose time steps it keeps
+reset_step_pattern!(p::SteadyProcess) = p
+
+# The settings of a device, and what a setting place of it holds: a field of
+# its flow law, or the condition at a boundary port, its own or the
+# flowsheet's
+function _device_setting_of(p::SteadyProcess, x::SettingPlace)
+    s = get(p.settings, x.device, nothing)
+    isnothing(s) && input_error("variable", "places", "$(x.device) is not an open device of the process")
+    if isnothing(x.port)
+        haskey(s, :law) || input_error("variable", "places", "$(x.device) has no flow law set")
+        hasfield(typeof(s.law), x.field) ||
+            input_error("variable", "places", "a $(nameof(typeof(s.law))) has no field $(x.field); it has $(join(fieldnames(typeof(s.law)), ", "))")
+        return (settings = s, value = getfield(s.law, x.field))
+    end
+    x.port in (:inlet, :outlet) || input_error("variable", "places", "a device port is :inlet or :outlet, got $(x.port)")
+    is_connected(p.flowsheet, x.device, x.port) && input_error("variable", "places", "the $(x.port) of $(x.device) is connected to a unit, so it has no boundary condition")
+    x.field in (:pressure, :temperature) || input_error("variable", "places", "a port condition sets :pressure or :temperature, got $(x.field)")
+    c = haskey(s, x.port) ? s[x.port] : boundary_condition(p.flowsheet, x.device, x.port)
+    v = getfield(c, x.field)
+    v isa Real || input_error("variable", "places", "the $(x.field) at the $(x.port) of $(x.device) is $(repr(v)), not a number")
+    return (settings = s, value = v, condition = c)
+end
+
+_get(p::SteadyProcess, x::SettingPlace) = _device_setting_of(p, x).value
+
+function _set!(p::SteadyProcess, x::SettingPlace, v)
+    d = _device_setting_of(p, x)
+    s = d.settings
+    if isnothing(x.port)
+        law = s.law
+        values = [f == x.field ? v : getfield(law, f) for f in fieldnames(typeof(law))]
+        p.settings[x.device] = merge(s, (law = Base.typename(typeof(law)).wrapper(promote(values...)...),))
+    else
+        c = d.condition
+        c = PortCondition(pressure = x.field == :pressure ? Float64(v) : c.pressure,
+            temperature = x.field == :temperature ? Float64(v) : c.temperature, composition = c.composition)
+        p.settings[x.device] = merge(s, NamedTuple{(x.port,)}((c,)))
+    end
+end
+
 function initial_state(p::SteadyProcess)
     fs = p.flowsheet
     unit_states = Dict{Symbol, Any}()
@@ -128,12 +189,31 @@ function initial_state(p::SteadyProcess)
     return setup_flowsheet_state(fs; unit_states...)
 end
 
+# A steady state is the fixed point of one long backward-Euler step: a state
+# x that the step from x returns satisfies (M(x) − M(x))/Δt + F(x) = 0, so
+# F(x) = 0 whatever Δt. Its gradients are those of a cycle of that one step
+# (see cyclic_steady_state_gradient), exact for any Δt. The step is not
+# solved: it returns the steady state, so the adjoints linearise it there. (On
+# fine grids the solver cannot take so long a step from the steady state at
+# its tolerance.) A long step makes the step map ∂Φ/∂x nearly zero, so that
+# the adjoint solves for the steady state converge in an iteration or two.
+# The integrals over the step are Δt times the rates.
+const STEADY_GRADIENT_STEP = 1e6
+
+function _fixed_point(p::SteadyProcess, r)
+    Δt = STEADY_GRADIENT_STEP
+    forces, dt = setup_schedule(p.flowsheet, p.model, [operating_stage(p; duration = Δt)]; max_dt = Δt)
+    x = restart_state(p.model, r.states[end])
+    return (forces = forces, timesteps = dt, state0 = x, jacobian = nothing, result = r,
+        steps = ([r.states[end]], dt, forces), measured = (states = r.states[end:end], timesteps = [1.0]), scale = 1 / Δt)
+end
+
 """
 Result of running a [`SteadyProcess`](@ref): the `states` and `timesteps` of
 every step the solver took, and for [`steady_state`](@ref) whether it
 `converged` and the change of the state over each span in `history`.
 """
-struct SteadyResult
+struct SteadyResult <: ProcessResult
     process::SteadyProcess
     states::Vector{Any}
     timesteps::Vector{Float64}
@@ -162,14 +242,22 @@ function Jutul.simulate(p::SteadyProcess; duration = p.duration, state0 = nothin
 end
 
 """
-    steady_state(p::SteadyProcess; tol = 1e-6, max_spans = 10, state0 = initial_state(p),
-        info_level = -1, kwarg...) → SteadyResult
+    steady_state(p::SteadyProcess; tol = 1e-6, max_spans = 10, state0 = nothing,
+        warm_start = true, progress = false, info_level = -1, kwarg...) → SteadyResult
 
 Run the process in spans of `p.duration` until the largest relative change of
 any unit's state over a span (see [`cycle_change`](@ref)) is below `tol`, for
-at most `max_spans` spans. The result holds the states of every span.
+at most `max_spans` spans. It starts from `state0` if given, otherwise from
+the last steady state the process found if `warm_start`, which suits a
+process whose settings change a little at a time, as in an optimisation, and
+otherwise from [`initial_state`](@ref). Far from the last design, or near a
+change of regime, a warm start may settle into another regime than a cold
+one would. The result holds the states of every span; check its `converged`.
+With `progress`, each span is printed with its change.
 """
-function steady_state(p::SteadyProcess; tol = 1e-6, max_spans = 10, state0 = nothing, info_level = -1, kwarg...)
+function steady_state(p::SteadyProcess; tol = 1e-6, max_spans = 10, state0 = nothing, warm_start = true, progress = false,
+        info_level = -1, kwarg...)
+    isnothing(state0) && warm_start && !isnothing(p.warm.state) && (state0 = p.warm.state)
     x = isnothing(state0) ? initial_state(p) : state0
     cold = isnothing(state0)
     states, ts, history = Any[], Float64[], Float64[]
@@ -182,71 +270,61 @@ function steady_state(p::SteadyProcess; tol = 1e-6, max_spans = 10, state0 = not
         append!(ts, span_ts)
         x_next = restart_state(p.model, span[end])
         push!(history, cycle_change(p.model, x, x_next))
+        progress === false || println(progress === true ? stdout : progress, "  span $(length(history)): change $(_sci(history[end])) → $(_sci(tol))")
         x = x_next
         cold = false
         history[end] < tol && (converged = true; break)
     end
+    converged && (p.warm.state = x)
     return SteadyResult(p, states, ts, converged, history)
 end
 
 """
     performance(r::SteadyResult) → NamedTuple
 
-Performance at the end of `r`, which should be steady, as rates:
+Performance at the end of `r`, which should be steady, as rates. Its measures
+(see [`performance_measures`](@ref)) are functions of integrals over one
+second (see [`performance_integrals`](@ref)):
 
 - `purity` and `recovery` of the key component in the streams of the
   `:extract` devices, against those of the `:feed` devices;
+- `specific_energy` [kWh/t of key component], from the `power`;
+- `productivity` [mol of key component per m³ of adsorbent per second];
+- with heat exchangers, `specific_heat_duty` [J/kg of key component], the
+  heating per key component captured, and `specific_equivalent_work` [kWh/t],
+  the power and the `equivalent_work` of the heating together;
+- any measure added with [`add_measure!`](@ref);
 - `feed`, `extract` and `product` (the `:product` devices): molar flow of each
   component [mol/s];
 - `power` [W]: vacuum pumps on the outlets and compressors on the inlets, as
-  for a [`Process`](@ref), and `specific_energy` [kWh/t of key component];
+  for a [`Process`](@ref), and the fans and blowers of links that move gas up
+  in pressure, `blower_power`, such as recycle blowers;
 - `heat_duty` [W] of each unit with a heat exchanger, heat given to the
   sorbent; `heating` and `cooling` [W], the heat given and taken by fluid
-  coming from outside the process (units whose fluid comes from another unit
-  only pass heat around); and `specific_heat_duty` [J/kg of key component],
-  the heating per key component captured;
+  coming from outside the process, hotter than the ambient temperature or not
+  (units whose fluid comes from another unit only pass heat around); and
+  `equivalent_work` [W], the work equivalent to the heating, weighted by the
+  Carnot factor of the temperatures it is given at (see
+  [`EquivalentWorkObjective`](@ref));
 - `sorbent_inventory` [kg] and `circulation_time` [s] of the moving sorbent,
-  `adsorbent_volume` [m³] of every bed, and `productivity` [mol of key
-  component per m³ of adsorbent per second].
+  and `adsorbent_volume` [m³] of every bed.
 """
 function performance(r::SteadyResult)
     p = r.process
-    fs, o = p.flowsheet, p.options
+    fs = p.flowsheet
     state = r.states[end]
     prm = p.parameters
     N = number_of_components(fs.gas)
     rate(role) = (ds = devices_with_role(fs, role); isempty(ds) ? zeros(N) : sum(d -> stream_rates(state, d), ds))
-    n_feed, n_extract, n_product = rate(:feed), rate(:extract), rate(:product)
-    one_state, one_second = [state], [1.0]
-    W = 0.0
-    for role in OUTLET_ROLES, d in devices_with_role(fs, role)
-        W += vacuum_pump_energy(one_state, one_second, d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = pump_heat_capacity_ratio(p))
-    end
-    for role in INLET_ROLES, d in devices_with_role(fs, role)
-        W += compressor_energy(one_state, one_second, d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = pump_heat_capacity_ratio(p))
-    end
+    s = performance_sums(p, [state], [1.0])
     duties = Dict{Symbol, Float64}(u => heat_duty(fs, state, prm, u) for u in holdup_units(fs) if has_heat_exchanger(fs[u].system))
-    external = [u for u in keys(duties) if !any(c -> c isa HeatTransferFluidConnection && c.downstream == u, connections(fs))]
-    heating = sum((max(duties[u], 0.0) for u in external); init = 0.0)
-    cooling = sum((max(-duties[u], 0.0) for u in external); init = 0.0)
-    k = o.key_component
-    captured = n_extract[k] * fs.gas.molar_masses[k]
-    V = sum(b -> adsorbent_volume(fs[b], prm[b]), beds(fs); init = 0.0)
     moving = !isempty(moving_sorbent_units(fs))
-    return (purity = purity(n_extract; component = k), recovery = recovery(n_extract, n_feed; component = k),
-        feed = n_feed, extract = n_extract, product = n_product,
-        power = W, specific_energy = specific_energy_kwh_per_tonne(W, n_extract, fs.gas.molar_masses[k]; component = k),
-        heat_duty = duties, heating = heating, cooling = cooling, specific_heat_duty = heating / captured,
-        sorbent_inventory = sorbent_inventory(fs, prm), circulation_time = moving ? sorbent_circulation_time(fs, prm) : NaN,
-        adsorbent_volume = V, productivity = n_extract[k] / V)
+    return merge(_measure_values(p, s), (feed = rate(:feed), extract = rate(:extract), product = rate(:product),
+        power = s.energy, blower_power = s.blower_energy, heat_duty = duties, heating = s.heating, cooling = s.cooling,
+        equivalent_work = s.equivalent_work, sorbent_inventory = s.sorbent_inventory,
+        circulation_time = moving ? sorbent_circulation_time(fs, prm) : NaN, adsorbent_volume = s.adsorbent_volume))
 end
 
-"""
-    performance(p::SteadyProcess; kwarg...) → NamedTuple
-
-Performance at steady state; keywords go to [`steady_state`](@ref).
-"""
-performance(p::SteadyProcess; kwarg...) = performance(steady_state(p; kwarg...))
 
 function Base.show(io::IO, ::MIME"text/plain", p::SteadyProcess)
     fs = p.flowsheet
