@@ -27,7 +27,7 @@ Mocca.molecular_diffusivities(::_FixedTransport, y, T, P) = SVector(one(T / P), 
     @test mixture_viscosity(t, [1.0, 0.0, 0.0], 350.0) ≈ μ(350.0)[1]
     @test μ(300.0)[3] < mixture_viscosity(t, [0.15, 0.82, 0.03], 300.0) < μ(300.0)[2]
 
-    # CO2 in N2 at 25 °C and 1 atm: 1.65e-5 m²/s measured (Poling et al., Table 11-2)
+    # CO2 in N2 at 25 °C and 1 atm: about 1.6e-5 m²/s measured
     D12(T, P) = Mocca.Physics.binary_diffusivity(t, 1, 2, T, P)
     @test D12(298.15, 101325.0) ≈ 1.65e-5 rtol = 0.07
     @test D12(298.15, 101325.0) ≈ Mocca.Physics.binary_diffusivity(t, 2, 1, 298.15, 101325.0)
