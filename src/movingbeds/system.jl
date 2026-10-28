@@ -1,5 +1,5 @@
 """
-    MovingBed{N, RealT, IsoT, MtT, ThT, LimT} <: SorbentBed
+    MovingBed{N, RealT, IsoT, MtT, ThT, LimT, GasT, AdsT, TrT, DispT} <: SorbentBed
 
 A moving bed of sorbent: the sorbent moves down through the unit at a steady
 rate, from the top cell to the bottom cell, while gas flows through it in
@@ -26,6 +26,10 @@ particles' pores (a fraction `ParticlePorosity` of the particle volume) moves
 with the sorbent and counts in the gas held in each cell; see
 [`PoreGasFlow`](@ref).
 
+The viscosity and diffusivities of the gas change with the state of each cell
+by a [`TransportReference`](@ref), and the axial dispersion comes from an
+[`AbstractAxialDispersion`](@ref), as in a fixed bed.
+
 Thermal models: [`Adiabatic`](@ref) (default), [`Isothermal`](@ref),
 [`WithWall`](@ref) and [`HeatExchanger`](@ref).
 
@@ -34,11 +38,14 @@ advected with a limited second-order upwind scheme, [`VanAlbada`](@ref) by
 default (see [`AbstractLimiter`](@ref)); [`Upwind`](@ref) is first order.
 """
 struct MovingBed{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer, ThT<:AbstractThermalModel, LimT<:AbstractLimiter,
-        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics} <: SorbentBed
+        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics, TrT<:TransportReference,
+        DispT<:AbstractAxialDispersion} <: SorbentBed
     component_names::Vector{String}
     molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
     thermodynamics::GasT                        # Heat capacities and equation of state of the gas
     adsorbed_thermodynamics::AdsT               # Heat capacities of the adsorbed phase
+    transport::TrT                              # Viscosity and diffusivities against their values at the feed
+    dispersion::DispT                           # Axial dispersion
     isotherm::IsoT
     mass_transfer::MtT
     thermal::ThT
@@ -50,6 +57,7 @@ const MovingBedModel = Jutul.SimulationModel{<:Any, <:MovingBed, <:Any, <:Any}
 """
     MovingBed(; isotherm, mass_transfer, molecular_masses, component_names,
         thermodynamics, adsorbed_thermodynamics = thermodynamics,
+        transport = TransportReference(ConstantTransport()), dispersion = ConstantDispersion(),
         thermal = Adiabatic(), limiter = VanAlbada())
 
 Construct an N-component moving bed system from explicit physics objects.
@@ -57,9 +65,11 @@ Construct an N-component moving bed system from explicit physics objects.
 [`AbstractGasThermodynamics`](@ref) models of the gas and the adsorbed phase;
 instead of them, `heat_capacity_gas` and `heat_capacity_adsorbed` give
 constant heat capacities per mass [J/(kg·K)], as for a
-[`FixedBed`](@ref). The viscosity and diffusivities of the gas are those at
-the feed. `limiter` reconstructs what the sorbent and the heat transfer fluid carry at
-the cell faces (see [`AbstractLimiter`](@ref)).
+[`FixedBed`](@ref). `transport` sets how the viscosity and diffusivities
+change with the state; by default they do not. `dispersion` is the model of
+the axial dispersion, by default the `AxialDispersion` parameter. `limiter`
+reconstructs what the sorbent and the heat transfer fluid carry at the cell
+faces (see [`AbstractLimiter`](@ref)).
 """
 function MovingBed(;
     isotherm::AbstractIsotherm,
@@ -70,6 +80,8 @@ function MovingBed(;
     adsorbed_thermodynamics = nothing,
     heat_capacity_gas = nothing,
     heat_capacity_adsorbed = nothing,
+    transport::TransportReference = TransportReference(ConstantTransport()),
+    dispersion::AbstractAxialDispersion = ConstantDispersion(),
     thermal::AbstractThermalModel = Adiabatic(),
     limiter::AbstractLimiter = VanAlbada(),
 )
@@ -80,12 +92,16 @@ function MovingBed(;
     adsorbed = something(_thermodynamics(adsorbed_thermodynamics, heat_capacity_adsorbed, molecular_masses, "adsorbed"), gas)
     @assert number_of_components(gas) == N "the gas thermodynamics must have $N components"
     @assert number_of_components(adsorbed) == N "the adsorbed thermodynamics must have $N components"
+    dispersion isa WakaoFunazkri && @assert length(dispersion.diffusivities) == N "the dispersion needs a diffusivity for each of the $N components"
     RealT = eltype(molecular_masses)
-    return MovingBed{N, RealT, typeof(isotherm), typeof(mass_transfer), typeof(thermal), typeof(limiter), typeof(gas), typeof(adsorbed)}(
+    return MovingBed{N, RealT, typeof(isotherm), typeof(mass_transfer), typeof(thermal), typeof(limiter), typeof(gas), typeof(adsorbed),
+            typeof(transport), typeof(dispersion)}(
         collect(String, component_names),
         SVector{N, RealT}(molecular_masses),
         gas,
         adsorbed,
+        transport,
+        dispersion,
         isotherm,
         mass_transfer,
         thermal,
@@ -107,6 +123,8 @@ function MovingBed(sys::MovingBed; thermal::AbstractThermalModel = sys.thermal, 
         component_names = sys.component_names,
         thermodynamics = sys.thermodynamics,
         adsorbed_thermodynamics = sys.adsorbed_thermodynamics,
+        transport = sys.transport,
+        dispersion = sys.dispersion,
         thermal = thermal,
         limiter = limiter)
 end
@@ -147,7 +165,14 @@ function Jutul.select_secondary_variables!(S, system::MovingBed, model::Jutul.Si
     S[:MolarConcentration] = MolarConcentration()
     S[:AverageMolarMass] = AverageMolarMass()
     S[:ComponentMasses] = ComponentMasses()
-    S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    if is_constant_transport(system.transport)
+        S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    else
+        # Transport properties that follow the state of each cell
+        S[:AdsorptionMassTransfer] = ScaledAdsorptionMassTransfer()
+        S[:ViscosityFactor] = ViscosityFactor()
+    end
+    system.dispersion isa WakaoFunazkri && (S[:MolecularDiffusivity] = MolecularDiffusivity())
     S[:AdsorbedLoading] = AdsorbedLoading()
 
     S[:ColumnConservedEnergy] = ColumnEnergy()
@@ -198,7 +223,12 @@ function Jutul.select_parameters!(S, sys::MovingBed, model::Jutul.SimulationMode
     S[:DispersionTransmissibilities] = DispersionTransmissibilities()
 
     # Unit-entity parameters
-    S[:AxialDispersion] = AxialDispersion()
+    # A dispersion that follows the state has a factor in place of the parameter
+    if sys.dispersion isa WakaoFunazkri
+        S[:DispersionScale] = DispersionScale()
+    else
+        S[:AxialDispersion] = AxialDispersion()
+    end
     S[:AdsorbentDensity] = AdsorbentDensity()
     S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
     S[:FluidViscosity] = FluidViscosity()

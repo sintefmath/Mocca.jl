@@ -192,7 +192,9 @@ _dispersion_follows_state(fs::Flowsheet, name::Symbol) = fs[name].system.dispers
         dispersion_velocity = 0.0, permeability = nothing, pore_gas = true, limiter = VanAlbada())
 
 The model of one section of a moving bed of `adsorbent` in `column`, for
-`gas`; see [`add_moving_bed!`](@ref).
+`gas`; see [`add_moving_bed!`](@ref). As in [`fixed_bed_model`](@ref), the gas
+viscosity and diffusivities are those of the `feed`, and change from there with
+the state of each cell by the `transport` of the gas.
 """
 function moving_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Column; sorbent_mass_flow, ncells = 30,
         heat_exchanger = nothing, thermal = isnothing(heat_exchanger) ? Adiabatic() : HeatExchanger(),
@@ -206,11 +208,15 @@ function moving_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Co
         input_error(loc, "column", "a bed with a wall needs the column's outer_radius; use thermal = Adiabatic() for a bed without one")
     system = MovingBed(;
         isotherm = isotherm(adsorbent, gas),
-        mass_transfer = mass_transfer(adsorbent, gas),
+        mass_transfer = mass_transfer(adsorbent, gas, feed),
         molecular_masses = gas.molar_masses,
         component_names = gas.names,
         thermodynamics = gas.thermodynamics,
         adsorbed_thermodynamics = adsorbed_thermodynamics(adsorbent, gas),
+        transport = TransportReference(gas.transport, feed.composition, feed.temperature, feed.pressure),
+        dispersion = gas.transport isa ConstantTransport || !isnothing(dispersion) ? ConstantDispersion() :
+            WakaoFunazkri(; particle_diameter = adsorbent.particle_diameter, porosity = column.porosity,
+                diffusivities = gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)),
         thermal = thermal, limiter = limiter)
     perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
     disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas, feed), dispersion_velocity, adsorbent.particle_diameter) : dispersion
@@ -251,7 +257,11 @@ while gas flows through it (see [`MovingBed`](@ref)). Its gas ports are
   `1 − porosity − packing_fraction` for the sorbent.
 - `dispersion` [m²/s]: the axial dispersion of the gas; by default
   `0.7 D_m + 0.5 v d_p` at the interstitial `dispersion_velocity` [m/s], 0 by
-  default, which leaves molecular diffusion.
+  default, which leaves molecular diffusion. It is the section's
+  `AxialDispersion` parameter. With a `transport` model for the gas and no
+  `dispersion` given, it instead follows the diffusivities and the gas
+  velocity at each face by [`WakaoFunazkri`](@ref), times the section's
+  `DispersionScale` parameter, as in a fixed bed (see [`add_bed!`](@ref)).
 - `pore_gas`: whether the gas in the particles' pores moves with the sorbent.
 - `limiter`: how what the sorbent and the heat transfer fluid carry is
   reconstructed at the cell faces (see [`AbstractLimiter`](@ref));

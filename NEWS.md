@@ -54,6 +54,11 @@
   duties, sorbent inventory and circulation time. Process files read and
   write moving beds, `sorbent_connections`, `fluid_connections` and a steady
   `"operation"` in place of a cycle. A `Process` refuses moving beds.
+  Moving beds follow the `thermodynamics` and `transport` of the gas as
+  fixed beds do: with `transport = :chapman_enskog` the viscosity and the
+  diffusivities of the linear driving force change with each cell, and a
+  section given no `dispersion` takes Wakao and Funazkri's with its
+  `DispersionScale` parameter.
 - **Virial isotherm.** `Virial`, the multicomponent Virial isotherm of
   Mondino et al. (2022), and `virial` for its data by component, readable
   from adsorbent files. The library has the activated carbon of that paper,

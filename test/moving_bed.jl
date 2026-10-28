@@ -395,12 +395,13 @@ end
 end
 
 # The MBTSA process of Mondino et al. (2022) on a coarse grid, as in
-# examples/mbtsa_mondino_2022.jl
-function mbtsa_process(; cells_per_metre = 40, duration = 2400.0)
+# examples/mbtsa_mondino_2022.jl. Without `paper_dispersion` the sections get
+# Mocca's dispersion instead of the paper's correlation.
+function mbtsa_process(; cells_per_metre = 40, duration = 2400.0, gas = GAS, paper_dispersion = true)
     y_feed = [0.11, 0.89]
-    feed = Mocca.Feed(GAS; composition = y_feed, temperature = 303.15, pressure = 101.5e3,
+    feed = Mocca.Feed(gas; composition = y_feed, temperature = 303.15, pressure = 101.5e3,
         light_product = Mocca.light_product_composition(y_feed; trace = 1e-6))
-    M(y) = sum(y .* GAS.molar_masses)
+    M(y) = sum(y .* gas.molar_masses)
     sections = (:Adsorption, :Preheating, :Desorption, :Precooling, :Cooling)
     heights = (0.9, 0.4, 0.8, 0.4, 0.6)
     diameters = (12.8, 13.3, 13.3, 13.3, 13.3)
@@ -419,12 +420,13 @@ function mbtsa_process(; cells_per_metre = 40, duration = 2400.0)
             fluid_side_htc = 10000.0, fluid_mass_flow = ṁ, fluid_inlet_temperature = T_in)
     end
     hxs = (nothing, hx(2, 160.6, 303.15), hx(3, 267.6, 460.15), hx(4, 160.6, 303.15), hx(5, 267.6, 283.15))
-    fs = Mocca.Flowsheet(GAS, feed)
+    fs = Mocca.Flowsheet(gas, feed)
     for (i, name) in enumerate(sections)
         column = Mocca.Column(length = heights[i], radius = diameters[i] / 2, porosity = porosity[i],
             axial_conductivity = 0.026 * (7 + 0.5 * 0.7 * Re(i)))
         Mocca.add_moving_bed!(fs, name, AC, column; sorbent_mass_flow = ṁ_s, ncells = max(4, round(Int, cells_per_metre * heights[i])),
-            packing_fraction = packing[i], heat_exchanger = hxs[i], dispersion = 1.6e-5 / porosity[i] * (20 + 0.5 * Sc * Re(i)))
+            packing_fraction = packing[i], heat_exchanger = hxs[i],
+            dispersion = paper_dispersion ? 1.6e-5 / porosity[i] * (20 + 0.5 * Sc * Re(i)) : nothing)
     end
     for (i, name) in enumerate(sections)
         Mocca.connect_solids!(fs, name => sections[mod1(i + 1, 5)])
@@ -618,6 +620,48 @@ end
             @test g.gradients[m][n] ≈ (up[m] - down[m]) / 2h rtol = 1e-5
         end
     end
+end
+
+@testset "Moving beds with transport properties that change" begin
+    # A gas whose viscosity and diffusivities follow Chapman–Enskog: each
+    # section scales them by temperature and composition, and its dispersion
+    # follows them by Wakao and Funazkri
+    gas = Mocca.Gas(["CO2", "N2"]; heat_capacities = (CO2 = 846.0, N2 = 1040.0), transport = :chapman_enskog)
+    p = mbtsa_process(cells_per_metre = 10, gas = gas, paper_dispersion = false)
+    sections = (:Adsorption, :Preheating, :Desorption, :Precooling, :Cooling)
+    for u in sections
+        sys = p.flowsheet[u].system
+        @test sys.transport.model isa Mocca.ChapmanEnskogTransport
+        @test sys.dispersion isa WakaoFunazkri
+        @test haskey(p.parameters[u], :DispersionScale) && !haskey(p.parameters[u], :AxialDispersion)
+    end
+    # Given a dispersion, a section keeps it as its parameter
+    q = mbtsa_process(cells_per_metre = 10, gas = gas)
+    @test q.flowsheet[:Desorption].system.dispersion isa ConstantDispersion
+    @test haskey(q.parameters[:Desorption], :AxialDispersion)
+
+    ss = Mocca.steady_state(p; tol = 1e-9, max_spans = 20)
+    @test ss.converged
+    # The gas is more viscous in the hot desorption section than at the feed
+    function viscosity_factors(u)
+        st, tr = ss.states[end][u], p.flowsheet[u].system.transport
+        return [Mocca.Physics.viscosity_factor(tr, st[:y][:, c], st[:Temperature][c]) for c in eachindex(st[:Temperature])]
+    end
+    @test all(>(1.1), viscosity_factors(:Desorption))
+    @test all(x -> isapprox(x, 1, atol = 0.05), viscosity_factors(:Adsorption))
+    # And the transport properties matter
+    constant = Mocca.steady_state(mbtsa_process(cells_per_metre = 10, paper_dispersion = false); tol = 1e-9, max_spans = 20)
+    @test !isapprox(Mocca.performance(ss).recovery, Mocca.performance(constant).recovery, rtol = 1e-4)
+
+    # Gradients through the scaled viscosity, mass transfer and dispersion,
+    # against central differences (see check_gradients)
+    Mocca.add_variable!(p, :sorbent_flow, ((:parameter, u, :SorbentMassFlow) for u in sections)...)
+    Mocca.add_variable!(p, :T_hot, (:parameter, :Desorption, :HXFluidInletTemperature))
+    Mocca.add_variable!(p, :purge, (:setting, :V_purge, :rate))
+    Mocca.add_variable!(p, :height, (:geometry, :Desorption, :length))
+    Mocca.add_variable!(p, :disp, (:parameter, :Adsorption, :DispersionScale))
+    checks = Mocca.check_gradients(p; measures = (:recovery, :specific_heat_duty, :specific_equivalent_work), io = nothing)
+    @test all(r -> r.status == :pass, checks.rows)
 end
 
 @testset "Adjoints of the blower and heat duty integrals" begin
