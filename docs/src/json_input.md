@@ -83,8 +83,8 @@ The sections:
 
 | Section | Contents |
 |---|---|
-| `components` | Optional: components not known to Mocca, each with `name`, `molar_mass`, `heat_capacity` and `viscosity`, and optionally `formula` and `cas`. |
-| `gas` | The [`Gas`](@ref): its `components` in order (the first is the one to capture), and optional overrides. |
+| `components` | Optional: components not known to Mocca, each with `name`, `molar_mass`, `heat_capacity` and `viscosity`, and optionally `formula`, `cas`, `shomate` (the five coefficients), `cp_polynomial` (four) and `lennard_jones` (σ in Å and ε/k in K). |
+| `gas` | The [`Gas`](@ref): its `components` in order (the first is the one to capture), and optional overrides. Heat capacities are constant, `heat_capacities` per component; or with `"thermodynamics": "shomate"` from the Shomate equation, with optional `shomate` coefficients `[A, B, C, D, E]` per component. `"thermodynamics": "polynomial"` takes the cubic heat capacities of the components. `"transport": "chapman_enskog"` lets the viscosity, diffusivities and dispersion follow the state of each cell. |
 | `feed` | The [`Feed`](@ref): `composition`, `temperature`, `pressure` and optionally `light_product`. |
 | `adsorbents` | By name: an adsorbent object (as in an adsorbent file), the name of a library adsorbent, or the path of an adsorbent file relative to the process file. |
 | `columns` | By name: [`Column`](@ref) objects. |
@@ -92,7 +92,7 @@ The sections:
 | `devices` | Devices, in order, as in [`add_device!`](@ref): a `role`, and `at` (a `[unit, port]` pair) or, for a link, `from` and `to`. An optional `boundary` sets `pressure`, `temperature` and `composition`. |
 | `cycle` | `steps`, a list of steps; or `sequences`, a list of `{"label": ..., "steps": [...]}` run side by side, and an optional `cycle_time`. |
 | `time_stepping` | See [`TimeStepping`](@ref). |
-| `options` | See [`Process`](@ref). |
+| `options` | See [`Process`](@ref). Without `heat_capacity_ratio` the pumps take that of the feed. |
 | `initial_state` | Per bed: any of `pressure`, `temperature`, `wall_temperature` and `composition`. |
 | `parameters` | Per unit: Jutul parameters to override. |
 | `variables` | Design variables (see [`add_variable!`](@ref)), each with `places`: `{"step": ..., "field": ..., "sequence": ...}`, `{"feed": "pressure"}` or `{"unit": ..., "parameter": ...}`. |

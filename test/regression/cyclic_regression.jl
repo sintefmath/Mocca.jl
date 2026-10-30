@@ -42,16 +42,18 @@ end
     # the scale-free convergence criteria moved nothing by more than 1e-4
     # apart from the trace of CO2 at the top of the bed. Counting the heat of
     # sorption of N2 as well as CO2 then lowered the final top temperature by
-    # 2.4 K and the average peak temperature by 1.3 K. Computed at the default
-    # nonlinear tolerance of 1e-6
+    # 2.4 K and the average peak temperature by 1.3 K. The molar mixing rule
+    # for the gas heat capacity then raised the trace of CO2 at the top of the
+    # bed from 5.54e-8 to 5.93e-8 and moved nothing else by more than 5e-4.
+    # Computed at the default nonlinear tolerance of 1e-6
     ref = (
-        y_CO2_final = 5.540219427310748e-8,
-        y_N2_final = 0.9999999445978052,
-        T_final = 293.3962731654778,
-        P_final = 9998.471927554892,
-        total_CO2_adsorbed_final = 50215.80381763518,
-        avg_T_last_cycle = 347.51098939059665,
-        avg_P_last_cycle = 40170.12038925197,
+        y_CO2_final = 5.9266108830389184e-8,
+        y_N2_final = 0.9999999407338923,
+        T_final = 293.39659319864296,
+        P_final = 9998.469780885162,
+        total_CO2_adsorbed_final = 50207.738455106984,
+        avg_T_last_cycle = 347.4880711382719,
+        avg_P_last_cycle = 40151.274141202826,
     )
 
     @test isapprox(m.y_CO2_final, ref.y_CO2_final, rtol=1e-3, atol=1e-10)

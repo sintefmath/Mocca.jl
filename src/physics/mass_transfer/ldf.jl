@@ -38,6 +38,10 @@ function compute_mass_transfer_rate(mt::LinearDrivingForce, C, q, qstar)
     return k .* (qstar .- q)
 end
 
+# Macropore diffusion is molecular diffusion through the pores
+compute_mass_transfer_rate(mt::LinearDrivingForce, C, q, qstar, diffusivity_factors) =
+    compute_mass_transfer_rate(LinearDrivingForce(mt.D_m .* diffusivity_factors, mt.τ, mt.ϵ_p, mt.d_p), C, q, qstar)
+
 # C/q*, or zero where the sorbent takes up none of a component, where C/q*
 # would be C/0. ifelse evaluates both sides, so the derivatives keep the same
 # pattern whichever applies.

@@ -4,6 +4,36 @@
 
 ### New
 
+- **Gas thermodynamics.** The heat capacities and the equation of state of a
+  gas come from an `AbstractGasThermodynamics` model in `Mocca.Physics`:
+  `IdealGasConstantCp` (the default, from `heat_capacities` per mass as
+  before) or `IdealGasShomate`, with heat capacities that change with
+  temperature, chosen with `Gas(names; thermodynamics = :shomate)` or by
+  giving `shomate` coefficients. The common components carry the NIST Shomate
+  coefficients. A new model needs one method, `component_heat_capacities`.
+  A bed's system holds the model of the gas (`thermodynamics`) and of the
+  adsorbed phase (`adsorbed_thermodynamics`) in place of `heat_capacity_gas`
+  and `heat_capacity_adsorbed`, which `FixedBed` still takes.
+- **Transport properties that follow the state.** `Gas(...; transport =
+  :chapman_enskog)` lets the viscosity and the molecular diffusivity of each
+  component change from their values at the feed with the temperature,
+  pressure and composition of each cell, by the kinetic theory of Chapman and
+  Enskog with the collision integrals of Neufeld and the mixing rules of Wilke,
+  as in the thermodynamics library of the MATLAB model. The axial dispersion
+  then follows the diffusivities and the gas velocity at each face, by Wakao
+  and Funazkri, `ε D_L,i = 20 D_m,i + 0.5 |u| d_p`, times a `DispersionScale`
+  parameter; the linear driving force takes the diffusivities at the feed
+  pressure. The common components carry their Lennard-Jones parameters (all but
+  CO and He). The given viscosity and diffusivities, and `FluidViscosity`,
+  stay the values at the feed, so design variables and gradients act on them
+  as before; a new model is an `AbstractGasTransport` with two functions. The
+  default, `ConstantTransport`, gives the same results to the bit.
+- **Cubic heat capacities.** `Gas(...; thermodynamics = :polynomial)`, with the
+  coefficients of Reid, Prausnitz and Poling (`IdealGasPolynomial`), as in the
+  MATLAB model; within 2% of the NIST values from 300 to 500 K.
+- **Gas properties page.** A page of the manual's library on the gas property
+  models: how to choose them, the component data and its sources, their
+  accuracy against NIST, their limits and their effect on the presets.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -23,6 +53,43 @@
 
 ### Changed
 
+- **Diffusivities at the feed.** `mass_transfer(adsorbent, gas, feed)` and
+  `axial_diffusivity(gas, feed)` take the feed, at which a transport model
+  gives the diffusivities. Without it they still work for a gas with given
+  or constant diffusivities, and raise an error for one whose diffusivities
+  come from a transport model. A bed whose dispersion follows the state, by
+  Wakao and Funazkri, has a `DispersionScale` parameter in place of
+  `AxialDispersion`, and `bed_dispersion` raises an error for it.
+- **Molar heat capacities in the energy balance.** The heat capacity of the
+  gas is the mole average of the molar heat capacities, `Σ yᵢ Mᵢ cₚᵢ`. It
+  was `(Σ yᵢ cₚᵢ)·(Σ yᵢ Mᵢ)`, exact only for one component or for equal
+  heat capacities per mass: for CO2/CH4 at 40/60 it gave 45.6 J/(mol·K)
+  instead of 36.3. The adsorbed phase is weighted by its loadings rather than
+  by the gas composition: a heat capacity that followed the gas over the
+  cycle added heat on every cycle, and the wet flue gas presets of
+  Krishnamurthy et al. (2014) ran 12 K above the feed temperature on average
+  at the cyclic steady state; they now run at it (LPP VSA recovery 78.3% →
+  78.8%, dual-adsorbent VSA 69.8% → 65.5%, specific energy 188 → 196 kWh/t). The sorption term and the streams into a bed give
+  back exactly the `C_pg·T` the gas terms count for the moles they move, so
+  the energy balance stays right when heat capacities differ between
+  components or change with temperature; a stream entering a bed brings the
+  integral of the heat capacity from the bed's temperature to its own. With
+  the constants of Haghpanah et al. (2013), 30.7 J/(mol·K) for both
+  components, the gas heat capacity is now that constant, where it was up to
+  5% higher in a mixture.
+- **Heat capacity ratio of the pumps from the feed.** A `Process` without
+  `heat_capacity_ratio` takes `γ = c_p/(c_p − R)` of the feed at its
+  temperature (`pump_heat_capacity_ratio`), instead of 1.4. The presets and
+  library processes set 1.4, as their papers do.
+- **`TimeScale` in every residual.** Units checked for the `TimeScale`
+  parameter with `hasproperty`, which is false on the local
+  automatic-differentiation states Jutul assembles the equations with, so it
+  was left out there; it is 1 except when differentiating with respect to a
+  stage duration, so simulations are unchanged.
+- **Renamed variables.** `SpecificHeatCapacityFluid` and
+  `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
+  `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the
+  state.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a

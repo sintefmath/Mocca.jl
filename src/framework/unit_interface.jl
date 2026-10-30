@@ -6,8 +6,9 @@
 # - `ports(model)`: named ports, each the index of the cell a stream enters or
 #   leaves through (see networks/ports.jl);
 # - the variables the port cross terms read at a port cell: `Pressure`,
-#   `Temperature` and `y`; and, for streams into an energy balance, the
-#   system's `heat_capacity_gas` and `molecular_masses`;
+#   `Temperature` and `y`; and, for streams into an energy balance, the gas
+#   molar heat capacity `C_pg` and the system's `thermodynamics` (an
+#   AbstractGasThermodynamics);
 # - the `TimeScale` parameter, used through `_scaled_dt` in every time
 #   derivative, for gradients with respect to stage durations;
 # - [`stream_equations`](@ref): the equations a stream adds to;
@@ -16,7 +17,8 @@
 #
 # A DistributedUnit gets the gas balance for free (balances/gas.jl): its face flux
 # reads the `Transmissibilities`, `DispersionTransmissibilities`,
-# `AxialDispersion` and `FluidViscosity` parameters. A unit that also
+# `AxialDispersion` (or, with a dispersion that follows the state,
+# `DispersionScale`) and `FluidViscosity` parameters. A unit that also
 # [`holds_sorbent`](@ref) counts as a bed: steps can act on it and its sorbent
 # counts in the productivity of a process.
 

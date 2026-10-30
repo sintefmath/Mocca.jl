@@ -6,7 +6,7 @@ Ports, connections and flowsheets of units joined into one Jutul MultiModel.
 module Networks
 
 import Jutul
-using ..Framework, ..Balances, ..Devices
+using ..Framework, ..Physics, ..Balances, ..Devices
 
 export AbstractConnection, AbstractFlowsheet, add_cross_terms!, add_unit!,
     boundary_condition, boundary_ports, check_connection, connect!, connection_ports,

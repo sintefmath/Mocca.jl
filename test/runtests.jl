@@ -6,6 +6,14 @@ using StaticArrays
 
 include("haghpanah_cases.jl")
 
+# Bytes a call allocates, measured inside a function that specializes on its
+# arguments: on Julia 1.10, measuring at the call site or through a plain
+# `args...` also counts boxing them
+function allocations(f::F, args::Vararg{Any, N}) where {F, N}
+    f(args...)
+    return @allocated f(args...)
+end
+
 @testset "Mocca.jl Tests" begin
     @testset "Input Parsing" begin
         include("data_input.jl")
@@ -56,6 +64,14 @@ include("haghpanah_cases.jl")
 
     @testset "Isotherm Models" begin
         include("isotherms.jl")
+    end
+
+    @testset "Gas thermodynamics" begin
+        include("thermodynamics.jl")
+    end
+
+    @testset "Gas transport properties" begin
+        include("transport.jl")
     end
 
     @testset "Integration with Jutul" begin

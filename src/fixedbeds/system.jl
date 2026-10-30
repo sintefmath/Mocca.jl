@@ -1,18 +1,26 @@
 """
-    FixedBed{N, RealT, IsoT, MtT, ThT} <: SorbentBed
+    FixedBed{N, RealT, IsoT, MtT, ThT, GasT, AdsT, TrT, DispT} <: SorbentBed
 
 A fixed (packed) adsorbent bed: gas flows axially through a stationary sorbent.
 How energy is treated is set by the thermal model (see
 [`AbstractThermalModel`](@ref)); the default [`WithWall`](@ref) includes a column
-wall exchanging heat with the gas and the surroundings.
+wall exchanging heat with the gas and the surroundings. The heat capacities of
+the gas and of the adsorbed phase come from two
+[`AbstractGasThermodynamics`](@ref) models, the changes of its viscosity and
+diffusivities with the state from a [`TransportReference`](@ref), and its axial
+dispersion from an [`AbstractAxialDispersion`](@ref).
 
 `AdsorptionSystem` is kept as an alias for backwards compatibility.
 """
-struct FixedBed{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer, ThT<:AbstractThermalModel} <: SorbentBed
+struct FixedBed{N, RealT<:Real, IsoT<:AbstractIsotherm, MtT<:AbstractMassTransfer, ThT<:AbstractThermalModel,
+        GasT<:AbstractGasThermodynamics, AdsT<:AbstractGasThermodynamics, TrT<:TransportReference,
+        DispT<:AbstractAxialDispersion} <: SorbentBed
     component_names::Vector{String}
     molecular_masses::SVector{N, RealT}         # Molecular masses per component [kg/mol]
-    heat_capacity_gas::SVector{N, RealT}        # Heat capacity of gas per component [J/(kg·K)]
-    heat_capacity_adsorbed::SVector{N, RealT}   # Heat capacity of adsorbed phase per component [J/(kg·K)]
+    thermodynamics::GasT                        # Heat capacities and equation of state of the gas
+    adsorbed_thermodynamics::AdsT               # Heat capacities of the adsorbed phase
+    transport::TrT                              # Viscosity and diffusivities against their values at the feed
+    dispersion::DispT                           # Axial dispersion
     isotherm::IsoT
     mass_transfer::MtT
     thermal::ThT
@@ -23,38 +31,64 @@ const FixedBedModel = Jutul.SimulationModel{<:Any,<:FixedBed,<:Any,<:Any}
 const AdsorptionModel = FixedBedModel
 
 """
-    FixedBed(; isotherm, mass_transfer, molecular_masses,
-        component_names, heat_capacity_gas, heat_capacity_adsorbed,
+    FixedBed(; isotherm, mass_transfer, molecular_masses, component_names,
+        thermodynamics, adsorbed_thermodynamics = thermodynamics,
+        transport = TransportReference(ConstantTransport()), dispersion = ConstantDispersion(),
         thermal = WithWall())
 
 Construct an N-component adsorption system from explicit physics objects.
 The number of components is inferred from the length of `component_names`.
+
+`thermodynamics` and `adsorbed_thermodynamics` are
+[`AbstractGasThermodynamics`](@ref) models of the gas and the adsorbed phase.
+Instead of them, `heat_capacity_gas` and `heat_capacity_adsorbed` give
+constant heat capacities per mass [J/(kg·K)] for each component, as
+[`IdealGasConstantCp`](@ref) models. `transport` sets how the viscosity and
+diffusivities change with the state; by default they do not. `dispersion` is
+the model of the axial dispersion, by default the `AxialDispersion` parameter.
 """
 function FixedBed(;
     isotherm::AbstractIsotherm,
     mass_transfer::AbstractMassTransfer,
     molecular_masses,
     component_names,
-    heat_capacity_gas,
-    heat_capacity_adsorbed,
+    thermodynamics = nothing,
+    adsorbed_thermodynamics = nothing,
+    heat_capacity_gas = nothing,
+    heat_capacity_adsorbed = nothing,
+    transport::TransportReference = TransportReference(ConstantTransport()),
+    dispersion::AbstractAxialDispersion = ConstantDispersion(),
     thermal::AbstractThermalModel = WithWall(),
 )
     N = length(component_names)
     @assert length(molecular_masses) == N "molecular_masses length ($(length(molecular_masses))) must match component_names length ($N)"
-    @assert length(heat_capacity_gas) == N "heat_capacity_gas length must match component_names length ($N)"
-    @assert length(heat_capacity_adsorbed) == N "heat_capacity_adsorbed length must match component_names length ($N)"
+    gas = _thermodynamics(thermodynamics, heat_capacity_gas, molecular_masses, "gas")
+    isnothing(gas) && error("FixedBed needs the thermodynamics of the gas, or its heat_capacity_gas")
+    adsorbed = something(_thermodynamics(adsorbed_thermodynamics, heat_capacity_adsorbed, molecular_masses, "adsorbed"), gas)
+    @assert number_of_components(gas) == N "the gas thermodynamics must have $N components"
+    @assert number_of_components(adsorbed) == N "the adsorbed thermodynamics must have $N components"
     mm = SVector{N}(molecular_masses)
-    RealT = promote_type(eltype(mm), eltype(heat_capacity_gas), eltype(heat_capacity_adsorbed))
+    RealT = eltype(mm)
     IsoT, MtT, ThT = typeof(isotherm), typeof(mass_transfer), typeof(thermal)
-    return FixedBed{N, RealT, IsoT, MtT, ThT}(
+    dispersion isa WakaoFunazkri && @assert length(dispersion.diffusivities) == N "the dispersion needs a diffusivity for each of the $N components"
+    return FixedBed{N, RealT, IsoT, MtT, ThT, typeof(gas), typeof(adsorbed), typeof(transport), typeof(dispersion)}(
         component_names,
-        SVector{N, RealT}(mm),
-        SVector{N, RealT}(heat_capacity_gas),
-        SVector{N, RealT}(heat_capacity_adsorbed),
+        mm,
+        gas,
+        adsorbed,
+        transport,
+        dispersion,
         isotherm,
         mass_transfer,
         thermal,
     )
+end
+
+# A thermodynamics model, or constant heat capacities per mass that make one
+function _thermodynamics(model, heat_capacities, molar_masses, phase)
+    isnothing(model) || isnothing(heat_capacities) || error("give the $phase thermodynamics or its heat capacities, not both")
+    isnothing(heat_capacities) || return IdealGasConstantCp(; molar_masses = molar_masses, heat_capacities = heat_capacities)
+    return model
 end
 
 # Terms the shared conservation laws pick up for a fixed bed

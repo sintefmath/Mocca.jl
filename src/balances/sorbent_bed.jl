@@ -85,7 +85,7 @@ function initial_adsorbed_concentration(model, t_init, p_init, y_init)
     p_vec = isa(p_init, Number) ? fill(p_init, ncells) : p_init
     temp_vec = isa(t_init, Number) ? fill(t_init, ncells) : t_init
 
-    cTot = p_vec ./ (GAS_CONSTANT * temp_vec)
+    cTot = molar_concentration.(Ref(model.system.thermodynamics), p_vec, temp_vec)
     c = y_init' .* cTot
 
     q_init = map(1:ncells) do i

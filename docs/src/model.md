@@ -294,19 +294,43 @@ k = \frac{\varepsilon^3 d_p^2}{150\,(1-\varepsilon)^2}.
 
 This is the viscous (laminar) term of the Ergun equation; the inertial term is
 not included. The interstitial velocity is ``v = u/\varepsilon``. Give
-`permeability` to [`add_bed!`](@ref) to override ``k``.
+`permeability` to [`add_bed!`](@ref) to override ``k``. ``\mu`` is the viscosity
+of the [`Gas`](@ref) at the feed, or of each cell with a `transport` model (see
+[Transport properties](@ref)); a face takes ``c_i/\mu`` from its upwind cell.
 
 ### Axial dispersion
+
+By default, with constant transport properties,
 
 ```math
 D_L = 0.7\, D_m + 0.5\, v_0\, d_p,
 ```
 
 where ``D_m`` is the molecular diffusivity of the gas (`diffusivity` of
-[`Gas`](@ref), that of the first component if given per component) and ``v_0`` the interstitial feed velocity of the bed's
-adsorption step. ``D_L`` is evaluated once, when the process is built, and is
-constant along the bed and through the cycle. Set `dispersion_velocity` or
-`dispersion` in [`add_bed!`](@ref) to fix it yourself.
+[`Gas`](@ref), that of the first component if given per component) and ``v_0``
+the interstitial feed velocity of the bed's adsorption step. ``D_L`` is
+evaluated once, when the process is built, and is constant along the bed and
+through the cycle. It is the bed's `AxialDispersion` parameter. Set
+`dispersion_velocity` or `dispersion` in [`add_bed!`](@ref) to fix it yourself.
+
+With a `transport` model (see [Transport properties](@ref)) and no
+`dispersion` given, the dispersion of each component follows its molecular
+diffusivity and the gas velocity at each face, by the correlation of Wakao and
+Funazkri (1978):
+
+```math
+\frac{\varepsilon D_{L,i}}{D_{m,i}} = 20 + 0.5\,\mathrm{Sc}_i\,\mathrm{Re}_p,
+\qquad
+\mathrm{Re}_p = \frac{\rho u d_p}{\mu},
+\quad
+\mathrm{Sc}_i = \frac{\mu}{\rho D_{m,i}},
+\qquad\text{so}\qquad
+D_{L,i} = \frac{20\, D_{m,i} + 0.5\,|u|\, d_p}{\varepsilon},
+```
+
+with ``D_{m,i}`` the mean of the two cells of the face and ``u`` the superficial
+velocity there (see [`WakaoFunazkri`](@ref)). The bed's `DispersionScale`
+parameter (1) multiplies it.
 
 ### Adsorption rate: linear driving force
 
@@ -319,6 +343,58 @@ k_i = \frac{c_i}{q_i^*}\,\frac{15\,\varepsilon_p D_{m,i}}{\tau\, r_p^2},
 
 This is macropore diffusion control: the particle porosity ``\varepsilon_p``,
 tortuosity ``\tau`` and diameter ``d_p`` of the [`Adsorbent`](@ref) set the rate.
+``D_{m,i}`` is the diffusivity of the [`Gas`](@ref) at the feed, or of each
+cell with a `transport` model.
+
+### Transport properties
+
+By default the viscosity ``\mu`` and the molecular diffusivities ``D_{m,i}`` of a
+bed are the values given, those at the feed, everywhere and at all times. With
+a `transport` model for the [`Gas`](@ref) (see [`AbstractGasTransport`](@ref))
+each cell scales them by the ratio of the model's value at its state to that
+at the feed,
+
+```math
+\mu = \mu_{feed}\,\frac{\hat\mu(y, T)}{\hat\mu(y_{feed}, T_{feed})},
+\qquad
+D_{m,i} = D_{m,i,feed}\,\frac{\hat D_i(y, T, P)}{\hat D_i(y_{feed}, T_{feed}, P_{feed})},
+```
+
+so that the values given, and the parameters design variables act on, keep
+their meaning; the values at the feed default to the model's. The axial
+dispersion takes ``D_{m,i}`` at the pressure of the cell. The linear driving
+force takes it at the feed pressure: molecular diffusion goes as ``1/P``, and at
+the 0.03 bar of an evacuation that would make mass transfer some 30 times
+faster than at 1 bar, which the cyclic steady state of the wet flue gas
+processes does not converge with. With [`ChapmanEnskogTransport`](@ref)
+(`transport = :chapman_enskog`), from the kinetic theory of gases with the
+Lennard-Jones parameters ``\sigma_i`` [Å] and ``\varepsilon_i/k`` [K] of each
+component and the collision integrals ``\Omega`` of Neufeld et al.:
+
+```math
+\mu_i = 2.6693\times10^{-6}\,\frac{\sqrt{M_i T}}{\sigma_i^2\,\Omega_\mu(kT/\varepsilon_i)},
+\qquad
+\hat\mu = \sum_i \frac{y_i \mu_i}{\sum_j y_j \Phi_{ij}},
+\quad
+\Phi_{ij} = \frac{\left[1 + (\mu_i/\mu_j)^{1/2} (M_j/M_i)^{1/4}\right]^2}{\left[8\,(1 + M_i/M_j)\right]^{1/2}},
+```
+
+```math
+D_{ij} = 1.858\times10^{-7}\,\frac{T^{3/2}\sqrt{1/M_i + 1/M_j}}{P\,\sigma_{ij}^2\,\Omega_D(kT/\varepsilon_{ij})},
+\qquad
+\hat D_i = \frac{\sum_{j\ne i} y_j}{\sum_{j\ne i} y_j / D_{ij}},
+```
+
+with ``M_i`` in g/mol, ``P`` in atm, ``\sigma_{ij} = (\sigma_i + \sigma_j)/2`` and
+``\varepsilon_{ij} = \sqrt{\varepsilon_i \varepsilon_j}`` (Wilke's rules for the
+mixture). In ``\hat D_i`` the mole fractions of the other components have a
+floor of 10⁻⁶: where a component is nearly pure, its diffusivity would
+otherwise swing between its binary values with the ratio of the traces of the
+others, with derivatives too large for Newton's method in gases of three or
+more components. The bed's axial thermal conductivity, the wall's conductivity and
+the heat transfer coefficients stay as given.
+The component data, the accuracy of these models and their effect on the
+presets are on the [Gas properties](@ref) page.
 
 ### Isotherm: dual-site Langmuir
 
@@ -379,21 +455,41 @@ Written in terms of temperature and pressure:
 + \varepsilon\,\frac{\tilde c_{pg}}{R}\frac{\partial P}{\partial t}
 + \frac{\tilde c_{pg}}{R}\frac{\partial (uP)}{\partial z}
 - \frac{\partial}{\partial z}\left(K_z \frac{\partial T}{\partial z}\right) \\
-&\qquad + (1-\varepsilon)\sum_i \left(\tilde c_{pa} T + \Delta H_i\right)\frac{\partial q_i}{\partial t}
+&\qquad + (1-\varepsilon)\sum_i \left(\tilde c_{pg} T + \Delta h_i + \Delta H_i\right)\frac{\partial q_i}{\partial t}
 + \frac{2 h_{in}}{r_{in}}\left(T - T_w\right) = 0,
 \end{aligned}
 ```
 
-with molar heat capacities of the gas and the adsorbed phase from the
-per-mass values of each component,
+with the molar heat capacities [J/(mol·K)] of the gas, the mole average of
+those of its components, and of the adsorbed phase, weighted by the loadings
+(their plain mean where nothing is adsorbed):
 
 ```math
-\tilde c_{pg} = \bar M \sum_i y_i\, c_{pg,i},
+\tilde c_{pg} = \sum_i y_i\, \tilde c_{pg,i}(T),
 \qquad
-\tilde c_{pa} = \bar M \sum_i y_i\, c_{pa,i},
+\tilde c_{pa} = \frac{\sum_i q_i\, \tilde c_{pa,i}(T)}{\sum_i q_i},
 \qquad
-\bar M = \sum_i y_i M_i.
+\tilde c_{pg,i} = M_i\, c_{pg,i}.
 ```
+
+The component heat capacities come from the thermodynamics of the
+[`Gas`](@ref): constant, or changing with temperature (see
+[`AbstractGasThermodynamics`](@ref)). The adsorbed phase has those of the gas
+unless the [`Adsorbent`](@ref) gives `adsorbed_heat_capacity`.
+
+With ``P = CRT`` the pressure terms are
+``\tilde c_{pg}\,(\varepsilon C\,\partial T/\partial t + uC\,\partial T/\partial z)``
+plus ``\tilde c_{pg} T`` for every mole the gas gains. The term
+``\tilde c_{pg} T\,\partial q_i/\partial t`` gives that back for the moles
+taken up, and the streams through the ends do the same for theirs (see
+[Flow devices and boundary conditions](@ref)). What is left is the heat of
+sorption ``\Delta H_i`` and ``\Delta h_i``, the enthalpy of adsorbed component
+``i`` less that of the gas component, which is zero when the adsorbed phase has
+the heat capacities of the gas and ``(\tilde c_{pa,i} - \tilde c_{pg,i})T``
+for other constant ones. The balance is thus the temperature form of the
+enthalpy balance, valid for heat capacities that change with temperature and
+composition, and for ideal gases. With constant heat capacities equal for all
+components it is the energy balance of Haghpanah et al. (2013).
 
 ``\Delta H_i < 0``, so adsorption heats the bed.
 
@@ -426,8 +522,16 @@ molar flow ``F`` [mol/s], positive from inlet to outlet. The port attached to
 the bed takes the pressure, temperature and composition of the end cell. The
 other port is either another bed (a link) or a boundary at a prescribed
 pressure, temperature and composition. The flow enters or leaves the bed's
-end cell carrying the composition and enthalpy ``F\,\tilde c_{pg} T`` of the
-upstream port.
+end cell carrying the composition and the temperature of the upstream port. A
+stream leaving the cell takes ``F\,\tilde c_{pg} T`` with it, which leaves
+the temperature of the cell as it is; a stream entering brings that of the
+cell and the heat to bring its gas from the cell's temperature to its own,
+
+```math
+F\left[\tilde c_{pg} T + \sum_i y_{up,i}\left(h_i(T_{up}) - h_i(T)\right)\right],
+\qquad
+h_i(T) = \int_{T_{ref}}^{T} \tilde c_{pg,i}\, dT.
+```
 
 In each step of the cycle every device is closed, a valve or a flow
 controller:
@@ -517,7 +621,9 @@ E = \int \frac{F R T}{\eta}\,\frac{\gamma}{\gamma - 1}
 
 reported in kWh per tonne of key component. ``P_{amb}``, ``\eta`` and
 ``\gamma`` are the `ambient_pressure` (101325 Pa), `pump_efficiency` (0.72) and
-`heat_capacity_ratio` (1.4) of the [`Process`](@ref). Haghpanah et al. count
+`heat_capacity_ratio` of the [`Process`](@ref). By default ``\gamma =
+\tilde c_{pg}/(\tilde c_{pg} - R)`` of the feed at its temperature; the
+presets set 1.4, as their papers do. Haghpanah et al. count
 the vacuum pumps only; [`vacuum_pump_energy`](@ref) gives the energy of one
 device, to report it their way.
 
@@ -547,17 +653,20 @@ optimisation come from the adjoint of the same discrete equations.
 | ``c_i,\ C`` | Gas concentration of component ``i``, total | mol/m³ | state |
 | ``c_{pa,i}`` | Heat capacity of adsorbed component ``i`` | J/(kg·K) | [`Adsorbent`](@ref) `adsorbed_heat_capacity` |
 | ``c_{pg,i}`` | Heat capacity of gas component ``i`` | J/(kg·K) | [`Gas`](@ref) `heat_capacities` |
+| ``\tilde c_{pa},\ \tilde c_{pg}`` | Molar heat capacity of the adsorbed phase and the gas; ``\tilde c_{pg,i}`` of component ``i`` | J/(mol·K) | [`Gas`](@ref) `thermodynamics` |
 | ``c_{ps}`` | Heat capacity of the adsorbent | J/(kg·K) | [`Adsorbent`](@ref) `heat_capacity` |
 | ``c_{pw}`` | Heat capacity of the wall | J/(kg·K) | [`Wall`](@ref) `heat_capacity` |
 | ``C_v`` | Valve conductance | m³/(s·Pa) | step `conductance` |
 | ``d_p`` | Particle diameter | m | [`Adsorbent`](@ref) `particle_diameter` |
 | ``D_L`` | Axial dispersion coefficient | m²/s | computed, or [`add_bed!`](@ref) `dispersion` |
-| ``D_m`` | Molecular diffusivity | m²/s | [`Gas`](@ref) `diffusivity` |
+| ``D_m`` | Molecular diffusivity, at the feed | m²/s | [`Gas`](@ref) `diffusivity` |
 | ``F`` | Molar flow through a device | mol/s | state |
+| ``h_i`` | Molar enthalpy of gas component ``i`` above ``T_{ref}`` = 298.15 K | J/mol | [`Gas`](@ref) `thermodynamics` |
 | ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
-| ``K_z`` | Axial thermal conductivity of the bed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
+| ``K_z`` | Axial thermal conductivity of the bed, at the feed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
 | ``K_w`` | Thermal conductivity of the wall | W/(m·K) | [`Wall`](@ref) `conductivity` |
+| ``\sigma_i,\ \varepsilon_i/k`` | Lennard-Jones collision diameter and well depth of component ``i`` | Å, K | [`Component`](@ref) `lennard_jones` |
 | ``L`` | Column length | m | [`Column`](@ref) `length` |
 | ``M_i`` | Molar mass | kg/mol | [`Gas`](@ref) `molar_masses` |
 | ``P`` | Pressure | Pa | state |
@@ -568,11 +677,13 @@ optimisation come from the adjoint of the same discrete equations.
 | ``T,\ T_w,\ T_a`` | Gas and sorbent, wall and ambient temperature | K | state; [`Column`](@ref) `ambient_temperature` |
 | ``u,\ v`` | Superficial and interstitial velocity | m/s | state; step `velocity` |
 | ``y_i`` | Gas mole fraction | – | state |
+| ``\Delta h_i`` | Enthalpy of adsorbed component ``i`` less that of the gas | J/mol | computed |
+| ``\Delta H_i`` | Isosteric heat of adsorption of component ``i`` | J/mol | isotherm |
 | ``\Delta U_b, \Delta U_d`` | Internal energy of adsorption, sites b and d | J/mol | isotherm `ΔUb`, `ΔUd` |
 | ``\varepsilon`` | Bed porosity (void fraction between particles) | – | [`Column`](@ref) `porosity` |
 | ``\varepsilon_p`` | Particle porosity | – | [`Adsorbent`](@ref) `particle_porosity` |
 | ``\gamma,\ \eta`` | Heat capacity ratio and efficiency of pumps and compressors | – | [`Process`](@ref) |
 | ``\lambda`` | Pressure ramp rate | 1/s | step or [`Process`](@ref) `ramp_rate` |
-| ``\mu`` | Gas viscosity | Pa·s | [`Gas`](@ref) `viscosity` |
+| ``\mu`` | Gas viscosity, at the feed | Pa·s | [`Gas`](@ref) `viscosity` |
 | ``\rho_s,\ \rho_w`` | Density of the adsorbent and of the wall | kg/m³ | [`Adsorbent`](@ref) `density`, [`Wall`](@ref) `density` |
 | ``\tau`` | Tortuosity | – | [`Adsorbent`](@ref) `tortuosity` |

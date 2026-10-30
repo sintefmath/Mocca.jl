@@ -21,7 +21,14 @@ function Jutul.select_secondary_variables!(
     S[:MolarConcentration] = MolarConcentration()
     S[:AverageMolarMass] = AverageMolarMass()
     S[:ComponentMasses] = ComponentMasses()
-    S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    if is_constant_transport(system.transport)
+        S[:AdsorptionMassTransfer] = AdsorptionMassTransfer()
+    else
+        # Transport properties that follow the state of each cell
+        S[:AdsorptionMassTransfer] = ScaledAdsorptionMassTransfer()
+        S[:ViscosityFactor] = ViscosityFactor()
+    end
+    system.dispersion isa WakaoFunazkri && (S[:MolecularDiffusivity] = MolecularDiffusivity())
     S[:AdsorbedLoading] = AdsorbedLoading()
 
     # For the energy equations
@@ -33,8 +40,8 @@ function Jutul.select_secondary_variables!(
         S[:WallConservedEnergy] = WallEnergy()
     end
     S[:ΔH] = EnthalpyChange()
-    S[:C_pa] = SpecificHeatCapacityAdsorbent()
-    S[:C_pg] = SpecificHeatCapacityFluid()
+    S[:C_pa] = AdsorbedMolarHeatCapacity()
+    S[:C_pg] = GasMolarHeatCapacity()
 end
 
 function Jutul.select_equations!(
@@ -71,7 +78,12 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     S[:DispersionTransmissibilities] = DispersionTransmissibilities()
 
     # Unit-entity parameters (single scalars)
-    S[:AxialDispersion] = AxialDispersion()
+    # A dispersion that follows the state has a factor in place of the parameter
+    if sys.dispersion isa WakaoFunazkri
+        S[:DispersionScale] = DispersionScale()
+    else
+        S[:AxialDispersion] = AxialDispersion()
+    end
     S[:AdsorbentDensity] = AdsorbentDensity()
     S[:AdsorbentHeatCapacity] = AdsorbentHeatCapacity()
     S[:WallDensity] = WallDensity()

@@ -39,9 +39,12 @@ function Jutul.convergence_criterion(model::SorbentBedModel, storage, eq::Jutul.
     return (CNV = (errors = e, names = _component_criterion_names("CNV_q", model)),)
 end
 
-# Heat capacity [J/K] of a cell: the unit's heat capacity terms and the gas
+# Heat capacity [J/K] of a cell: the unit's heat capacity terms and the gas.
+# The energy balance is in temperature form, so its residual is a heat flow
+# whose temperature error comes from the local heat capacities, also when they
+# change with temperature
 function _cell_heat_capacity(model, state, cell)
-    gas = _cell_gas_moles(state, cell) * Jutul.value(state.C_pg[cell]) * Jutul.value(state.AverageMolarMass[cell])
+    gas = _cell_gas_moles(state, cell) * Jutul.value(state.C_pg[cell])
     return Jutul.value(sum_terms(heat_capacity, heat_capacity_terms(model.system), model, state, cell)) + gas
 end
 

@@ -1,9 +1,14 @@
 # Gas-phase energy block, written in temperature form:
 #
-#   R = C_eff·∂T/∂t + (C_pg·M̄/R)·V_f·∂P/∂t − ∇·(K∇T) + (C_pg·M̄/R)·∇·(vP) − Σ energy sources
+#   R = C_eff·∂T/∂t + (C_pg/R)·V_f·∂P/∂t − ∇·(K∇T) + (C_pg/R)·∇·(vP) − Σ energy sources
 #
-# where C_eff sums the unit's heat_capacity_terms. Shared by every distributed
-# unit with an energy balance.
+# where C_eff sums the unit's heat_capacity_terms and C_pg is the molar heat
+# capacity of the gas in the cell. With P = cRT the gas terms are
+# C_pg·(V_f·c·∂T/∂t + flow·∇T) plus C_pg·T for every mole the cell gains;
+# the sources and streams that move moles in or out give that back (see
+# HeatOfSorption and the stream cross term), so the balance holds for heat
+# capacities that change with temperature and composition. Shared by every
+# distributed unit with an energy balance.
 
 abstract type Energy <: Jutul.ScalarVariable end
 struct ColumnEnergy <: Energy end
@@ -75,7 +80,8 @@ end
 
     T_f = state.Transmissibilities[face]
     ∇p = Jutul.gradient(state.Pressure, kgrad)
-    μ = state.FluidViscosity[1]
+    # Upwinded as the concentration over viscosity of the gas flux
+    μ = Jutul.upwind(upw, cell -> _cell_viscosity(state, cell), -T_f * ∇p)
     v = -T_f * ∇p / μ
     P_c = cell -> state.Pressure[cell]
     P_face = Jutul.upwind(upw, P_c, v)
@@ -107,9 +113,7 @@ function Jutul.update_equation_in_entity!(
     div_pressure = ldisc.div(flux_pressure)
 
     sys = model.system
-    C_pg = state.C_pg[self_cell]
-    avm = state.AverageMolarMass[self_cell]
-    coeff_pressure = C_pg * avm / GAS_CONSTANT
+    coeff_pressure = state.C_pg[self_cell] / GAS_CONSTANT
 
     ∂P∂t = (state.ConservedPressure[self_cell] - state0.ConservedPressure[self_cell]) / Δt
     pressure_term = coeff_pressure * state.FluidVolume[self_cell] * ∂P∂t

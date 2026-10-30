@@ -280,6 +280,26 @@ end
 
 _name_of(x::Symbol) = String(x)
 
+# The transport model of a gas, by name: models other than those Mocca builds
+# from the components cannot be written
+function _gas_transport_to_dict(gas::Gas)
+    t = gas.transport
+    t isa ConstantTransport && return nothing
+    t isa ChapmanEnskogTransport && t == chapman_enskog_transport(component.(gas.names), gas.molar_masses) && return "chapman_enskog"
+    input_error("gas", "transport", "a transport model of type $(typeof(gas.transport)) not made from the components cannot be written to a file")
+end
+
+# The heat capacities of a gas, as keys of its JSON object
+function _gas_thermodynamics_to_dict(gas::Gas)
+    th = gas.thermodynamics
+    th isa IdealGasConstantCp && return ("heat_capacities" => _by_name(gas.names, gas.heat_capacities),)
+    th isa IdealGasShomate && return ("thermodynamics" => "shomate",
+        "shomate" => _by_name(gas.names, [collect(c) for c in shomate_coefficients(th)]))
+    th isa IdealGasPolynomial && th == IdealGasPolynomial([component(n).cp_polynomial for n in gas.names]) &&
+        return ("thermodynamics" => "polynomial",)
+    input_error("gas", "thermodynamics", "thermodynamics of type $(typeof(th)) cannot be written to a file; use constant, polynomial or Shomate heat capacities of the components")
+end
+
 """
     process_to_dict(p) → Dict
 
@@ -291,10 +311,13 @@ function process_to_dict(p::Process)
     o = _obj("format" => PROCESS_FORMAT, "version" => FILE_VERSION, "name" => p.name)
     custom = [component(n) for n in gas.names if !(n in BUILTIN_COMPONENTS)]
     isempty(custom) || (o["components"] = [_obj("name" => c.name, "formula" => c.formula, "cas" => c.cas,
-        "molar_mass" => c.molar_mass, "heat_capacity" => c.heat_capacity, "viscosity" => c.viscosity) for c in custom])
+        "molar_mass" => c.molar_mass, "heat_capacity" => c.heat_capacity, "viscosity" => c.viscosity,
+        "shomate" => isnothing(c.shomate) ? nothing : collect(c.shomate),
+        "cp_polynomial" => isnothing(c.cp_polynomial) ? nothing : collect(c.cp_polynomial),
+        "lennard_jones" => isnothing(c.lennard_jones) ? nothing : collect(c.lennard_jones)) for c in custom])
     o["gas"] = _obj("components" => gas.names, "molar_masses" => _by_name(gas.names, gas.molar_masses),
-        "heat_capacities" => _by_name(gas.names, gas.heat_capacities), "viscosity" => gas.viscosity, "density" => gas.density,
-        "diffusivity" => gas.diffusivity isa Number ? gas.diffusivity : _by_name(gas.names, gas.diffusivity))
+        _gas_thermodynamics_to_dict(gas)..., "transport" => _gas_transport_to_dict(gas), "viscosity" => gas.viscosity, "density" => gas.density,
+        "diffusivity" => gas.diffusivity isa AbstractVector ? _by_name(gas.names, gas.diffusivity) : gas.diffusivity)
     o["feed"] = _obj("composition" => _by_name(gas.names, fs.feed.composition), "temperature" => fs.feed.temperature,
         "pressure" => fs.feed.pressure, "light_product" => _by_name(gas.names, fs.feed.light_product))
     # Adsorbents and columns shared by several beds are written once, under
@@ -408,19 +431,32 @@ function process_from_dict(d; base_dir = pwd())
     get(d, "version", FILE_VERSION) <= FILE_VERSION || input_error("process", "version", "file version $(d["version"]) is newer than this Mocca reads ($FILE_VERSION)")
     for c in get(d, "components", Any[])
         loc = "component $(get(c, "name", "?"))"
-        _check_keys(c, ("name", "formula", "cas", "molar_mass", "heat_capacity", "viscosity"), loc)
+        _check_keys(c, ("name", "formula", "cas", "molar_mass", "heat_capacity", "viscosity", "shomate", "cp_polynomial",
+            "lennard_jones"), loc)
         register_component!(Component(_require(c, "name", loc); formula = get(c, "formula", c["name"]), cas = get(c, "cas", ""),
             molar_mass = _num(_require(c, "molar_mass", loc), loc, "molar_mass"),
             heat_capacity = _num(_require(c, "heat_capacity", loc), loc, "heat_capacity"),
-            viscosity = _num(_require(c, "viscosity", loc), loc, "viscosity")))
+            viscosity = _num(_require(c, "viscosity", loc), loc, "viscosity"),
+            shomate = haskey(c, "shomate") ? [_num(v, loc, "shomate") for v in c["shomate"]] : nothing,
+            cp_polynomial = haskey(c, "cp_polynomial") ? [_num(v, loc, "cp_polynomial") for v in c["cp_polynomial"]] : nothing,
+            lennard_jones = haskey(c, "lennard_jones") ? [_num(v, loc, "lennard_jones") for v in c["lennard_jones"]] : nothing))
     end
     g = _require(d, "gas", "process")
-    _check_keys(g, ("components", "molar_masses", "heat_capacities", "viscosity", "density", "diffusivity"), "gas")
+    _check_keys(g, ("components", "molar_masses", "heat_capacities", "thermodynamics", "shomate", "transport", "viscosity",
+        "density", "diffusivity"), "gas")
     pervals(x) = isnothing(x) ? nothing : Dict(String(k) => _num(v, "gas", k) for (k, v) in x)
-    diff = get(g, "diffusivity", 1.6e-5)
+    diff = get(g, "diffusivity", nothing)
+    thermo = get(g, "thermodynamics", nothing)
+    thermo in (nothing, "constant", "polynomial", "shomate") ||
+        input_error("gas", "thermodynamics", "expected \"constant\", \"polynomial\" or \"shomate\", got $(repr(thermo))")
+    transport = get(g, "transport", "constant")
+    transport in ("constant", "chapman_enskog") || input_error("gas", "transport", "expected \"constant\" or \"chapman_enskog\", got $(repr(transport))")
+    shomate = haskey(g, "shomate") ? Dict(String(k) => [_num(x, "gas", "shomate") for x in v] for (k, v) in g["shomate"]) : nothing
     gas = Gas(String.(_require(g, "components", "gas")); molar_masses = pervals(get(g, "molar_masses", nothing)),
-        heat_capacities = pervals(get(g, "heat_capacities", nothing)), viscosity = _optnum(g, "viscosity", "gas"),
-        density = _optnum(g, "density", "gas"), diffusivity = diff isa AbstractDict ? pervals(diff) : _num(diff, "gas", "diffusivity"))
+        heat_capacities = pervals(get(g, "heat_capacities", nothing)),
+        thermodynamics = isnothing(thermo) ? nothing : Symbol(thermo), shomate = shomate,
+        transport = Symbol(transport), viscosity = _optnum(g, "viscosity", "gas"), density = _optnum(g, "density", "gas"),
+        diffusivity = isnothing(diff) ? nothing : diff isa AbstractDict ? pervals(diff) : _num(diff, "gas", "diffusivity"))
     fd = _require(d, "feed", "process")
     _check_keys(fd, ("composition", "temperature", "pressure", "light_product"), "feed")
     comp(x, loc) = x isa AbstractVector ? Float64.(x) : Dict(String(k) => _num(v, loc, k) for (k, v) in x)
@@ -500,7 +536,7 @@ function process_from_dict(d; base_dir = pwd())
         key_component = kc isa AbstractString ? kc : Int(kc),
         ambient_pressure = something(_optnum(op, "ambient_pressure", "options"), 101325.0),
         pump_efficiency = something(_optnum(op, "pump_efficiency", "options"), 0.72),
-        heat_capacity_ratio = something(_optnum(op, "heat_capacity_ratio", "options"), 1.4),
+        heat_capacity_ratio = _optnum(op, "heat_capacity_ratio", "options"),
         ramp_rate = something(_optnum(op, "ramp_rate", "options"), 0.5),
         initial_state = ics, parameters = prm)
     for v in get(d, "variables", Any[])

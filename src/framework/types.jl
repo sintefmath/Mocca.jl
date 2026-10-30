@@ -108,7 +108,9 @@ function _state_or_domain(state, model, symb::Symbol, key::Symbol, entity = Jutu
     end
 end
 
-_state_has(state::AbstractDict, k) = haskey(state, k)
-_state_has(state, k) = hasproperty(state, k)
+# Through keys rather than hasproperty: the local AD states Jutul passes to the
+# equations (Jutul.LocalStateAD) have the variables as keys, not as fields
+@inline _state_has(state::AbstractDict, k) = haskey(state, k)
+@inline _state_has(state, k) = k in keys(state)
 _state_get(state::AbstractDict, k) = state[k]
 _state_get(state, k) = getproperty(state, k)

@@ -1,11 +1,14 @@
 # Gas-phase block: secondary variables, the advective–dispersive flux and the
 # per-component mass balance. Shared by every distributed unit with a gas phase.
+#
+# A system with a gas phase must have a `thermodynamics` field, an
+# AbstractGasThermodynamics for its equation of state and heat capacity.
 
 struct AverageMolarMass <: Jutul.ScalarVariable end
 
 struct MolarConcentration <: ComponentVariable end
 
-# Total molar concentration (scalar per cell, computed from ideal gas law)
+# Total molar concentration (scalar per cell, from the equation of state)
 struct TotalMolarConcentration <: Jutul.ScalarVariable end
 Jutul.minimum_value(::TotalMolarConcentration) = 0.0
 
@@ -13,7 +16,69 @@ Jutul.minimum_value(::TotalMolarConcentration) = 0.0
 struct ComponentMasses <: ComponentVariable end
 Jutul.minimum_value(::ComponentMasses) = 0.0
 
-struct SpecificHeatCapacityFluid <: Jutul.ScalarVariable end
+"""
+Viscosity of the gas in a cell relative to the `FluidViscosity` parameter, from
+the system's `transport` (a TransportReference). A unit whose transport
+properties do not change leaves it out, and its viscosity is the parameter.
+"""
+struct ViscosityFactor <: Jutul.ScalarVariable end
+
+Jutul.@jutul_secondary function update_viscosity_factor!(f, tv::ViscosityFactor, model::MoccaModel, y, Temperature, ix)
+    transport = model.system.transport
+    for cell in ix
+        f[cell] = viscosity_factor(transport, view(y, :, cell), Temperature[cell])
+    end
+end
+
+# Viscosity [Pa·s] of the gas in a cell
+@inline _cell_viscosity(state, cell) =
+    _state_has(state, :ViscosityFactor) ? state.FluidViscosity[1] * state.ViscosityFactor[cell] : state.FluidViscosity[1]
+
+"""
+Molecular diffusivity [m²/s] of each component in a cell, for a dispersion
+that follows it (see [`WakaoFunazkri`](@ref)): the diffusivities of the
+system's `dispersion` model, at the feed, scaled by its `transport`.
+"""
+struct MolecularDiffusivity <: ComponentVariable end
+
+Jutul.@jutul_secondary function update_molecular_diffusivity!(D, tv::MolecularDiffusivity, model::MoccaModel, y, Temperature, Pressure, ix)
+    sys = model.system
+    for cell in ix
+        d = _scaled_diffusivities(sys.transport, sys.dispersion.diffusivities, view(y, :, cell), Temperature[cell], Pressure[cell])
+        for i in axes(D, 1)
+            D[i, cell] = d[i]
+        end
+    end
+end
+
+_scaled_diffusivities(r::TransportReference, D, y, T, P) = D .* diffusivity_factors(r, y, T, P)
+_scaled_diffusivities(::TransportReference{ConstantTransport}, D, y, T, P) = D .+ zero(T / P)
+
+"""
+    DispersionScale
+
+Factor on the axial dispersion of a unit whose dispersion follows the state
+(see [`WakaoFunazkri`](@ref)), 1 by default. As a parameter it can be set per
+case, by a design variable or in a history match, as `AxialDispersion` can for
+a constant dispersion. Such a unit has it in place of `AxialDispersion`.
+"""
+struct DispersionScale <: Jutul.ScalarVariable end
+Jutul.associated_entity(::DispersionScale) = Unit()
+Jutul.minimum_value(::DispersionScale) = 0.0
+Jutul.default_parameter_values(data_domain, model, ::DispersionScale, symb) = [1.0]
+
+# Dispersion conductance [m³/s] of a face for a component: the AxialDispersion
+# parameter, or by Wakao and Funazkri from the molecular diffusivity of the
+# component in the cells of the face and the superficial velocity `u` [m/s]
+@inline function _face_dispersion(state, model, face, kgrad, u, component)
+    _state_has(state, :MolecularDiffusivity) || return state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
+    D = state.MolecularDiffusivity
+    D̄ = (D[component, kgrad.left] + D[component, kgrad.right]) / 2
+    return state.DispersionScale[1] * dispersion_coefficient(model.system.dispersion, D̄, u) * state.DispersionTransmissibilities[face]
+end
+
+"Molar heat capacity [J/(mol·K)] of the gas in a cell, from the system's `thermodynamics`."
+struct GasMolarHeatCapacity <: Jutul.ScalarVariable end
 
 """
     AxialDispersion
@@ -45,8 +110,9 @@ function Jutul.default_parameter_values(data_domain, model, param::DispersionTra
 end
 
 Jutul.@jutul_secondary function update_total_concentration!(ctot, tv::TotalMolarConcentration, model::MoccaModel, Pressure, Temperature, ix)
+    thermo = model.system.thermodynamics
     for cell in ix
-        ctot[cell] = Pressure[cell] / (GAS_CONSTANT * Temperature[cell])
+        ctot[cell] = molar_concentration(thermo, Pressure[cell], Temperature[cell])
     end
 end
 
@@ -78,21 +144,15 @@ Jutul.@jutul_secondary function update_component_masses!(m, tv::ComponentMasses,
     end
 end
 
-Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::SpecificHeatCapacityFluid, model::MoccaModel, y, ix)
-    sys = model.system
-    C_pg = sys.heat_capacity_gas
-    T = eltype(cpg)
+Jutul.@jutul_secondary function update_heat_capacity_fluid!(cpg, tv::GasMolarHeatCapacity, model::MoccaModel, y, Temperature, ix)
+    thermo = model.system.thermodynamics
     for cell in ix
-        cpg_i = zero(T)
-        for component in 1:number_of_components(sys)
-            cpg_i += y[component, cell] * C_pg[component]
-        end
-        cpg[cell] = cpg_i
+        cpg[cell] = molar_heat_capacity(thermo, view(y, :, cell), Temperature[cell])
     end
 end
 
-# Darcy advection with upwinded concentration plus Fickian dispersion of the
-# mole fractions.
+# Darcy advection with upwinded concentration over viscosity plus Fickian
+# dispersion of the mole fractions, constant or by Wakao and Funazkri.
 @inline function Jutul.face_flux!(
     q,
     face,
@@ -106,7 +166,6 @@ end
     kgrad, upw = ldisc.face_disc(face)
 
     c = state.MolarConcentration
-    μ = state.FluidViscosity[1]
 
     T_f = state.Transmissibilities[face]
     ∇p = Jutul.gradient(state.Pressure, kgrad)
@@ -119,11 +178,14 @@ end
     y = state.y
     C = (cL + cR)/2.0
 
-    D_l = state.AxialDispersion[1] * state.DispersionTransmissibilities[face]
+    # Superficial velocity, for a dispersion that follows it
+    u = _state_has(state, :MolecularDiffusivity) ?
+        q_darcy / (Jutul.upwind(upw, cell -> _cell_viscosity(state, cell), q_darcy) * state.BedCrossSectionArea[1]) : zero(q_darcy)
     for component in eachindex(q)
-        F_c = cell -> c[component, cell] / μ
+        F_c = cell -> c[component, cell] / _cell_viscosity(state, cell)
         c_face = Jutul.upwind(upw, F_c, q_darcy)
-        q_i = c_face * q_darcy - C * D_l * Jutul.gradient(y, component, kgrad)
+        D_c = _face_dispersion(state, model, face, kgrad, u, component)
+        q_i = c_face * q_darcy - C * D_c * Jutul.gradient(y, component, kgrad)
 
         q = setindex(q, q_i, component)
     end

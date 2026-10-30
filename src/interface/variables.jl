@@ -184,11 +184,14 @@ function _performance_objectives(p::Process)
     isempty(extract) && input_error("process", "", "performance needs an extract device")
     isempty(feed) && input_error("process", "", "performance needs a feed device")
     energy = Any[]
+    # A heat capacity ratio from the feed changes with the feed temperature only
+    # if the heat capacities do; that dependence is not differentiated
+    γ = pump_heat_capacity_ratio(p)
     for role in OUTLET_ROLES, d in devices_with_role(fs, role)
-        push!(energy, VacuumPumpObjective(d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = o.heat_capacity_ratio))
+        push!(energy, VacuumPumpObjective(d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ))
     end
     for role in INLET_ROLES, d in devices_with_role(fs, role)
-        push!(energy, CompressorObjective(d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = o.heat_capacity_ratio))
+        push!(energy, CompressorObjective(d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ))
     end
     return (key_extract = _SumObjective(Tuple(StreamObjective(d; component = k) for d in extract)),
         total_extract = _SumObjective(Tuple(StreamObjective(d; component = i) for d in extract for i in 1:N)),

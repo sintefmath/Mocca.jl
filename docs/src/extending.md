@@ -31,6 +31,91 @@ start_pressure
 ramp
 ```
 
+## Adding a thermodynamics model
+
+The heat capacities and the equation of state of the gas come from an
+[`AbstractGasThermodynamics`](@ref) model, held by the [`Gas`](@ref) and by
+every unit with a gas phase (the `thermodynamics` field of its system; a bed
+also has `adsorbed_thermodynamics` for the adsorbed phase). Mocca has
+[`IdealGasConstantCp`](@ref) and [`IdealGasShomate`](@ref). Another model,
+such as NASA polynomials, is a subtype with one method,
+[`component_heat_capacities`](@ref): the molar heat capacity of each
+component [J/(mol·K)] at a temperature, as an `SVector`.
+
+```julia
+using Mocca, StaticArrays
+
+# NASA 7-coefficient polynomials, one temperature range: cp/R = a1 + a2 T + ... + a5 T⁴
+struct NASA7{N} <: Mocca.AbstractGasThermodynamics
+    a::NTuple{5, SVector{N, Float64}}
+end
+
+function Mocca.component_heat_capacities(m::NASA7, T)
+    a = m.a
+    return Mocca.GAS_CONSTANT .* (a[1] .+ T .* (a[2] .+ T .* (a[3] .+ T .* (a[4] .+ T .* a[5]))))
+end
+
+gas = Gas(["CO2", "N2"]; thermodynamics = NASA7((SVector(2.36, 3.53), SVector(8.98e-3, -1.24e-4),
+    SVector(-7.12e-6, -5.03e-7), SVector(2.46e-9, 2.44e-9), SVector(-1.44e-13, -1.41e-12))))
+```
+
+The rest follows:
+[`component_enthalpies`](@ref), relative to 298.15 K, by Gauss–Legendre
+quadrature of the heat capacities (add a method if the integral is known),
+and from these [`molar_heat_capacity`](@ref), [`molar_enthalpy`](@ref) and
+[`heat_capacity_ratio`](@ref) of a mixture. [`molar_concentration`](@ref) is
+that of the ideal gas; the energy balance of the column also assumes an ideal
+gas, so a model with another equation of state needs more than a method for
+it.
+
+The functions are evaluated in every cell at every Newton iteration with
+automatic-differentiation numbers for `T`, so they must accept any `Real`, and
+should not allocate: keep the parameters in `SVector`s or tuples, and the
+struct `isbits`, as [`DualSiteLangmuir`](@ref) does.
+
+The model's heat capacities enter the energy balance through the gas and
+adsorbed-phase heat capacity variables `C_pg` and `C_pa`, the sensible heat of
+sorption and the enthalpy a stream brings into a bed (see [Model
+equations](@ref)). A model that is not one of Mocca's cannot be written to a
+process file.
+
+## Adding a transport model
+
+How the viscosity and molecular diffusivities change through a bed comes from
+an [`AbstractGasTransport`](@ref) model, held by the [`Gas`](@ref) and, with
+its values at the feed, by the bed (a [`TransportReference`](@ref) in the
+`transport` field of its system). Mocca has [`ConstantTransport`](@ref), the
+default, and [`ChapmanEnskogTransport`](@ref). Another model gives two
+functions: [`mixture_viscosity`](@ref) and [`molecular_diffusivities`](@ref),
+the diffusivity of each component in the mixture. The bed scales the values at
+the feed by their ratios, so a model may be exact in its trends and looser in
+its absolute values. As for thermodynamics, they must take
+automatic-differentiation numbers and not allocate.
+
+```julia
+using Mocca, StaticArrays
+
+# Viscosity as a power of temperature, the same for every mixture, and
+# Knudsen diffusion, as the square root of temperature whatever the pressure
+struct PowerLawTransport <: Mocca.AbstractGasTransport
+    a::Float64   # exponent of the viscosity
+end
+Mocca.mixture_viscosity(m::PowerLawTransport, y, T) = 1.8e-5 * (T / 298.15)^m.a
+Mocca.molecular_diffusivities(m::PowerLawTransport, y, T, P) = 1.6e-5 * sqrt(T / 298.15) .* SVector(1.0, 1.0)
+
+gas = Gas(["CO2", "N2"]; transport = PowerLawTransport(0.7))
+```
+
+A bed with a transport model other than `ConstantTransport` adds a per-cell
+variable `ViscosityFactor`, and evaluates its mass transfer as
+`ScaledAdsorptionMassTransfer`, which passes the diffusivity factors at the
+feed pressure to [`compute_mass_transfer_rate`](@ref). A mass transfer model
+whose rate depends on the molecular diffusivity adds a method with that fifth
+argument, as [`LinearDrivingForce`](@ref) does. Unless a `dispersion` is given,
+its axial dispersion is [`WakaoFunazkri`](@ref), with a per-cell
+`MolecularDiffusivity` and a `DispersionScale` parameter. A model of your own
+cannot be written to a process file.
+
 ## The layer underneath
 
 The objects of the [Reference](@ref) build these, which can also be used
@@ -96,6 +181,7 @@ setup_flowsheet_parameters
 DualSiteLangmuir
 AbstractIsotherm
 AbstractMassTransfer
+compute_mass_transfer_rate
 LinearDrivingForce
 simulate_to_cyclic_steady_state
 newton_cyclic_steady_state

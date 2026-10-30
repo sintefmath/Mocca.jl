@@ -48,18 +48,21 @@ end
     # the scale-free convergence criteria, then moved the breakthrough 0.8 s
     # earlier and everything else by less than 3e-5. Counting the heat of
     # sorption of N2 as well as CO2 then delayed the breakthrough by 10.6 s
-    # (2.2%) and raised the outlet temperature by 0.2 K. Computed at the
-    # default nonlinear tolerance of 1e-6
+    # (2.2%) and raised the outlet temperature by 0.2 K. The molar mixing rule
+    # for the gas heat capacity, 30.7 J/(mol·K) for both components where
+    # (Σ yᵢ cₚᵢ)·M̄ gave up to 5% more, then raised the outlet temperature by
+    # 0.8 K and lowered the CO2 at the outlet by 0.17% and the CO2 held by
+    # 0.09%. Computed at the default nonlinear tolerance of 1e-6
     ref = (
-        y_outlet_CO2 = 0.14858132418815131,
-        y_outlet_N2 = 0.8514186758118468,
-        T_outlet = 301.9198211172765,
-        T_inlet = 298.14998839776024,
-        T_max = 301.9198211172765,
-        P_outlet = 100004.81514282645,
-        P_inlet = 101884.44866125289,
-        total_CO2_adsorbed = 774199.080744145,
-        breakthrough_time = 496.7032946626421,
+        y_outlet_CO2 = 0.14832697817779605,
+        y_outlet_N2 = 0.8516730218222054,
+        T_outlet = 302.7255069271107,
+        T_inlet = 298.1499862947908,
+        T_max = 302.7255069271107,
+        P_outlet = 100004.82659801352,
+        P_inlet = 101884.91081283943,
+        total_CO2_adsorbed = 773529.1033553269,
+        breakthrough_time = 496.27680140441805,
     )
 
     @test isapprox(m.y_outlet_CO2, ref.y_outlet_CO2, rtol=1e-3)
