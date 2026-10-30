@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Optimization · Mocca.jl</title><meta name="title" content="Optimization · Mocca.jl"/><meta property="og:title" content="Optimization · Mocca.jl"/><meta property="twitter:title" content="Optimization · Mocca.jl"/><meta name="description" content="Documentation for Mocca.jl."/><meta property="og:description" content="Documentation for Mocca.jl."/><meta property="twitter:description" content="Documentation for Mocca.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Mocca.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../installation/">Installation</a></li><li><a class="tocitem" href="../../quick_start/">Quick start</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../simulate_DCB/">Simulate DCB</a></li><li><a class="tocitem" href="../simulate_cyclic/">Simulate cyclic</a></li><li><a class="tocitem" href="../history_matching/">History matching</a></li><li class="is-active"><a class="tocitem" href>Optimization</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Setting-up-the-optimization-problem"><span>Setting up the optimization problem</span></a></li><li class="toplevel"><a class="tocitem" href="#Run-the-optimization"><span>Run the optimization</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Optimization</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Optimization</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Optimization-of-simulation-models"><a class="docs-heading-anchor" href="#Optimization-of-simulation-models">Optimization of simulation models</a><a id="Optimization-of-simulation-models-1"></a><a class="docs-heading-anchor-permalink" href="#Optimization-of-simulation-models" title="Permalink"></a></h1><p>We demonstrate optimization of a cyclic Vacuum Swing Adsorption (VSA) simulation model in Mocca. The objective is to maximize the CO2 recovery of the process, i.e., the fraction of the input CO2 we are able to capture. We do this by tuning:</p><ul><li>Feed velocity</li><li>Low pressure</li><li>Intermediate pressure</li></ul><p>We leverage the powerful and flexible optimization functionality of Jutul. For more details about the VSA modelling, see the <a href="../simulate_cyclic/">Simulate cyclic</a> example.</p><h1 id="Setting-up-the-optimization-problem"><a class="docs-heading-anchor" href="#Setting-up-the-optimization-problem">Setting up the optimization problem</a><a id="Setting-up-the-optimization-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-optimization-problem" title="Permalink"></a></h1><p>Start by importing the necessary modules</p><pre><code class="language-julia hljs">import Mocca
+import Jutul
+import Jutul.DictOptimization: optimize, DictParameters, free_optimization_parameter!</code></pre><p>We create a setup function for making simulation cases. This is needed by the optimizer so that it knows how to set up a new simulation from the current iteration of the optimization parameters.</p><pre><code class="language-julia hljs">function setup_case(prm, step_info = missing)
+
+    param_dict_symb = Dict(Symbol(k) =&gt; v for (k, v) in prm)
+    RealT = valtype(param_dict_symb)
+    constants, info = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=RealT)
+    info.num_cycles = 3;
+    for (k, v) in param_dict_symb
+        print(k)
+        print(v)
+        setproperty!(constants, Symbol(k), v)
+    end
+    case,  = Mocca.setup_mocca_case(constants, info)
+
+    return case
+end;</code></pre><p>Create a helper function for getting timing for the stages and the number of cycles</p><pre><code class="language-julia hljs">function cycle_definition()
+    t_press = 15.0
+    t_ads = 15.0
+    t_blow = 30.0
+    t_evac = 40.0
+    t_stage = [t_press, t_ads, t_blow, t_evac]
+    num_cycles = 3
+    return (t_stage, num_cycles)
+end;</code></pre><p>Define the objective function. We need access to all timesteps at the same time to calculate the recovery. Jutul allows us to do this using a global objective function.</p><pre><code class="language-julia hljs">function objective_func(model, state0, states, step_infos, forces, input_data)
+    total_co2_flux_in = 0.0
+    total_co2_flux_out = 0.0
+
+    t_stage, num_cycles = cycle_definition()
+    start_time_last_cycle = sum(t_stage)*(num_cycles-1)
+
+    for (step_info, state, force_outer) in zip(step_infos, states, forces)
+        dt = step_info[:dt]
+        time = step_info[:time]
+
+        if time &gt;= start_time_last_cycle # We only use the last cycle for calculating the objective, once the system has more or less stabilized
+            force = force_outer.bc
+
+            if force isa Mocca.PressurisationBC
+                mass_flux = Mocca.mass_flux_left(state, model, time, force)
+                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+            end
+
+            if force isa Mocca.AdsorptionBC
+                mass_flux = Mocca.mass_flux_left(state, model, time, force)
+                total_co2_flux_in -= mass_flux[Mocca.CO2INDEX] * dt
+            end
+
+            if force isa Mocca.EvacuationBC
+                mass_flux = Mocca.mass_flux_left(state, model, time, force)
+                total_co2_flux_out -= mass_flux[Mocca.CO2INDEX] * dt
+            end
+        end
+    end
+
+    recovery = total_co2_flux_out/total_co2_flux_in
+    return recovery
+end
+wrapped_global_objective = Jutul.WrappedGlobalObjective(objective_func);</code></pre><p>We use the original parameter values as a starting point for the optimization</p><pre><code class="language-julia hljs">constants_ref, = Mocca.parse_input(Mocca.haghpanah_cyclic_input(); typeT=Float64)
+
+
+prm_guess = Dict(
+    &quot;v_feed&quot; =&gt; constants_ref.v_feed,
+    &quot;p_intermediate&quot; =&gt; constants_ref.p_intermediate,
+    &quot;p_low&quot; =&gt; constants_ref.p_low
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{String, Float64} with 3 entries:
+  &quot;p_low&quot;          =&gt; 10000.0
+  &quot;v_feed&quot;         =&gt; 0.37
+  &quot;p_intermediate&quot; =&gt; 20000.0</code></pre><p>Specify which parameters we wish to optimize and set limits for their final values. Relative change limits can also be specified.</p><pre><code class="language-julia hljs">bar = Jutul.si_unit(:bar)
+dprm = DictParameters(prm_guess)
+free_optimization_parameter!(dprm, &quot;v_feed&quot;; abs_min = 0.1, abs_max = 2.0)
+free_optimization_parameter!(dprm, &quot;p_intermediate&quot;; abs_min = 0.05bar, abs_max = 0.5bar)
+free_optimization_parameter!(dprm, &quot;p_low&quot;; abs_min = 0.05bar, abs_max = 0.5bar)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 3 parameters (3 active), and 0 multipliers:
+<span class="sgr1">Active optimization parameters</span>
+┌────────────────┬───────────────┬───────┬────────┬─────────┐
+│<span class="sgr1">           Name </span>│<span class="sgr1"> Initial value </span>│<span class="sgr1"> Count </span>│<span class="sgr1">    Min </span>│<span class="sgr1">     Max </span>│
+├────────────────┼───────────────┼───────┼────────┼─────────┤
+│         v_feed │ 0.37          │     1 │    0.1 │     2.0 │
+│ p_intermediate │ 20000.0       │     1 │ 5000.0 │ 50000.0 │
+│          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │
+└────────────────┴───────────────┴───────┴────────┴─────────┘
+No inactive optimization parameters.
+No multipliers set.
+</code></pre><h1 id="Run-the-optimization"><a class="docs-heading-anchor" href="#Run-the-optimization">Run the optimization</a><a id="Run-the-optimization-1"></a><a class="docs-heading-anchor-permalink" href="#Run-the-optimization" title="Permalink"></a></h1><p>We call the optimizer provided by Jutul. Note that we are maximizing the objective function.</p><pre><code class="language-julia hljs">prm_opt = optimize(dprm, wrapped_global_objective, setup_case;
+    max_it=10,
+    maximize=true,
+    info_level=-1
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{String, Float64} with 3 entries:
+  &quot;p_low&quot;          =&gt; 5000.0
+  &quot;v_feed&quot;         =&gt; 0.684246
+  &quot;p_intermediate&quot; =&gt; 50000.0</code></pre><p>We can plot the optimization history to see how the objective function has changed throughout the optimization</p><pre><code class="language-julia hljs">Mocca.plot_optimization_history(dprm; yscale = identity, ylabel = &quot;Recovery&quot;)</code></pre><img src="d9b8e694.png" alt="Example block output"/><p>Finally, we look at the optimized parameters. We see that the optimized intermediate and low pressure values have reached their prescribed limits, meaning that we could have increased the objective function further if we were allowed to change the limits.</p><pre><code class="language-julia hljs">dprm</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DictParameters with 3 parameters (3 active), and 0 multipliers:
+<span class="sgr1">Active optimization parameters</span>
+┌────────────────┬───────────────┬───────┬────────┬─────────┬───────────────────
+│<span class="sgr1">           Name </span>│<span class="sgr1"> Initial value </span>│<span class="sgr1"> Count </span>│<span class="sgr1">    Min </span>│<span class="sgr1">     Max </span>│<span class="sgr1"> Optimized value </span> ⋯
+├────────────────┼───────────────┼───────┼────────┼─────────┼───────────────────
+│         v_feed │ 0.37          │     1 │    0.1 │     2.0 │ 0.684            ⋯
+│ p_intermediate │ 20000.0       │     1 │ 5000.0 │ 50000.0 │ 50000.0          ⋯
+│          p_low │ 10000.0       │     1 │ 5000.0 │ 50000.0 │ 5000.0           ⋯
+└────────────────┴───────────────┴───────┴────────┴─────────┴───────────────────
+<span class="sgr36">                                                                1 column omitted</span>
+No inactive optimization parameters.
+No multipliers set.
+</code></pre><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from <a href="https://github.com/sintefmath/Mocca.jl/blob/main/examples/optimization.jl">the Mocca.jl GitHub repository</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../history_matching/">« History matching</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Wednesday 21 January 2026 13:50">Wednesday 21 January 2026</span>. Using Julia version 1.12.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
