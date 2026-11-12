@@ -145,3 +145,69 @@ function component_inventory(model::SorbentBedModel, state, parameters)
     adsorbed = state[:AdsorbedConcentration] * parameters[:SolidVolume]
     return vec(gas .+ adsorbed)
 end
+
+# ------------------------------------------------------------------------------
+# Steady operation: rates rather than amounts over a cycle
+# ------------------------------------------------------------------------------
+
+"""
+    stream_rates(state, device) → Vector
+
+Molar flow [mol/s] of each component through `device` in flowsheet `state`,
+from its inlet to its outlet, with the composition of the upstream port. The
+rate counterpart of [`stream_totals`](@ref), for a process at steady state.
+"""
+function stream_rates(state, device::Symbol)
+    s = state[device]
+    F = s[:MolarFlow][1]
+    y = F >= 0 ? s[:InletComposition] : s[:OutletComposition]
+    return F .* vec(y)
+end
+
+"""
+    hx_fluid_inlet_temperature(fs, state, parameters, unit) → T
+
+Temperature [K] of the heat transfer fluid entering the tubes of `unit`: the
+outlet temperature of the unit feeding it through a
+[`HeatTransferFluidConnection`](@ref), or its `HXFluidInletTemperature`.
+"""
+function hx_fluid_inlet_temperature(fs::AbstractFlowsheet, state, parameters, unit::Symbol)
+    up = _hx_upstream(fs, unit)
+    return isnothing(up) ? first(parameters[unit][:HXFluidInletTemperature]) : state[up][:HXFluidTemperature][end]
+end
+
+"""
+    heat_duty(fs, state, parameters, unit) → Q
+
+Heat [W] that the heat transfer fluid gives the gas and sorbent of `unit`, a
+unit with a [`HeatExchanger`](@ref): `ṁ·c_p·(T_in − T_out)` of the fluid,
+which equals the heat exchanged at steady state. Negative where the fluid
+takes heat away. See [`HeatDutyObjective`](@ref) for its adjoint gradients.
+"""
+function heat_duty(fs::AbstractFlowsheet, state, parameters, unit::Symbol)
+    has_heat_exchanger(fs[unit].system) || error("Unit $unit has no heat exchanger")
+    return HeatDutyObjective(fs, unit)(nothing, objective_state(state, parameters), 1.0, nothing, nothing)
+end
+
+"Units of `fs` whose sorbent moves (see [`moves_sorbent`](@ref)), in flowsheet order."
+moving_sorbent_units(fs::AbstractFlowsheet) = [u for u in holdup_units(fs) if moves_sorbent(fs[u].system)]
+
+"""
+    sorbent_inventory(fs, parameters) → kg
+
+Mass of sorbent held in the units of `fs` whose sorbent moves.
+"""
+sorbent_inventory(fs::AbstractFlowsheet, parameters) = sum(u -> sorbent_mass(fs[u], parameters[u]), moving_sorbent_units(fs); init = 0.0)
+
+"""
+    sorbent_circulation_time(fs, parameters) → s
+
+Time for the sorbent to pass once through the units of `fs` whose sorbent
+moves: their inventory over the sorbent mass flow, which units passing sorbent
+to each other share.
+"""
+function sorbent_circulation_time(fs::AbstractFlowsheet, parameters)
+    us = moving_sorbent_units(fs)
+    isempty(us) && error("The flowsheet has no units whose sorbent moves")
+    return sorbent_inventory(fs, parameters) / first(parameters[first(us)][:SorbentMassFlow])
+end

@@ -4,7 +4,7 @@ function Jutul.select_primary_variables!(
     model::Jutul.SimulationModel,
 )
     S[:Pressure] = Pressure()
-    S[:y] = GasMoleFractions()
+    S[:y] = GasMoleFractions(minimum = minimum_mole_fraction(system.isotherm))
     S[:AdsorbedConcentration] = AdsorbedConcentration()
     S[:Temperature] = Temperature()
     if has_wall(system)
@@ -93,6 +93,7 @@ function Jutul.select_parameters!(S, sys::FixedBed, model::Jutul.SimulationModel
     S[:InnerHeatTransferCoeff] = InnerHeatTransferCoeff()
     S[:OuterHeatTransferCoeff] = OuterHeatTransferCoeff()
     S[:AmbientTemperature] = AmbientTemperature()
+    S[:JacketTemperature] = JacketTemperature()
     S[:WallCrossSectionArea] = WallCrossSectionArea()
     S[:BedCrossSectionArea] = BedCrossSectionArea()
     S[:TimeScale] = TimeScale()

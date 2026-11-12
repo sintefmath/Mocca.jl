@@ -396,6 +396,10 @@ the heat transfer coefficients stay as given.
 The component data, the accuracy of these models and their effect on the
 presets are on the [Gas properties](@ref) page.
 
+Where the rate coefficients were fitted to breakthrough curves instead, give
+them to the adsorbent with [`lumped_ldf`](@ref): ``k_i`` is then a constant per
+component ([`LumpedLinearDrivingForce`](@ref)).
+
 ### Isotherm: dual-site Langmuir
 
 ```math
@@ -443,6 +447,53 @@ site energies weighted by their capacities at the reference temperature
 
 ```math
 \Delta H_i = \frac{q_{sb,i}\left(\Delta U_{b,i} - RT_0\right) + q_{sd,i}\left(\Delta U_{d,i} - RT_0\right)}{q_{sb,i} + q_{sd,i}}.
+```
+
+### Isotherm: Toth with water (GAB)
+
+Amine sorbents for direct air capture take up more CO₂ from humid air than
+from dry air. [`toth_gab`](@ref) describes this as in Stampi-Bombelli et al.
+(2020) ([`TothGAB`](@ref)): water on a Guggenheim–Anderson–de Boer isotherm in
+the relative humidity ``x = p_w / p_{sat}(T)``, and CO₂ on a Toth isotherm
+whose capacity and affinity grow with the water loading,
+
+```math
+\begin{aligned}
+q_w^* &= \frac{c_m\, c_G\, K x}{(1 - K x)\left(1 + (c_G - 1) K x\right)},
+\qquad
+q_c^* = \frac{n_s\, b\, p_c}{\left(1 + (b\, p_c)^t\right)^{1/t}}, \\
+n_s &= \frac{n_{s0}\, e^{\chi (1 - T/T_0)}}{1 - \gamma\, q_w^*},
+\qquad
+b = b_0\, e^{-\frac{\Delta H_0}{R T_0}\left(\frac{T_0}{T} - 1\right)} \left(1 + \beta\, q_w^*\right),
+\qquad
+t = t_0 + \alpha\left(1 - \frac{T_0}{T}\right),
+\end{aligned}
+```
+
+where ``p_c`` and ``p_w`` are the partial pressures of CO₂ and water, and
+``p_{sat}`` is the saturation pressure of water from the Antoine equation
+([`water_vapour_pressure`](@ref)). Other components do not adsorb. The heat of
+adsorption of each component is a constant given with the isotherm. On the
+APDES-NFC sorbent of the paper, CO₂ is near its capacity at the 0.4 mbar of
+air, and humidity raises the uptake; at 95 °C it holds a few percent of that:
+
+```@example model
+ads = Mocca.load_adsorbent("apdes_nfc_stampi_bombelli_2020") # hide
+gas = Mocca.stampi_bombelli_2020_gas() # hide
+pc = range(0, 2e3, length = 201) # hide
+fig = Figure(size = (900, 300)) # hide
+ax1 = Axis(fig[1, 1], title = "CO2", xlabel = "CO₂ partial pressure [kPa]", ylabel = "loading [mol/kg]") # hide
+for (T, ls) in ((293.15, :solid), (368.15, :dash)), (rh, col) in ((0.0, Cycled(1)), (0.5, Cycled(2))) # hide
+    pw = rh * Mocca.water_vapour_pressure(T) # hide
+    q = [Mocca.equilibrium_loading(ads, gas; pressure = 1e5, temperature = T, composition = [p, pw, 1e5 - p - pw] ./ 1e5)[1] for p in pc] # hide
+    lines!(ax1, pc ./ 1e3, q, linestyle = ls, color = col, label = "$(round(Int, T - 273.15)) °C, $(round(Int, 100rh))% RH") # hide
+end # hide
+Legend(fig[1, 2], ax1, framevisible = false) # hide
+ax2 = Axis(fig[1, 3], title = "H2O", xlabel = "relative humidity", ylabel = "loading [mol/kg]") # hide
+x = range(0, 0.9, length = 101) # hide
+iso = Mocca.isotherm(ads, gas) # hide
+lines!(ax2, x, [Mocca.gab_loading(iso, xi) / ads.density for xi in x]) # hide
+fig # hide
 ```
 
 ### Energy balance of the column
@@ -499,10 +550,13 @@ components it is the energy balance of Haghpanah et al. (2013).
 \rho_w c_{pw}\frac{\partial T_w}{\partial t}
 = K_w \frac{\partial^2 T_w}{\partial z^2}
 + \frac{2 r_{in} h_{in}}{r_{out}^2 - r_{in}^2}\left(T - T_w\right)
-- \frac{2 r_{out} h_{out}}{r_{out}^2 - r_{in}^2}\left(T_w - T_a\right).
+- \frac{2 r_{out} h_{out}}{r_{out}^2 - r_{in}^2}\left(T_w - T_j\right).
 ```
 
-At both ends the wall conducts heat to the surroundings at ``T_a``.
+``T_j`` is the temperature outside the wall: the ambient temperature ``T_a``,
+or during a step with a `jacket_temperature`, that of the heating or cooling
+jacket (see [Cycle steps](@ref)). At both ends the wall conducts heat to the
+surroundings at ``T_j``.
 
 ### Thermal options
 
@@ -619,13 +673,50 @@ E = \int \frac{F R T}{\eta}\,\frac{\gamma}{\gamma - 1}
 \text{specific energy} = \frac{E}{N_k^{extract} M_k},
 ```
 
-reported in kWh per tonne of key component. ``P_{amb}``, ``\eta`` and
+reported in kWh per tonne of key component. The heat from heating jackets,
+``\int h_{out} A_{out} (T_j - T_w)\, dt`` over the heated steps, is part of
+the `heating` integral, not of the energy, and `specific_heat_duty` divides it
+by the key component produced (see [`jacket_heat`](@ref) and
+[`performance_integrals`](@ref)). ``P_{amb}``, ``\eta`` and
 ``\gamma`` are the `ambient_pressure` (101325 Pa), `pump_efficiency` (0.72) and
 `heat_capacity_ratio` of the [`Process`](@ref). By default ``\gamma =
 \tilde c_{pg}/(\tilde c_{pg} - R)`` of the feed at its temperature; the
 presets set 1.4, as their papers do. Haghpanah et al. count
 the vacuum pumps only; [`vacuum_pump_energy`](@ref) gives the energy of one
 device, to report it their way.
+
+A link between two units (role `:link`) counts as a fan or blower while it
+moves gas up in pressure, such as the recycle blowers of a moving bed
+process: the same adiabatic work, from the pressure and temperature of its
+upstream port to the pressure of its downstream one, whichever way the gas
+flows ([`BlowerObjective`](@ref)). A link that lets gas down in pressure,
+such as the valve of an equalisation, takes no work.
+
+A unit with a heat exchanger exchanges heat ``Q = \dot m\, c_p (T_{in} - T_{out})``
+with its heat transfer fluid. Fluids that come from outside the process
+hotter than the `ambient_temperature` ``T_0`` (298.15 K) heat it, the others
+cool it; fluids that come from another unit only pass heat around. Heat is
+worth less work the closer it is given to ``T_0``: the equivalent work of the
+heating weights each bit of heat by the Carnot factor at the temperature the
+fluid gives it up at,
+
+```math
+W_{eq} = \int \left(1 - \frac{T_0}{T}\right) \delta Q
+= \dot m\, c_p \left[(T_{in} - T_{out}) - T_0 \ln\frac{T_{in}}{T_{out}}\right],
+```
+
+the exergy the fluid gives up ([`EquivalentWorkObjective`](@ref)). Hot water
+at 187 °C gives up about a third of its heat as equivalent work.
+
+Every measure is a function of such integrals over the cycle (the moles
+``N``, the energy ``E``, the heat and its equivalent work) and of quantities
+that do not depend on the state, such as ``V_{ads}`` and ``t_{cycle}``; see
+[`performance_integrals`](@ref) and [`performance_measures`](@ref). At steady
+state the integrals are taken over one second, so they are rates. The
+gradients of the integrals come from adjoints, and those of the measures by
+the chain rule, which [`performance_gradient`](@ref) takes by automatic
+differentiation of the measure. A measure of the user's own
+([`add_measure!`](@ref)) gets its gradient the same way.
 
 ## Steady state of the cycle
 
@@ -643,6 +734,16 @@ from automatic differentiation. Each step of the cycle starts with time steps
 of `first_dt` that double up to `max_dt` (see [`TimeStepping`](@ref)), which
 carries the solver through the abrupt start of a step. Gradients for
 optimisation come from the adjoint of the same discrete equations.
+
+In a moving bed, what the sorbent carries down (its loading, its heat and the
+gas in its pores) and the heat transfer fluid in its tubes are advected with
+a limited second-order upwind scheme: the value at a face is reconstructed
+from the two cells upstream of it, with a slope limiter, [`VanAlbada`](@ref)
+by default (see [`AbstractLimiter`](@ref)). First-order upwinding smears
+fronts with a numerical diffusion of ``v Δx/2``; for the sorbent's heat this
+can be many times the physical axial conduction of the gas, and the
+[Moving bed TSA](examples/mbtsa_mondino_2022.md) example converges with the
+grid only with the limiter.
 
 ## Nomenclature
 
@@ -662,7 +763,8 @@ optimisation come from the adjoint of the same discrete equations.
 | ``D_m`` | Molecular diffusivity, at the feed | m²/s | [`Gas`](@ref) `diffusivity` |
 | ``F`` | Molar flow through a device | mol/s | state |
 | ``h_i`` | Molar enthalpy of gas component ``i`` above ``T_{ref}`` = 298.15 K | J/mol | [`Gas`](@ref) `thermodynamics` |
-| ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
+| ``h_{in}, h_{out}`` | Heat transfer coefficient, bed to wall and wall to ambient or jacket | W/(m²·K) | [`Column`](@ref) `inner_heat_transfer`, `outer_heat_transfer` |
+| ``k_i`` | Mass transfer coefficient | 1/s | computed, or [`lumped_ldf`](@ref) |
 | ``k`` | Bed permeability | m² | computed, or [`add_bed!`](@ref) `permeability` |
 | ``K_z`` | Axial thermal conductivity of the bed, at the feed | W/(m·K) | [`Column`](@ref) `axial_conductivity` |
 | ``K_w`` | Thermal conductivity of the wall | W/(m·K) | [`Wall`](@ref) `conductivity` |
@@ -675,6 +777,7 @@ optimisation come from the adjoint of the same discrete equations.
 | ``r_{in}, r_{out}`` | Inner and outer radius of the column wall | m | [`Column`](@ref) `radius`, `outer_radius` |
 | ``R`` | Gas constant, 8.314 | J/(mol·K) | |
 | ``T,\ T_w,\ T_a`` | Gas and sorbent, wall and ambient temperature | K | state; [`Column`](@ref) `ambient_temperature` |
+| ``T_j`` | Temperature outside the wall: ambient, or the jacket's | K | step `jacket_temperature` |
 | ``u,\ v`` | Superficial and interstitial velocity | m/s | state; step `velocity` |
 | ``y_i`` | Gas mole fraction | – | state |
 | ``\Delta h_i`` | Enthalpy of adsorbed component ``i`` less that of the gas | J/mol | computed |

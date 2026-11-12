@@ -8,12 +8,11 @@ module FixedBeds
 import Jutul
 using StaticArrays
 using ..Framework, ..Physics, ..Balances
+using ..Balances: _thermodynamics
 
-export AdsorptionModel, AdsorptionSystem, compute_dispersion, compute_permeability, FixedBed,
-    FixedBedModel
+export AdsorptionModel, AdsorptionSystem, FixedBed, FixedBedModel
 
 include("system.jl")
-include("correlations.jl")
 include("select.jl")
 
 end

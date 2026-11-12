@@ -18,11 +18,33 @@ mutable struct BedSpec
 end
 
 """
+How a moving bed was built, so that it can be rebuilt and written to a file.
+"""
+struct MovingBedSpec
+    adsorbent::Adsorbent
+    column::Column
+    ncells::Int
+    thermal::AbstractThermalModel
+    sorbent_mass_flow::Float64
+    packing_fraction::Float64
+    heat_exchanger::Union{Nothing, NamedTuple}
+    dispersion::Union{Nothing, Float64}
+    dispersion_velocity::Float64
+    permeability::Union{Nothing, Float64}
+    pore_gas::Bool
+    limiter::AbstractLimiter
+end
+
+"""
     Flowsheet(gas::Gas, feed::Feed)
 
 An empty flowsheet for `gas`, fed with `feed`. Add beds with
 [`add_bed!`](@ref) and devices with [`add_device!`](@ref), and run it as a
 [`Process`](@ref).
+
+Moving beds, added with [`add_moving_bed!`](@ref), pass their sorbent from
+one to the next through [`connect_solids!`](@ref), and run as a
+[`SteadyProcess`](@ref).
 
 Devices have roles (feed, product, extract, ...) that give their default
 boundary conditions and valve sizes, tell the step templates which device to
@@ -38,8 +60,10 @@ struct Flowsheet <: AbstractFlowsheet
     roles::Dict{Symbol, Symbol}            # device => role
     specs::Dict{Symbol, BedSpec}           # bed => how it was built
     default_boundaries::Set{PortRef}       # boundaries set from a role's defaults
+    moving_specs::Dict{Symbol, MovingBedSpec}  # moving bed => how it was built
 end
-Flowsheet(gas::Gas, feed::Feed) = Flowsheet(UnitNetwork(), gas, feed, Dict{Symbol, Symbol}(), Dict{Symbol, BedSpec}(), Set{PortRef}())
+Flowsheet(gas::Gas, feed::Feed) = Flowsheet(UnitNetwork(), gas, feed, Dict{Symbol, Symbol}(), Dict{Symbol, BedSpec}(), Set{PortRef}(),
+    Dict{Symbol, MovingBedSpec}())
 
 Networks.network(fs::Flowsheet) = fs.network
 
@@ -157,6 +181,108 @@ end
 # Whether the axial dispersion of bed `name` follows the state, by Wakao and
 # Funazkri, rather than being its AxialDispersion parameter
 _dispersion_follows_state(fs::Flowsheet, name::Symbol) = fs[name].system.dispersion isa WakaoFunazkri
+
+# ------------------------------------------------------------------------------
+# Moving beds
+# ------------------------------------------------------------------------------
+
+"""
+    moving_bed_model(gas, feed, adsorbent, column; sorbent_mass_flow, ncells = 30,
+        heat_exchanger = nothing, thermal, packing_fraction = 0.0, dispersion = nothing,
+        dispersion_velocity = 0.0, permeability = nothing, pore_gas = true, limiter = VanAlbada())
+
+The model of one section of a moving bed of `adsorbent` in `column`, for
+`gas`; see [`add_moving_bed!`](@ref). As in [`fixed_bed_model`](@ref), the gas
+viscosity and diffusivities are those of the `feed`, and change from there with
+the state of each cell by the `transport` of the gas.
+"""
+function moving_bed_model(gas::Gas, feed::Feed, adsorbent::Adsorbent, column::Column; sorbent_mass_flow, ncells = 30,
+        heat_exchanger = nothing, thermal = isnothing(heat_exchanger) ? Adiabatic() : HeatExchanger(),
+        packing_fraction = 0.0, dispersion = nothing, dispersion_velocity = 0.0, permeability = nothing, pore_gas = true,
+        limiter = VanAlbada())
+    loc = isempty(adsorbent.name) ? "moving bed" : "moving bed of $(adsorbent.name)"
+    ncells >= 2 || input_error(loc, "ncells", "needs at least 2 cells, got $ncells")
+    sorbent_mass_flow >= 0 || input_error(loc, "sorbent_mass_flow", "must not be negative, got $sorbent_mass_flow")
+    0 <= packing_fraction < 1 - column.porosity || input_error(loc, "packing_fraction", "must be at least 0 and less than 1 − porosity, $(1 - column.porosity); got $packing_fraction")
+    thermal isa WithWall && column.outer_radius <= column.radius &&
+        input_error(loc, "column", "a bed with a wall needs the column's outer_radius; use thermal = Adiabatic() for a bed without one")
+    system = MovingBed(;
+        isotherm = isotherm(adsorbent, gas),
+        mass_transfer = mass_transfer(adsorbent, gas, feed),
+        molecular_masses = gas.molar_masses,
+        component_names = gas.names,
+        thermodynamics = gas.thermodynamics,
+        adsorbed_thermodynamics = adsorbed_thermodynamics(adsorbent, gas),
+        transport = TransportReference(gas.transport, feed.composition, feed.temperature, feed.pressure),
+        dispersion = gas.transport isa ConstantTransport || !isnothing(dispersion) ? ConstantDispersion() :
+            WakaoFunazkri(; particle_diameter = adsorbent.particle_diameter, porosity = column.porosity,
+                diffusivities = gas_diffusivities(gas, feed.composition, feed.temperature, feed.pressure)),
+        thermal = thermal, limiter = limiter)
+    perm = isnothing(permeability) ? compute_permeability(column.porosity, adsorbent.particle_diameter) : permeability
+    disp = isnothing(dispersion) ? compute_dispersion(axial_diffusivity(gas, feed), dispersion_velocity, adsorbent.particle_diameter) : dispersion
+    wall = thermal isa WithWall ? (r_out = column.outer_radius, density = column.wall.density, heat_capacity = column.wall.heat_capacity,
+        conductivity = column.wall.conductivity, inner_htc = column.inner_heat_transfer, outer_htc = column.outer_heat_transfer,
+        ambient_temperature = column.ambient_temperature) : nothing
+    return _at(loc) do
+        setup_moving_bed_model(system;
+            ncells = ncells, length = column.length, radius = column.radius, porosity = column.porosity,
+            solid_fraction = 1 - column.porosity - packing_fraction,
+            particle_diameter = adsorbent.particle_diameter, adsorbent_density = adsorbent.density,
+            adsorbent_heat_capacity = adsorbent.heat_capacity, sorbent_mass_flow = sorbent_mass_flow,
+            solid_inlet_temperature = feed.temperature, fluid_viscosity = gas_viscosity(gas, feed.composition, feed.temperature),
+            dispersion = disp, thermal_conductivity = column.axial_conductivity, permeability = perm,
+            particle_porosity = pore_gas ? adsorbent.particle_porosity : 0.0,
+            heat_exchanger = heat_exchanger, wall = wall)
+    end
+end
+
+"""
+    add_moving_bed!(fs, name, adsorbent, column; sorbent_mass_flow, ncells = 30,
+        heat_exchanger = nothing, thermal, packing_fraction = 0.0,
+        dispersion = nothing, dispersion_velocity = 0.0, permeability = nothing,
+        pore_gas = true, limiter = VanAlbada())
+
+Add a section of a moving bed of `adsorbent` in `column` to the flowsheet
+under `name`: the sorbent moves down through it at `sorbent_mass_flow` [kg/s]
+while gas flows through it (see [`MovingBed`](@ref)). Its gas ports are
+`:bottom` and `:top`. Pass its sorbent on to another section with
+[`connect_solids!`](@ref); sections joined so must have the same
+`sorbent_mass_flow`.
+
+- `heat_exchanger`: tubes of heat transfer fluid through the section, from
+  [`tube_bundle`](@ref); the thermal model is then [`HeatExchanger`](@ref),
+  and otherwise [`Adiabatic`](@ref). Join the fluid of two sections with
+  [`connect_heat_transfer_fluid!`](@ref).
+- `packing_fraction`: volume fraction of structured packing, which leaves
+  `1 − porosity − packing_fraction` for the sorbent.
+- `dispersion` [m²/s]: the axial dispersion of the gas; by default
+  `0.7 D_m + 0.5 v d_p` at the interstitial `dispersion_velocity` [m/s], 0 by
+  default, which leaves molecular diffusion. It is the section's
+  `AxialDispersion` parameter. With a `transport` model for the gas and no
+  `dispersion` given, it instead follows the diffusivities and the gas
+  velocity at each face by [`WakaoFunazkri`](@ref), times the section's
+  `DispersionScale` parameter, as in a fixed bed (see [`add_bed!`](@ref)).
+- `pore_gas`: whether the gas in the particles' pores moves with the sorbent.
+- `limiter`: how what the sorbent and the heat transfer fluid carry is
+  reconstructed at the cell faces (see [`AbstractLimiter`](@ref));
+  [`Upwind`](@ref) is first order.
+
+The column's `axial_conductivity` is the effective axial conductivity; its
+wall and heat transfer are used only with `thermal = WithWall()`.
+"""
+function add_moving_bed!(fs::Flowsheet, name::Symbol, adsorbent::Adsorbent, column::Column; sorbent_mass_flow, ncells = 30,
+        heat_exchanger = nothing, thermal = isnothing(heat_exchanger) ? Adiabatic() : HeatExchanger(),
+        packing_fraction = 0.0, dispersion = nothing, dispersion_velocity = 0.0, permeability = nothing, pore_gas = true,
+        limiter = VanAlbada())
+    model = _at(() -> moving_bed_model(fs.gas, fs.feed, adsorbent, column; sorbent_mass_flow = sorbent_mass_flow, ncells = ncells,
+        heat_exchanger = heat_exchanger, thermal = thermal, packing_fraction = packing_fraction, dispersion = dispersion,
+        dispersion_velocity = dispersion_velocity, permeability = permeability, pore_gas = pore_gas, limiter = limiter), "moving bed $name")
+    add_unit!(fs, name, model)
+    fs.moving_specs[name] = MovingBedSpec(adsorbent, column, ncells, thermal, Float64(sorbent_mass_flow), Float64(packing_fraction),
+        heat_exchanger, isnothing(dispersion) ? nothing : Float64(dispersion), Float64(dispersion_velocity),
+        isnothing(permeability) ? nothing : Float64(permeability), pore_gas, limiter)
+    return fs
+end
 
 "Units of `fs` that hold sorbent (see [`holds_sorbent`](@ref)), in flowsheet order."
 beds(fs::AbstractFlowsheet) = [n for n in unit_names(fs) if holds_sorbent(fs[n])]
@@ -308,7 +434,7 @@ function Base.show(io::IO, ::MIME"text/plain", fs::AbstractFlowsheet)
 end
 
 _unit_spec(fs::AbstractFlowsheet, u) = nothing
-_unit_spec(fs::Flowsheet, u) = get(fs.specs, u, nothing)
+_unit_spec(fs::Flowsheet, u) = haskey(fs.specs, u) ? fs.specs[u] : get(fs.moving_specs, u, nothing)
 
 """
     print_flowsheet_diagram([io], fs)
@@ -320,12 +446,18 @@ print_flowsheet_diagram(fs::AbstractFlowsheet) = print_flowsheet_diagram(stdout,
 function print_flowsheet_diagram(io::IO, fs::AbstractFlowsheet)
     for u in holdup_units(fs)
         spec = _unit_spec(fs, u)
-        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells" : string(nameof(typeof(fs[u].system)))
+        desc = spec isa BedSpec ? "fixed bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells" :
+            spec isa MovingBedSpec ? "moving bed of $(isempty(spec.adsorbent.name) ? "adsorbent" : spec.adsorbent.name), $(spec.ncells) cells, $(spec.sorbent_mass_flow) kg/s of sorbent$(isnothing(spec.heat_exchanger) ? "" : ", heat exchanger")" :
+            string(nameof(typeof(fs[u].system)))
         println(io, "  ", u, ": ", desc)
         for p in keys(ports(fs[u]))
             ds = devices_at(fs, u, p)
             isempty(ds) && continue
             println(io, "    ", rpad(string(p), 7), join([_device_label(fs, d, u) for d in ds], "; "))
+        end
+        for c in connections(fs)
+            c isa SorbentConnection && c.upstream == u && println(io, "    sorbent to ", c.downstream)
+            c isa HeatTransferFluidConnection && c.upstream == u && println(io, "    heat transfer fluid to ", c.downstream)
         end
     end
 end

@@ -7,10 +7,18 @@ settings for the stage as a `NamedTuple` with any of `law`, `inlet` and
 are closed. Time-dependent profiles in port conditions use time since the start
 of the stage.
 
+A unit with holdup may be named too, with a `jacket_temperature` [K]: the
+temperature of the medium outside its wall during the stage, such as the
+heating fluid of a temperature swing (see `JacketTemperature`). Units not
+named exchange heat with their ambient temperature.
+
 ```julia
 Stage("adsorption", 15.0;
     V_feed = (law = VolumetricFlow(v_feed * A),),
     V_product = (law = LinearValve(C),))
+Stage("heating", 700.0;
+    V_vent = (law = LinearValve(C), outlet = PortCondition(pressure = 5e3, ...)),
+    Bed = (jacket_temperature = 368.15,))
 ```
 
 Settings can also be passed as `device => settings` pairs, which is convenient
@@ -43,8 +51,12 @@ changes durations sees the same model that the gradients describe.
 """
 function setup_schedule(fs::AbstractFlowsheet, model::Jutul.MultiModel, stages::AbstractVector{Stage};
         num_cycles = 1, max_dt = 1.0, first_dt = max_dt, reference_durations = nothing)
-    for st in stages, k in keys(st.settings)
-        haskey(fs, k) && is_device(fs, k) || error("Stage $(st.name) sets $k, which is not a device in the flowsheet")
+    for st in stages, (k, v) in st.settings
+        haskey(fs, k) || error("Stage $(st.name) sets $k, which is not a unit of the flowsheet")
+        is_device(fs, k) && continue
+        for f in keys(v)
+            f in UNIT_STAGE_SETTINGS || error("Stage $(st.name) sets $f of $k; a unit with holdup takes $(join(UNIT_STAGE_SETTINGS, ", "))")
+        end
     end
     isnothing(reference_durations) || length(reference_durations) == length(stages) ||
         error("Expected one reference duration per stage, got $(length(reference_durations)) for $(length(stages)) stages")
@@ -87,12 +99,18 @@ function _stage_steps(duration, max_dt, first_dt)
     return steps
 end
 
+# What a stage may set for a unit with holdup
+const UNIT_STAGE_SETTINGS = (:jacket_temperature,)
+
 function _stage_forces(fs::AbstractFlowsheet, model::Jutul.MultiModel, st::Stage, t_start)
     per_unit = Dict{Symbol, Any}()
     for name in unit_names(fs)
-        is_device(fs, name) || continue
         unit = fs[name]
         s = get(st.settings, name, NamedTuple())
+        if !is_device(fs, name)
+            haskey(s, :jacket_temperature) && (per_unit[name] = Jutul.setup_forces(unit; jacket_temperature = s.jacket_temperature))
+            continue
+        end
         law = get(s, :law, Closed())
         conds = map(DEVICE_PORTS) do p
             if is_connected(fs, name, p)

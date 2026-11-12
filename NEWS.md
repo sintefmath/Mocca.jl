@@ -34,6 +34,179 @@
 - **Gas properties page.** A page of the manual's library on the gas property
   models: how to choose them, the component data and its sources, their
   accuracy against NIST, their limits and their effect on the presets.
+- **Moving beds.** `Mocca.MovingBeds` adds `MovingBed`, a column whose
+  sorbent moves down through it at the `SorbentMassFlow` parameter, carrying
+  its loading, its heat and the gas in its pores, while gas flows through it
+  either way. Its thermal
+  models are `Adiabatic`, `Isothermal`, `WithWall` and the new
+  `HeatExchanger`: tubes in each cell carrying a heat transfer fluid, with the
+  tube wall and fluid temperatures as unknowns. `SorbentConnection`
+  (`connect_solids!`) passes sorbent from one unit to the next and
+  `HeatTransferFluidConnection` (`connect_heat_transfer_fluid!`) the heat
+  transfer fluid, closed loops included. Two device laws come with them:
+  `FixedMolarFlow` and `BackPressureController`, a blower holding the
+  pressure at its inlet. All new parameters get adjoint gradients.
+- **Moving beds in the flowsheet interface.** `add_moving_bed!` adds a
+  section of a moving bed to a `Flowsheet`, with optional `tube_bundle` heat
+  exchanger and structured packing. A `SteadyProcess` runs a flowsheet whose
+  devices keep their settings, as moving beds do, to steady state
+  (`steady_state`), and `performance` gives its purity, recovery, power, heat
+  duties, sorbent inventory and circulation time. Process files read and
+  write moving beds, `sorbent_connections`, `fluid_connections` and a steady
+  `"operation"` in place of a cycle. A `Process` refuses moving beds.
+  Moving beds follow the `thermodynamics` and `transport` of the gas as
+  fixed beds do: with `transport = :chapman_enskog` the viscosity and the
+  diffusivities of the linear driving force change with each cell, and a
+  section given no `dispersion` takes Wakao and Funazkri's with its
+  `DispersionScale` parameter.
+- **Virial isotherm.** `Virial`, the multicomponent Virial isotherm of
+  Mondino et al. (2022), and `virial` for its data by component, readable
+  from adsorbent files. The library has the activated carbon of that paper,
+  `activated_carbon_mondino_2022`.
+- **Temperature in mass transfer, and Knudsen diffusion.**
+  `compute_mass_transfer_rate` now takes the temperature, as
+  `compute_mass_transfer_rate(mt, C, q, qstar, T)`; models that do not use
+  it keep the four-argument method, which the new one falls back to. A bed
+  whose transport properties follow the state passes the diffusivity factors
+  after the temperature, `compute_mass_transfer_rate(mt, C, q, qstar, T,
+  diffusivity_factors)`.
+  `LinearDrivingForce` takes an optional `macropore_radius` and the
+  components' `molar_masses`, which add Knudsen diffusion in series with
+  molecular diffusion (`pore_diffusivity`). An `Adsorbent`, and an adsorbent
+  file, may give a `macropore_radius`.
+- **Limited second-order advection in moving beds.** What the sorbent
+  carries (loading, heat, pore gas) and the heat transfer fluid in the tubes
+  are reconstructed at the cell faces with a slope limiter, `VanAlbada()` by
+  default, set by the `limiter` keyword of `MovingBed` and `add_moving_bed!`
+  and in process files. `Upwind()` is the former first-order scheme, and
+  `VanLeer()` and `Minmod()` are also available; a new limiter is a subtype
+  of `AbstractLimiter` with a method of `limited_slope`. First-order
+  upwinding added a numerical axial conduction of about 10 W/(m·K) to the
+  MBTSA cooling section at 400 cells per metre, 50 times the physical one,
+  and the plant's capture rate drifted with the grid; with the limiter it
+  is grid-converged from 100 cells per metre.
+- **Metrics of moving bed processes.** `stream_rates`, `heat_duty`,
+  `sorbent_inventory`, `sorbent_circulation_time` and `sorbent_path`.
+- **Moving bed TSA of Mondino et al. (2022).** The "Moving bed TSA" example
+  builds the five-section MBTSA process for the flue gas of a waste-to-energy
+  plant, and `plot_moving_bed_profiles` draws the profiles through the
+  sections. With the purge at the paper's 15% of the flue gas and a
+  water-side heat transfer coefficient of 10000 W/(m²·K), which the paper does
+  not give and which matches its heat loads, it gives 99.7% purity, 93.1%
+  capture and 5.53 MJ/kg, against the paper's 97.2%, 90.8% and 5.7 MJ/kg, with
+  heat loads within 1.5%. The capture rate hangs on a threshold in the purge:
+  below about 7.9 kg/s no purge gas is left to strip CO₂ from the hot sorbent
+  in precooling, and it falls to 87%.
+
+- **Gradient checks.** `check_gradients(p)` compares the gradients of a
+  process with central differences of its steady state at two step sizes,
+  and marks each pair of variable and measure as passing, inconclusive (the
+  two differences disagree, as at a kink or a jump) or failing (they agree
+  with each other but not with the gradient). `test/gradient_checks.jl` runs
+  it on every process of the library and every process the examples build,
+  with `MOCCA_GRADIENT_CHECKS=true`. The extending guide has the rules for
+  differentiable models.
+- **Optimisers.** `optimise!` meets its targets on measures with an
+  augmented Lagrangian (`constraints = :lagrangian`, the default): after each
+  BFGS run the multiplier of a target grows by the shortfall left, and the
+  penalty tenfold where the shortfall did not shrink, until every target is
+  met to `constraint_tol`. Its first run is the former penalty method,
+  `constraints = :penalty`, which stops there and gives the former results.
+  Each design is evaluated once (the restarts reuse it). `method = :pattern`
+  searches without gradients, by a compass search in the box, for
+  objectives with kinks or jumps. A design where the process does not settle
+  or fails to simulate is flagged in the history (`settled`), left out of the
+  best, and the optimiser steps back from it. The result has `feasible`,
+  `multipliers` and, per evaluation, `settled` and `violation`.
+  `pareto_front!` traces a Pareto front by ε-constraints, each optimum
+  started from the last, and `explore` evaluates designs spread over the box
+  (a Halton sequence), each from the initial state, to find the regimes and
+  a start before following gradients. A `SteadyProcess` starts each
+  `steady_state` from the last one it found (`warm_start = true`).
+  In the "Optimization" example the targets are now met exactly: 65.4%
+  recovery at 90.0% purity (65.5% at 89.9% before), and 115 kWh/t at 90.0%
+  purity and 60.0% recovery (116 kWh/t at 89.9% and 59.9% before), in 28 and
+  56 evaluations (20 and 24 before).
+  Neither is the end of the flat ridge the recovery rises along: one BFGS
+  run of 60 iterations reaches 68.0%, with the adsorption time at its bound.
+  The library has the MBTSA, `mondino_2022_mbtsa`, at 50 cells per metre,
+  and a new example, "Optimising the moving bed TSA", finds its least
+  equivalent work for 95% purity and 90% capture over the purge, the hot
+  water temperature, the sorbent flow and the height of the desorption
+  section, and its trade-off with productivity.
+- **Gradients for any place, and geometry as a design variable.** The
+  change of the model's inputs with a design variable comes from setting it
+  a little up and down, without simulating: the stage settings and
+  durations, now also every unit parameter, and the quantities such as the
+  adsorbent volume, by central differences with a power-of-two step, exact
+  for the built-in places, whose effect is linear (the gradients of step and
+  feed variables move by about 4e-11 as the rounding of the former step
+  goes). The adjoints then take only the parameters that change. A new kind
+  of place needs only a way to read and write its value. New places:
+  `GeometryPlace(unit, field)`, a field of a bed's or moving bed section's
+  `Column`, such as its length, radius or porosity, or the packing fraction,
+  which rebuilds the unit on as many cells (a new radius keeps the wall
+  thickness); `ScaledPlace(place, factor)`, a place set to a multiple of the
+  variable; and `SettingPlace(device, field; port)` for the pressure or
+  temperature at a boundary port, such as the extraction pressure. `Place`,
+  their abstract type, is exported and documented with what a new kind
+  implements. Gradients
+  match central differences to within 1e-5 for the column length and radius
+  of the four-stage VSA and the height of the MBTSA's desorption section and
+  its extraction pressure. Process files read and write the new places, and
+  the variables of steady processes.
+- **Gradients of steady processes.** `performance_gradient` and `optimise!`
+  work on a `SteadyProcess`, such as the MBTSA. A steady state is the fixed
+  point of a cycle of one long backward-Euler step, which returns any state
+  that satisfies the steady equations, so `cyclic_steady_state_gradient`
+  gives its gradients unchanged: the adjoint of the steady equations at the
+  steady state, linearised there without solving the step (its new `steps`
+  keyword). Variables set unit parameters (`ParameterPlace`), such as the
+  sorbent flow of every section or the water temperatures, or device
+  settings, with the new `SettingPlace(device, field)` for a field of a
+  device's flow law, such as the purge rate. On the MBTSA at 10 cells per
+  metre the gradients of six measures with respect to the sorbent flow, the
+  hot and cold water temperatures and the purge match central differences
+  of the steady state to within 4e-6, and at the example's 200 cells per
+  metre within 2e-5. The MBTSA example gains a section on the sensitivities
+  of its capture rate and equivalent work to the sorbent flow, the hot water
+  temperature and the purge. `steady_state` takes `progress`.
+- **Measures as functions of integrals.** Every performance measure is now
+  a function of integrals over the cycle (rates at steady state), such as
+  the moles of the key component in the extract or the pump work, and of
+  quantities that do not depend on the state, such as the cycle time:
+  `performance_integrals`, `performance_quantities`, `performance_measures`
+  and `performance_sums` list them. `performance_gradient` takes the chain
+  rule from the integrals to each measure by automatic differentiation
+  (`measure_partials`), in place of the quotient rules written out by hand,
+  and gives the same gradients to rounding. `add_measure!` adds a measure of
+  the user's own, from these or from an integral added with `add_integral!`
+  (any Jutul sum objective), which `performance` reports and
+  `performance_gradient` and `optimise!` differentiate with no derivative
+  code. `performance_gradient` takes `measures`, the measures to
+  differentiate. When
+  the measures depend on more integrals than there are measures, each
+  measure takes one adjoint of its linearisation instead of one per integral.
+- **Fan and blower work on links.** A `:link` device that moves gas up in
+  pressure, such as the recycle and purge blowers of the MBTSA, counts as a
+  fan or blower: `BlowerObjective` and `blower_energy`, with the pumps'
+  efficiency and heat capacity ratio. Its work is part of the `energy` (per
+  cycle) and `power` (steady), and reported as `blower_energy` and
+  `blower_power`. A link that lets gas down, such as the valve of an
+  equalisation, takes none, so VSA results do not change.
+- **Heat duty and its equivalent work as integrals.** `HeatDutyObjective`
+  gives the heat `ṁ·c_p·(T_in − T_out)` of a unit's heat transfer fluid for
+  adjoints, and `EquivalentWorkObjective` (`equivalent_work`) the work it is
+  worth against the new `ambient_temperature` option (298.15 K) of `Process`
+  and `SteadyProcess`: each bit of heat weighted by the Carnot factor at the
+  temperature the fluid gives it up at, `ṁ·c_p·[(T_in − T_out) − T₀·ln(T_in/T_out)]`.
+  The performance of a process with heat exchangers adds
+  `equivalent_work` and `specific_equivalent_work`, the electrical and
+  equivalent work together per tonne of key component. `heating` and
+  `cooling` now count the units whose fluid enters from outside above or at
+  and below the ambient temperature, which for the MBTSA is the same as
+  before. Objectives now see each unit's parameters in the state in every
+  adjoint (`objective_state`), as Jutul's own adjoints give them.
 - **`write_results`.** Writes a process result to CSV files for a
   spreadsheet, in bara, °C, mol%, kg/h, Nm³/h and mol/kg: a summary with the
   performance and the mass balance, a stream table per cycle and per stage,
@@ -50,6 +223,37 @@
   solvers `simulate_to_cyclic_steady_state`, `newton_cyclic_steady_state` and
   `simulate_until_mass_balance` also take. Newton's method no longer prints
   its iterations at `info_level ≥ 0`.
+
+- **Temperature swing.** Every step on one bed takes a `jacket_temperature`
+  [K]: the wall exchanges heat with a jacket at that temperature during the
+  step, and with the ambient temperature otherwise. A `Stage` carries it as a
+  setting of the bed, `Bed = (jacket_temperature = T,)`, which reaches the
+  bed's new `JacketTemperature` parameter through its forces, so
+  `force_gradients` gives its derivative. `JacketHeatObjective` measures the
+  heat the jackets supply, from the jacket temperature in the forces of each
+  step; it is part of the `heating` and `equivalent_work` integrals, so
+  `specific_heat_duty` and `specific_equivalent_work` cover jackets, with
+  gradients. `jacket_heat` gives the heat of a result. Integrals now get the
+  forces of each step when performance is measured
+  (`integral_values(...; forces)`, `performance_sums(...; forces)`), and
+  `performance_gradient` adds the direct dependence of an integral on the
+  forces of each stage to the one the adjoints give through the state, so an
+  integral that reads its step's settings has the right gradient.
+- **CO₂–water co-adsorption on amine sorbents.** `toth_gab` gives the
+  isotherm of Stampi-Bombelli et al. (2020) by component (`TothGAB`): CO₂ on
+  a Toth isotherm whose capacity and affinity grow with the water loading,
+  and water on a GAB isotherm in the relative humidity
+  (`water_vapour_pressure`). `lumped_ldf` gives a linear driving force with
+  fitted rate coefficients per component (`LumpedLinearDrivingForce`). Both
+  can be written to and read from adsorbent files.
+- **Direct air capture.** The APDES-NFC sorbent
+  (`"apdes_nfc_stampi_bombelli_2020"`), the steam-assisted TVSA process of
+  Stampi-Bombelli et al. (2020) (`dac_tvsa_process`, library process
+  `"stampi_bombelli_2020_stvsa"`), and the example
+  `dac_stampi_bombelli_2020`, which compares it with the paper, with and
+  without steam. The example `dac_optimisation` finds the most productive
+  desorption time, and the steam flow that takes the least heat for 95% of
+  that production: 76% less heat, with a sixth of the steam.
 
 ### Changed
 
@@ -79,7 +283,8 @@
   5% higher in a mixture.
 - **Heat capacity ratio of the pumps from the feed.** A `Process` without
   `heat_capacity_ratio` takes `γ = c_p/(c_p − R)` of the feed at its
-  temperature (`pump_heat_capacity_ratio`), instead of 1.4. The presets and
+  temperature (`pump_heat_capacity_ratio`), instead of 1.4, for its vacuum
+  pumps, compressors and blowers, cyclic or steady. The presets and
   library processes set 1.4, as their papers do.
 - **`TimeScale` in every residual.** Units checked for the `TimeScale`
   parameter with `hasproperty`, which is false on the local
@@ -90,6 +295,40 @@
   `SpecificHeatCapacityAdsorbent` are now `GasMolarHeatCapacity` and
   `AdsorbedMolarHeatCapacity`; they are still `:C_pg` and `:C_pa` in the
   state.
+- **`Process` is the abstract type of every process.** The cyclic process
+  is now `CyclicProcess`, and its result `CyclicResult`; `SteadyProcess` is a
+  `Process` too, and `SteadyResult` a `ProcessResult`. `Process(fs, cycle)`
+  still builds a cyclic process, every `p::Process` annotation accepts both
+  kinds, and process files do not name the type, so existing code and files
+  work unchanged. Both kinds share one interface: `steady_state` finds the
+  state a process settles to (the cyclic steady state of a cyclic process),
+  `stages` its operation, `performance(p)` measures it there, and design
+  variables, measures and integrals are added the same way; a steady process
+  takes variables at `ParameterPlace`s, with gradients still to come. A
+  cyclic process shows as "Cyclic process". The extending guide lists what a
+  new kind of process implements.
+
+- **Gas balances converge against the gas flowing through each cell.** The
+  mass and energy errors of a cell are measured against the gas it holds plus
+  the gas that flows through it over the step, and its heat capacity. Before,
+  only the gas held counted, and on fine grids with a fast flow the round-off
+  in the flux between two nearly equal pressures kept the error above the
+  tolerance on long steps: the solver cut every 60 s step five times, and the
+  moving bed TSA at 1280 cells per metre took 200 s instead of a few seconds.
+- **Smallest gas mole fraction by isotherm.** An isotherm sets the smallest
+  mole fraction of the gas in its bed with `minimum_mole_fraction`, 10⁻¹² as
+  before by default and 10⁻²⁰ for `TothGAB`. An amine holds CO₂ so strongly
+  that the gas in equilibrium with a lightly loaded bed holds less than 10⁻¹²
+  of it, and Newton's method stalled at the bound.
+- **Gas energy tolerance floor.** The gas energy balance converges no tighter
+  than 10⁻⁷ K, also when the nonlinear tolerance is tighter, as in Newton's
+  method on the cycle and the adjoints (10⁻⁸). Round-off in the flow between
+  cells is carried as enthalpy at the absolute temperature, which puts a floor
+  of about T·ε·p/Δp on the error: 1.3·10⁻⁸ K on the 1 cm bed of the direct air
+  capture process. Steps that could not reach it were cut, at places that
+  moved with the start of the cycle, and the cycle map was not smooth enough
+  for Newton's method. The cycle change takes the gas temperature as resolved
+  to that floor.
 - **Cyclic steady state from a few plain cycles.** `cyclic_steady_state`
   (with the default `method = :newton`) now starts Newton's method after
   `handover = 3` plain cycles, instead of after Anderson acceleration to a
@@ -126,6 +365,40 @@
   `keep_steps_below` (`1e-3`), Newton's method keeps the time steps of its
   cycle, including any the solver cut, for every later cycle, so that the
   cycle map it works with is smooth.
+- **Cyclic steady state judged against what the steps resolve.** The
+  change over a cycle (`cycle_change`) is now a mixed absolute and relative
+  test, as in an ODE solver: an entry has settled when its change is at most
+  `tol` times its scale plus what steps at the nonlinear tolerance resolve
+  (that tolerance for a mole fraction, times the cell's total loading for a
+  loading, times the pressure for a pressure, and in kelvin for a
+  temperature). The change reported is the largest excess over that
+  resolution relative to the scale, so it is below `tol` exactly when the
+  test passes. Every component's mole fraction is checked, and Newton's
+  method weighs its residual the same way. Before, a trace as the last gas
+  component, which only moves by minus the change of the others, was
+  measured against a floor of 10⁻⁶ and held Newton's method at a change of
+  exactly 10⁻⁶. On 30 cells, with the gas in the order CO2, H2O, N2, the wet
+  flue gas LPP VSA now converges in 21 cycles (28 s) and the dual-adsorbent
+  VSA in 82 (4 min), where both stopped unconverged after 98; dry flue gas
+  with a trace of water last converges in 19 instead of not at all. In the
+  usual order the library processes take about as many cycles as before.
+  `cycle_change` without `nonlinear_tolerance` is the plain relative change,
+  as before.
+- **One nonlinear tolerance for a cyclic steady state.** With
+  `method = :newton`, the plain cycles and any Anderson acceleration before
+  Newton's method are simulated at Newton's tolerance, `1e-8`, that of the
+  adjoints, instead of `1e-6`, so that every phase works with the same cycle
+  map. `cyclic_steady_state` takes `nonlinear_tolerance` to change it.
+- **Inventory closure.** A `CyclicResult` has `closure`: for each component,
+  the change of what the beds hold over the last cycle as a fraction of the
+  moles of it fed. It is printed at the end of the progress of
+  `cyclic_steady_state`, and does not decide convergence.
+- The four-stage, two-bed and wet flue gas presets give their feed by
+  component name, so that their `gas` may list the components in another
+  order.
+- `cyclic_steady_state` no longer fails with a `FieldError` when Newton's
+  method fails from a hand-over that is not the last; Anderson acceleration
+  goes on to the next, as documented.
 - **Submodules.** The source is split into one submodule per layer
   (`Mocca.Framework`, `Mocca.Physics`, `Mocca.Balances`, `Mocca.Devices`,
   `Mocca.FixedBeds`, `Mocca.Networks`, `Mocca.Operation`, `Mocca.Interface`),
@@ -141,6 +414,12 @@
   `breakthrough` (formerly `dcb_haghpanah_2013_co2_n2`, now comparing the
   thermal models), a new `two_bed_vsa` with pressure equalisation, and
   `unit_network` (formerly `flowsheet_vsa`).
+
+### Fixed
+
+- `cyclic_steady_state` failed with a `FieldError`, instead of going on with
+  Anderson acceleration, when Newton's method failed before its last
+  attempt.
 
 ## v0.2.0
 

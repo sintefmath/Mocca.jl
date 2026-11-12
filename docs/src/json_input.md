@@ -69,7 +69,7 @@ write_process("my_vsa.json", process)
   ]},
   "time_stepping": {"max_dt": 1.0, "first_dt": 0.05, "keep_step_pattern": "auto"},
   "options": {"key_component": "CO2", "ambient_pressure": 1e5, "pump_efficiency": 0.72,
-              "heat_capacity_ratio": 1.4, "ramp_rate": 0.5},
+              "heat_capacity_ratio": 1.4, "ramp_rate": 0.5, "ambient_temperature": 298.15},
   "initial_state": {"Bed": {"pressure": "1 bar"}},
   "parameters": {"Bed": {"AdsorbentDensity": 1130}},
   "variables": [
@@ -88,14 +88,16 @@ The sections:
 | `feed` | The [`Feed`](@ref): `composition`, `temperature`, `pressure` and optionally `light_product`. |
 | `adsorbents` | By name: an adsorbent object (as in an adsorbent file), the name of a library adsorbent, or the path of an adsorbent file relative to the process file. |
 | `columns` | By name: [`Column`](@ref) objects. |
-| `units` | Beds, in order, as in [`add_bed!`](@ref). `thermal` is `"with_wall"`, `"adiabatic"` or `{"type": "isothermal", "temperature": ...}`. |
+| `units` | Beds, in order, as in [`add_bed!`](@ref). `thermal` is `"with_wall"`, `"adiabatic"` or `{"type": "isothermal", "temperature": ...}`. A unit with `"type": "moving_bed"` is a section of a moving bed, as in [`add_moving_bed!`](@ref), with `sorbent_mass_flow`, and optionally `packing_fraction`, `heat_exchanger` (the fields of [`tube_bundle`](@ref)), `dispersion`, `dispersion_velocity`, `permeability`, `pore_gas` and `limiter` (`"van_albada"`, the default, `"van_leer"`, `"minmod"` or `"upwind"`); its `thermal` may also be `"heat_exchanger"`. |
 | `devices` | Devices, in order, as in [`add_device!`](@ref): a `role`, and `at` (a `[unit, port]` pair) or, for a link, `from` and `to`. An optional `boundary` sets `pressure`, `temperature` and `composition`. |
+| `sorbent_connections`, `fluid_connections` | Optional: `[upstream, downstream]` pairs of moving beds that pass on their sorbent ([`connect_solids!`](@ref)) or heat transfer fluid ([`connect_heat_transfer_fluid!`](@ref)). |
 | `cycle` | `steps`, a list of steps; or `sequences`, a list of `{"label": ..., "steps": [...]}` run side by side, and an optional `cycle_time`. |
+| `operation` | In place of `cycle`, for a [`SteadyProcess`](@ref): `{"type": "steady", "duration": ..., "settings": {...}}`, where `settings` gives each open device a `law` and optionally an `inlet` or `outlet` boundary (`pressure`, `temperature` and `composition`). A law is `{"type": "valve", "conductance": ..., "opening": ...}`, `{"type": "volumetric_flow", "rate": ...}`, `{"type": "molar_flow", "rate": ...}`, `{"type": "back_pressure", "setpoint": ..., "conductance": ...}` or `{"type": "closed"}`. |
 | `time_stepping` | See [`TimeStepping`](@ref). |
 | `options` | See [`Process`](@ref). Without `heat_capacity_ratio` the pumps take that of the feed. |
 | `initial_state` | Per bed: any of `pressure`, `temperature`, `wall_temperature` and `composition`. |
 | `parameters` | Per unit: Jutul parameters to override. |
-| `variables` | Design variables (see [`add_variable!`](@ref)), each with `places`: `{"step": ..., "field": ..., "sequence": ...}`, `{"feed": "pressure"}` or `{"unit": ..., "parameter": ...}`. |
+| `variables` | Design variables (see [`add_variable!`](@ref)), of a cyclic or a steady process, each with `places`: `{"step": ..., "field": ..., "sequence": ...}`, `{"feed": "pressure"}`, `{"unit": ..., "parameter": ...}`, `{"unit": ..., "geometry": "length"}` or, for a steady process, `{"device": ..., "setting": ..., "port": ...}`; any of them with `"scale": factor` sets the place to that factor times the variable. |
 
 ## Steps
 
@@ -142,8 +144,11 @@ same way.
 ```
 
 `basis` is `"volume"` for capacities in mol per m³ of adsorbent or `"mass"`
-for mol/kg. Isotherm types defined with [`register_isotherm!`](@ref) are read
-the same way.
+for mol/kg. An optional `macropore_radius` adds Knudsen diffusion to the
+default linear driving force (see [`LinearDrivingForce`](@ref)). A Virial isotherm ([`virial`](@ref)) is `{"type": "virial",
+"components": {...}}`, with `Kinf`, `dH`, `A0`, `A1`, `B0` and `B1` for each
+component, on a mass basis. Isotherm types defined with
+[`register_isotherm!`](@ref) are read the same way.
 
 ## The earlier format
 

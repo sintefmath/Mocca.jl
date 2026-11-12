@@ -182,7 +182,7 @@ end
     tangent, vmap = Op._state_tangent(c.mm, x, c.prm, states, ts, sf)
     sensitivity, = Op._state_adjoint(c.mm, x, c.prm, states, ts, sf)
     dofs = Op._holdup_dofs(c.mm, vmap)
-    scale = Op._dof_scale(c.mm, x, vmap, dofs)
+    scale = Op._dof_scale(c.mm, x, vmap, dofs; tol = 1e-9, ntol = 1e-8)
     v, w = zeros(length(Jutul.vectorize_variables(c.mm, x, vmap))), zeros(length(Jutul.vectorize_variables(c.mm, x, vmap)))
     v[dofs] .= sin.(1:length(dofs)) .* scale
     w[dofs] .= cos.(1:length(dofs)) ./ scale
@@ -198,11 +198,14 @@ end
     # product, to the same steady state as the full Jacobian
     io = IOBuffer()
     jf = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11, krylov = true, progress = io)
+    # The same steady state, to within what the steps of Newton's cycles
+    # resolve: Newton's method stops once the change is within that
+    ntol = Mocca.Operation.STEADY_STATE_NONLINEAR_TOLERANCE
     @test jf.converged
     @test jf.cycles <= 6
     @test jf.jacobian_builds == 0
     @test jf.products < 2 * length(dofs)
-    @test cycle_change(c.mm, css.state0, jf.state0) < 1e-9
+    @test cycle_change(c.mm, css.state0, jf.state0; nonlinear_tolerance = ntol) < 1e-9
     # An iteration from 0, a GMRES solve for each step, and the end of the phase
     lines = split(String(take!(io)), '\n'; keepempty = false)
     @test count(contains(r"Newton +iteration"), lines) == jf.cycles + 1
@@ -229,12 +232,16 @@ end
     @test rough.cycles < loose.cycles
     far = Mocca.newton_cyclic_steady_state(c.mm, rough.state0, c.prm, forces, dt; tol = 1e-11, max_iterations = 30)
     @test far.converged
-    @test cycle_change(c.mm, css.state0, far.state0) < 1e-9
+    @test cycle_change(c.mm, css.state0, far.state0; nonlinear_tolerance = ntol) < 1e-9
     # A step is rejected if it raises the residual more than `growth` times.
     # A quasi-Newton step first gets a new Jacobian, then the step is cut;
-    # with none accepted, the next iteration starts from the end of the cycle
+    # with none accepted, the next iteration starts from the end of the cycle.
+    # From the loose start a step with the converged Jacobian lands within
+    # what the steps resolve, a change of 0, which is accepted whatever the
+    # growth, so this starts further out
     io = IOBuffer()
-    none = Mocca.newton_cyclic_steady_state(c.mm, loose.state0, c.prm, forces, dt; tol = 1e-11, max_iterations = 1,
+    further = Mocca.simulate_to_cyclic_steady_state(c.mm, c.state0, c.prm, forces, dt; tol = 1e-3, max_cycles = 200)
+    none = Mocca.newton_cyclic_steady_state(c.mm, further.state0, c.prm, forces, dt; tol = 1e-11, max_iterations = 1,
         jacobian = css.jacobian, growth = 0.0, max_backtracks = 2, progress = io)
     @test !none.converged
     @test none.jacobian_builds == 1 && none.trials == 3 && none.fallbacks == 1
@@ -254,7 +261,7 @@ end
     @test kept.converged && given.converged
     @test length(kept.timesteps) > length(long_dt)
     @test kept.timesteps ≈ given.timesteps
-    @test cycle_change(c.mm, kept.state0, given.state0) < 1e-9
+    @test cycle_change(c.mm, kept.state0, given.state0; nonlinear_tolerance = ntol) < 1e-9
 
     G = (co2 = Mocca.StreamObjective(:V_vacuum; scale = 1e3), energy = Mocca.VacuumPumpObjective(:V_vacuum; scale = 1e-3))
     g = Mocca.cyclic_steady_state_gradient(c.mm, css.state0, c.prm, forces, dt, G; with_forces = true)

@@ -15,7 +15,7 @@ const RESULT_FILES = ("summary.csv", "streams.csv", "stage_streams.csv", "stream
     "bed_history.csv", "bed_profiles.csv")
 
 """
-    write_results(dir, r::ProcessResult; sigdigits = 8, delim = ',', decimal = '.') → Vector{String}
+    write_results(dir, r::CyclicResult; sigdigits = 8, delim = ',', decimal = '.') → Vector{String}
 
 Write result `r` to CSV files in directory `dir` (created if needed, files
 overwritten), and the process to `process.json` (see [`write_process`](@ref))
@@ -45,7 +45,7 @@ The time-series files hold one row per time step of the solver, with the cycle
 and the stage it belongs to, so that they can be filtered or pivoted. For
 spreadsheets set up with a decimal comma, pass `delim = ';', decimal = ','`.
 """
-function write_results(dir::AbstractString, r::ProcessResult; sigdigits = 8, delim = ',', decimal = '.')
+function write_results(dir::AbstractString, r::CyclicResult; sigdigits = 8, delim = ',', decimal = '.')
     decimal in ('.', ',') || input_error("write_results", "decimal", "use '.' or ',', got '$decimal'")
     delim == decimal && input_error("write_results", "delim", "the delimiter and the decimal mark are both '$delim'; use delim = ';' with decimal = ','")
     mkpath(dir)
@@ -104,7 +104,7 @@ end
 
 # Cycle, times and stage of each time step of `r`, the stage found from the
 # middle of the step, since the stages are split into whole steps
-function _step_times(r::ProcessResult)
+function _step_times(r::CyclicResult)
     sts = stages(r.process)
     T = sum(st -> st.duration, sts)
     stage_end = cumsum([st.duration for st in sts])
@@ -117,7 +117,7 @@ function _step_times(r::ProcessResult)
     end
 end
 
-_start_of_last_cycle(r::ProcessResult) = (r.cycles - 1) * cycle_time(r.process)
+_start_of_last_cycle(r::CyclicResult) = (r.cycles - 1) * cycle_time(r.process)
 
 _devices(fs) = [d for d in unit_names(fs) if is_device(fs, d)]
 
@@ -131,7 +131,7 @@ function _port_label(fs, d, port)
     return "boundary"
 end
 
-_flow_tol(r::ProcessResult) =
+_flow_tol(r::CyclicResult) =
     NO_FLOW_FRACTION * maximum((abs(s[d][:MolarFlow][1]) for s in r.states for d in _devices(r.process.flowsheet)); init = 0.0)
 
 # Flow, and the composition and temperature of the gas upstream
@@ -145,7 +145,7 @@ end
 
 # Totals of the stream through device `d` over the steps in `window`; the
 # amounts match stream_totals
-function _stream_summary(r::ProcessResult, d, window, tol)
+function _stream_summary(r::CyclicResult, d, window, tol)
     N = number_of_components(r.process.flowsheet.gas)
     n = zeros(N)
     backflow = 0.0
@@ -206,7 +206,7 @@ end
 # Tables
 # ------------------------------------------------------------------------------
 
-function _stream_table(r::ProcessResult)
+function _stream_table(r::CyclicResult)
     fs = r.process.flowsheet
     w = _last_cycle(r)
     tol = _flow_tol(r)
@@ -214,7 +214,7 @@ function _stream_table(r::ProcessResult)
     return (header = _stream_header(fs.gas, "cycle"), rows = rows)
 end
 
-function _stage_stream_table(r::ProcessResult)
+function _stage_stream_table(r::CyclicResult)
     fs = r.process.flowsheet
     w = _last_cycle(r)
     info = _step_times(r)
@@ -235,7 +235,7 @@ function _stage_stream_table(r::ProcessResult)
     return (header = header, rows = rows)
 end
 
-function _stream_history_table(r::ProcessResult)
+function _stream_history_table(r::CyclicResult)
     fs = r.process.flowsheet
     gas = fs.gas
     info = _step_times(r)
@@ -268,9 +268,9 @@ function _bed_values(s, cell, density)
         _percent.(s[:y][:, cell]), s[:AdsorbedConcentration][:, cell] ./ density)
 end
 
-_density(p::Process, b) = first(p.parameters[b][:AdsorbentDensity])
+_density(p::CyclicProcess, b) = first(p.parameters[b][:AdsorbentDensity])
 
-function _bed_history_table(r::ProcessResult)
+function _bed_history_table(r::CyclicResult)
     p = r.process
     fs = p.flowsheet
     info = _step_times(r)
@@ -283,7 +283,7 @@ function _bed_history_table(r::ProcessResult)
     return (header = header, rows = rows)
 end
 
-function _bed_profile_table(r::ProcessResult)
+function _bed_profile_table(r::CyclicResult)
     p = r.process
     fs = p.flowsheet
     w = _last_cycle(r)
@@ -308,7 +308,7 @@ function _bed_profile_table(r::ProcessResult)
     return (header = header, rows = rows)
 end
 
-function _summary_table(r::ProcessResult)
+function _summary_table(r::CyclicResult)
     p = r.process
     fs = p.flowsheet
     gas = fs.gas

@@ -96,7 +96,8 @@ end
 # into sub-steps incorrectly (they look up the forces of a sub-step by its
 # report step), and its DI adjoints use the initial state for every sub-step
 # of the first report step, so the adjoints here only ever see unsplit steps.
-function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear_tolerance = 1e-8, info_level = -1, kwarg...)
+function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear_tolerance = STEADY_STATE_NONLINEAR_TOLERANCE,
+        info_level = -1, kwarg...)
     sim, cfg = setup_process_simulator(model, state0, parameters;
         info_level = info_level, nonlinear_tolerance = nonlinear_tolerance, output_substates = true, kwarg...)
     result = Jutul.simulate!(sim, timesteps; forces = forces, config = cfg)
@@ -106,10 +107,12 @@ function _simulate_steps(model, state0, parameters, forces, timesteps; nonlinear
     return (states, dt, step_forces)
 end
 
-function _evaluate_objective(G, model, states, dt, forces)
+# The objective summed over the steps, with each state holding the parameters,
+# as in Jutul's adjoints (see objective_state)
+function _evaluate_objective(G, model, states, dt, forces, parameters = Dict{Symbol, Any}())
     N = length(dt)
     t = cumsum(dt)
-    return sum(G(model, states[i], dt[i], Jutul.optimization_step_info(i, t[i], dt[i]; Nstep = N), forces[i]) for i in 1:N)
+    return sum(G(model, objective_state(states[i], parameters), dt[i], Jutul.optimization_step_info(i, t[i], dt[i]; Nstep = N), forces[i]) for i in 1:N)
 end
 
 # ------------------------------------------------------------------------------
@@ -180,8 +183,9 @@ function _force_adjoint(model, state0, parameters, states, dt, forces, G)
     end
     # One setup serves every objective: the residual's dependence on X, and
     # so its sparsity, does not depend on the objective. Sparsity from every
-    # step, so that every stage's forces are seen.
-    objectives = G isa NamedTuple ? G : (G = G,)
+    # step, so that every stage's forces are seen. The objectives get the
+    # parameters, which Jutul's generic adjoints leave out of the state.
+    objectives = map(Gi -> _WithParameters(Gi, parameters), G isa NamedTuple ? G : (G = G,))
     packed = Jutul.AdjointPackedResult(states, dt, forces)
     storage = Jutul.AdjointsDI.setup_adjoint_storage_generic(X, F, packed, first(objectives);
         state0 = state0, info_level = -1, single_step_sparsity = false, sparsity_step_type = :all)
@@ -233,7 +237,7 @@ Extra keywords go to `setup_process_simulator`.
 function force_gradients(model, state0, parameters, forces, timesteps, G; kwarg...)
     states, dt, step_forces = _simulate_steps(model, state0, parameters, forces, timesteps; kwarg...)
     g = _force_adjoint(model, state0, parameters, states, dt, step_forces, G)
-    return (objective = _evaluate_objective(G, model, states, dt, step_forces), forces = g.forces, durations = g.durations)
+    return (objective = _evaluate_objective(G, model, states, dt, step_forces, parameters), forces = g.forces, durations = g.durations)
 end
 
 # ------------------------------------------------------------------------------
@@ -359,15 +363,17 @@ function _fill_variable_scale!(s, model::Jutul.SimulationModel, map)
     return s
 end
 
-# Scale of each of `dofs`, as the cycle change measures it: the largest
-# magnitude of its variable in `x`, per component for mole fractions and
-# loadings, at least the variable's floor
-function _dof_scale(model, x, map, dofs)
+# Scale of each of `dofs`, as the cycle change measures it at tolerance `tol`
+# for steps at nonlinear tolerance `ntol`: an entry passes the test when its
+# change is at most `tol` times this. The scale of its variable in `x`, per
+# component for mole fractions and loadings, at least the variable's floor,
+# plus what the steps resolve divided by `tol`.
+function _dof_scale(model, x, map, dofs; tol, ntol)
     s = deepcopy(x)
     for (k, m) in _holdup_units(model), p in keys(m.primary_variables)
         v = _unit_state(s, k)[p]
-        sc = _variable_scale(m, p, v)
-        v .= v isa AbstractMatrix ? repeat(sc, 1, size(v, 2)) : sc
+        sc = _variable_scale(m, p, v) .+ _resolution(m, p, v, ntol) ./ tol
+        v .= sc isa Number ? sc : (sc .+ zero(v))
     end
     return Jutul.vectorize_variables(model, s, map)[dofs]
 end
@@ -375,7 +381,7 @@ end
 """
     newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-10, max_iterations = 10, krylov = :auto, growth = 100, max_backtracks = 6,
-        keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
+        keep_steps_below = 1e-3, nonlinear_tolerance = 1e-8, progress = false, info_level = -1, kwarg...)
 
 Converge a cyclic steady state with Newton's method from `state0`, such as the
 end of a few plain cycles.
@@ -441,7 +447,16 @@ iteration's cycle, cuts included (and adds any further cut it needs), so
 that the map is smooth. The steady state found is that of those steps, which
 differ from the steps given only where the solver cut them.
 
-Stops when the [`cycle_change`](@ref) is below `tol`. With `progress`
+The cycles are simulated at `nonlinear_tolerance`, and the iterations stop
+when the [`cycle_change`](@ref) beyond what that resolves is below `tol`:
+when every entry has changed by at most `tol` times its scale plus the
+resolution of the steps. The residual is weighed the same way, in the norm
+of the step control and in GMRES: each entry divided by its scale plus the
+resolution over `tol`. Newton's method works in the `N − 1` mole fractions
+that are unknowns of the simulation, while the test checks all `N`, so that
+it does not depend on the order of the components; the last fraction
+changes by minus the sum of the others' changes, which the resolution
+covers even when it is a trace. With `progress`
 (`true`, an `IO` or a [`CycleProgress`](@ref)), each iteration is printed with
 its cycle change and its step if shortened, and each Jacobian built, GMRES
 solve or step rejected. Returns the same fields
@@ -454,7 +469,9 @@ iterations that fell back to a plain cycle. Extra keywords go to
 """
 function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps;
         tol = 1e-10, max_iterations = 10, jacobian = nothing, refresh_ratio = 0.5, krylov = :auto, max_products = nothing,
-        max_backtracks = 6, growth = 100.0, keep_steps_below = 1e-3, progress = false, info_level = -1, kwarg...)
+        max_backtracks = 6, growth = 100.0, keep_steps_below = 1e-3, nonlinear_tolerance = STEADY_STATE_NONLINEAR_TOLERANCE,
+        progress = false, info_level = -1, kwarg...)
+    ntol = nonlinear_tolerance
     krylov = _use_krylov(model, krylov)
     pr = cycle_progress(progress; info_level = info_level)
     start_phase!(pr, "Newton"; tol = tol, noun = "iteration", estimate = false)
@@ -473,14 +490,14 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
     # cut), so that the map it works with is smooth. Further away, the cuts
     # differ from those at the steady state, so the steps given are used.
     sched_forces, sched_dt = forces, timesteps
-    sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+    sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
     step = 1.0
     # Residual Φ(x) − x of the best iterate so far, for the step control
     best = nothing
     for it in 0:max_iterations
         states, dt, step_forces = sim
         x_end = restart_state(model, states[end])
-        push!(history, cycle_change(model, x, x_end))
+        push!(history, cycle_change(model, x, x_end; nonlinear_tolerance = ntol))
         report_cycle!(pr, it, history[end]; note = step < 1 ? (step == 0 ? "plain cycle" : "step $(_sci(step))") : "")
         if history[end] < keep_steps_below && length(dt) > length(sched_dt)
             sched_dt, sched_forces = dt, step_forces
@@ -504,7 +521,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
                 rtol = clamp(max(c, 0.1 * tol / c), 1e-12, 1e-2)
                 itmax = something(max_products, length(dofs))
                 δ, M, n_products = _krylov_step(tangent, length(z0), isnothing(J) ? nothing : J.M, dofs, r,
-                    _dof_scale(model, x, vmap, dofs), rtol, itmax, pr)
+                    _dof_scale(model, x, vmap, dofs; tol = tol, ntol = ntol), rtol, itmax, pr)
                 products += n_products
                 J = (M = M, dofs = dofs, map = vmap)
                 fresh = true
@@ -536,7 +553,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
         z1 = Jutul.vectorize_variables(model, x_end, J.map)
         # The residual measured in the units of the cycle change; the Newton
         # step reduces its norm at a unit rate
-        scale = _dof_scale(model, x, J.map, J.dofs)
+        scale = _dof_scale(model, x, J.map, J.dofs; tol = tol, ntol = ntol)
         r = z1[J.dofs] .- z0[J.dofs]
         merit0 = norm(r ./ scale)
         # Steps are measured against the best iterate so far, in this one's
@@ -550,7 +567,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             z[J.dofs] .= z0[J.dofs] .+ t .* δ
             xt = restart_state(model, _clamp_to_bounds!(model, Jutul.devectorize_variables!(deepcopy(x), model, z, J.map)))
             simt = try
-                _simulate_steps(model, xt, parameters, sched_forces, sched_dt; kwarg...)
+                _simulate_steps(model, xt, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
             catch e
                 Framework._is_solver_failure(e) || rethrow()
                 return (x = xt, sim = nothing, merit = Inf, change = Inf)
@@ -558,7 +575,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             zt = Jutul.vectorize_variables(model, xt, J.map)
             xe = restart_state(model, simt[1][end])
             ze = Jutul.vectorize_variables(model, xe, J.map)
-            return (x = xt, sim = simt, merit = norm((ze[J.dofs] .- zt[J.dofs]) ./ scale), change = cycle_change(model, xt, xe))
+            return (x = xt, sim = simt, merit = norm((ze[J.dofs] .- zt[J.dofs]) ./ scale), change = cycle_change(model, xt, xe; nonlinear_tolerance = ntol))
         end
         # Line search: take the full step if it reduces the residual enough
         # (Armijo), or reaches `tol`. Otherwise a quasi-Newton step first gets
@@ -593,7 +610,7 @@ function newton_cyclic_steady_state(model, state0, parameters, forces, timesteps
             fallbacks += 1
             report_status!(pr, "no step accepted; continuing from the end of the cycle"; persist = true)
             x = x_end
-            sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; kwarg...)
+            sim = _simulate_steps(model, x, parameters, sched_forces, sched_dt; nonlinear_tolerance = ntol, kwarg...)
             step = 0.0
             previous = nothing
         else
@@ -715,7 +732,7 @@ end
 """
     cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
         targets = nothing, with_forces = false, rtol = 1e-8, maxiter = 100,
-        nonlinear_tolerance = 1e-8, kwarg...) → NamedTuple
+        steps = nothing, nonlinear_tolerance = 1e-8, kwarg...) → NamedTuple
 
 Gradient at cyclic steady state of the objective `G` over one cycle, given by
 its `forces` and `timesteps`. `state0` is the state at the start of a cycle at
@@ -745,6 +762,12 @@ starts taken in one long step can make it jump: the solver then lands on a
 different solution of that step for a slightly different start. Start each
 stage with short steps (`first_dt` in [`setup_schedule`](@ref)).
 
+The cycle is simulated from `state0`, unless `steps`, the `(states,
+timesteps, forces)` of every step of the cycle from `state0` as simulated
+(one entry per step), gives it. A steady state is the fixed point of a cycle
+of one long backward-Euler step, which returns the steady state itself, so
+its `steps` are that state alone, without solving the step.
+
 Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 - `objective`: the value of `G` over the cycle;
 - `parameters`: the gradient with respect to the parameters of each unit, laid
@@ -761,9 +784,9 @@ Returns a NamedTuple (one per objective, if `G` is a `NamedTuple`) with:
 Extra keywords go to `setup_process_simulator`.
 """
 function cyclic_steady_state_gradient(model, state0, parameters, forces, timesteps, G;
-        targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, info_level = -1, kwarg...)
+        targets = nothing, with_forces = false, jacobian = nothing, rtol = 1e-8, maxiter = 100, steps = nothing, info_level = -1, kwarg...)
     x0 = restart_state(model, state0)
-    states, dt, step_forces = _simulate_steps(model, x0, parameters, forces, timesteps; kwarg...)
+    states, dt, step_forces = isnothing(steps) ? _simulate_steps(model, x0, parameters, forces, timesteps; kwarg...) : steps
     sensitivity, vmap, state_model = _state_adjoint(model, x0, parameters, states, dt, step_forces)
     storage_kwarg = isnothing(targets) ? NamedTuple() : (targets = targets,)
     storage = Jutul.setup_adjoint_storage(model; state0 = x0, parameters = parameters, use_sparsity = false, storage_kwarg...)
@@ -798,7 +821,7 @@ function cyclic_steady_state_gradient(model, state0, parameters, forces, timeste
     out = map(objectives, solves, gf) do Gi, s, f
         ∇p = Jutul.solve_adjoint_sensitivities(model, states, dt, s.Gμ;
             storage = storage, state0 = x0, forces = step_forces, raw_output = true, info_level = -1)
-        (objective = _evaluate_objective(Gi, model, states, dt, step_forces),
+        (objective = _evaluate_objective(Gi, model, states, dt, step_forces, parameters),
             parameters = Jutul.store_sensitivities(storage.parameter.model, ∇p, storage.parameter_map),
             forces = f.forces, durations = f.durations, state0 = Jutul.store_sensitivities(state_model, s.μ, vmap),
             iterations = s.stats.niter, converged = s.stats.solved)

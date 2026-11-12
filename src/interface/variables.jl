@@ -1,5 +1,5 @@
-# Named design variables of a Process, their gradients at cyclic steady state,
-# and optimisation over them.
+# Named design variables of a Process, the gradients of its performance at the
+# state it settles to, and optimisation over them.
 #
 # A variable sets one or more places: a field of a step of the cycle, of the
 # feed, or a parameter of a unit. The gradient of a performance measure with
@@ -8,6 +8,28 @@
 # those with the variable comes from compiling the cycle with the variable
 # perturbed, which is cheap and, for the built-in steps, linear.
 
+"""
+    Place
+
+A place is one number in the description of a process that a design variable
+reads and writes: a field of a step, the feed, a unit parameter, a device
+setting, the geometry of a bed. It is a place in how the process is
+specified, not in its simulated state. The kinds are [`StepPlace`](@ref),
+[`FeedPlace`](@ref), [`ParameterPlace`](@ref), [`SettingPlace`](@ref),
+[`GeometryPlace`](@ref) and [`ScaledPlace`](@ref). A variable may set several
+places to one value (see [`add_variable!`](@ref)).
+
+A kind of place implements, for each kind of [`Process`](@ref) that has it,
+`_get(p, place)`, which reads its value, a number, and `_set!(p, place,
+value)`, which writes it and leaves the process consistent: the cycle
+compiled again, or a unit, the model and the parameters rebuilt. Nothing
+more is needed for gradients: [`performance_gradient`](@ref) sets each
+variable a little up and down, without simulating, and the changes in the
+device settings, stage durations, unit parameters and quantities such as
+the adsorbent volume go through the adjoints. So a place must change values
+only, not the structure of the model: the number of cells or of stages, the
+isotherm or which devices a step opens are not places.
+"""
 abstract type Place end
 
 """
@@ -46,12 +68,66 @@ struct ParameterPlace <: Place
     name::Symbol
 end
 
+"""
+    SettingPlace(device, field; port = nothing)
+
+A setting of a device of a [`SteadyProcess`](@ref): the `field` of its flow
+law, such as `SettingPlace(:V_purge, :rate)` for the rate of a
+[`FixedMolarFlow`](@ref), or `:setpoint` of a
+[`BackPressureController`](@ref); or with `port` (`:inlet` or `:outlet`), the
+`:pressure` or `:temperature` of the condition at that boundary port, such as
+`SettingPlace(:V_product, :pressure; port = :outlet)` for the pressure the
+product is drawn to. A port condition set by the flowsheet is taken over by
+the settings when the variable is set.
+"""
+struct SettingPlace <: Place
+    device::Symbol
+    field::Symbol
+    port::Union{Nothing, Symbol}
+end
+SettingPlace(device, field; port = nothing) = SettingPlace(Symbol(device), Symbol(field), isnothing(port) ? nothing : Symbol(port))
+
+"""
+    GeometryPlace(unit, field)
+
+The geometry of a bed, or of a section of a moving bed: a field of its
+[`Column`](@ref), such as `:length`, `:radius` or `:porosity`, or of a moving
+bed its `:packing_fraction`. Setting it rebuilds the unit on the same number
+of cells, so that its cell sizes, volumes, areas and transmissibilities
+change, and with them whatever the process derives from them, such as the
+default conductance of a valve or the feed rate of a velocity. A new radius
+keeps the thickness of the wall. What was computed from the geometry outside
+the unit, such as a heat transfer coefficient from the sorbent velocity, stays
+as it was given.
+"""
+struct GeometryPlace <: Place
+    unit::Symbol
+    field::Symbol
+end
+
+"""
+    ScaledPlace(place, factor)
+
+`place` set to `factor` times the variable: a variable in other units than
+its place, such as a purge as a fraction of the feed,
+`ScaledPlace(SettingPlace(:V_purge, :rate), F_feed)`, or places tied in
+proportion to one another.
+"""
+struct ScaledPlace{P <: Place} <: Place
+    place::P
+    factor::Float64
+end
+
 _place(x::Place) = x
 _place(x::Tuple{Symbol, Symbol}) = first(x) == :feed ? FeedPlace(last(x)) : StepPlace(String(first(x)), last(x))
 _place(x::Tuple{Any, Any}) = StepPlace(x[1], x[2])
-_place(x::Tuple{Symbol, Any, Any}) = x[1] == :parameter ? ParameterPlace(Symbol(x[2]), Symbol(x[3])) : StepPlace(x[2], x[3]; sequence = String(x[1]))
+_place(x::Tuple{Symbol, Any, Any}) = x[1] == :parameter ? ParameterPlace(Symbol(x[2]), Symbol(x[3])) :
+    x[1] == :setting ? SettingPlace(x[2], x[3]) : x[1] == :geometry ? GeometryPlace(Symbol(x[2]), Symbol(x[3])) :
+    StepPlace(x[2], x[3]; sequence = String(x[1]))
 _place(x::Tuple{AbstractString, Any, Any}) = StepPlace(x[2], x[3]; sequence = x[1])
-_place(x) = input_error("variable", "places", "a place is a StepPlace, FeedPlace or ParameterPlace, or a tuple such as (\"evacuation\", :to); got $x")
+_place(x::Tuple{Symbol, Any, Any, Any}) = x[1] == :setting ? SettingPlace(x[2], x[4]; port = x[3]) :
+    input_error("variable", "places", "a four-element place is (:setting, device, port, field); got $x")
+_place(x) = input_error("variable", "places", "a place is a StepPlace, FeedPlace, ParameterPlace, SettingPlace, GeometryPlace or ScaledPlace, or a tuple such as (\"evacuation\", :to); got $x")
 
 """
 A named design variable: the places it sets, its bounds and a description.
@@ -68,9 +144,14 @@ end
     add_variable!(p, name, places...; bounds = (-Inf, Inf), description = "")
 
 Add a design variable `name` to the process, setting every one of `places`
-(see [`StepPlace`](@ref), [`FeedPlace`](@ref), [`ParameterPlace`](@ref), or
-tuples such as `("evacuation", :to)`, `(:feed, :pressure)` and
-`(:parameter, :Bed, :AdsorbentDensity)`). Since pressures carry over from step
+(see [`StepPlace`](@ref), [`FeedPlace`](@ref), [`ParameterPlace`](@ref),
+[`SettingPlace`](@ref), [`GeometryPlace`](@ref) and [`ScaledPlace`](@ref),
+or tuples such as `("evacuation", :to)`, `(:feed, :pressure)`,
+`(:parameter, :Bed, :AdsorbentDensity)`, `(:setting, :V_purge, :rate)`,
+`(:setting, :V_product, :outlet, :pressure)` and `(:geometry, :Bed, :length)`).
+A cyclic process has step, feed, parameter and geometry places, a steady
+process parameter, setting and geometry places. Several places tie them to
+one value, such as one sorbent flow for every section of a moving bed. Since pressures carry over from step
 to step, one place is usually enough: the evacuation pressure is also where
 the next pressurisation starts. `bounds` are needed by [`optimise!`](@ref).
 
@@ -121,8 +202,11 @@ end
 _describe(x::StepPlace) = "field $(x.field) of step $(repr(x.step))" * (isempty(x.sequence) ? "" : " of the $(x.sequence) sequence")
 _describe(x::FeedPlace) = "the feed $(x.field)"
 _describe(x::ParameterPlace) = "parameter $(x.name) of $(x.unit)"
+_describe(x::SettingPlace) = "setting $(x.field) of $(x.device)" * (isnothing(x.port) ? "" : " at its $(x.port)")
+_describe(x::GeometryPlace) = "the $(x.field) of $(x.unit)"
+_describe(x::ScaledPlace) = "$(x.factor) times " * _describe(x.place)
 
-function _find_step(p::Process, x::StepPlace)
+function _find_step(p::CyclicProcess, x::StepPlace)
     seqs = p.cycle.sequences
     k = findfirst(s -> first(s) == x.sequence, seqs)
     isnothing(k) && input_error("variable", "places", "the cycle has no sequence $(repr(x.sequence)); it has $(join(repr.(first.(seqs)), ", "))")
@@ -138,22 +222,74 @@ function _find_step(p::Process, x::StepPlace)
     input_error("variable", "places", "$(length(matches)) steps are named $(repr(x.step)); pick one by position or by bed, such as \"A $(x.step)\"")
 end
 
-function _get(p::Process, x::StepPlace)
+function _get(p::CyclicProcess, x::StepPlace)
     s = _find_step(p, x)
     hasfield(typeof(s), x.field) || input_error("variable", "places", "a $(nameof(typeof(s))) step has no field $(x.field); it has $(join(fieldnames(typeof(s)), ", "))")
     return getfield(s, x.field)
 end
-function _set!(p::Process, x::StepPlace, v)
+function _set!(p::CyclicProcess, x::StepPlace, v)
     s = _find_step(p, x)
     setfield!(s, x.field, convert(fieldtype(typeof(s), x.field), v))
     p.compiled = nothing
 end
 
-function _get(p::Process, x::FeedPlace)
+function _get(p::CyclicProcess, x::FeedPlace)
     x.field in (:pressure, :temperature) || input_error("variable", "places", "a feed variable sets :pressure or :temperature, got $(x.field)")
     return getfield(p.flowsheet.feed, x.field)
 end
-_set!(p::Process, x::FeedPlace, v) = (setfield!(p.flowsheet.feed, x.field, Float64(v)); p.compiled = nothing)
+_set!(p::CyclicProcess, x::FeedPlace, v) = (setfield!(p.flowsheet.feed, x.field, Float64(v)); p.compiled = nothing)
+
+_get(p::Process, x::ScaledPlace) = _get(p, x.place) / x.factor
+_set!(p::Process, x::ScaledPlace, v) = _set!(p, x.place, x.factor * v)
+
+# The spec a unit was built from
+function _unit_spec(fs, u)
+    haskey(fs.specs, u) && return fs.specs[u]
+    haskey(fs.moving_specs, u) && return fs.moving_specs[u]
+    input_error("variable", "places", "$u is not a bed or moving bed of the flowsheet added with add_bed! or add_moving_bed!")
+end
+
+function _get(p::Process, x::GeometryPlace)
+    spec = _unit_spec(p.flowsheet, x.unit)
+    x.field in fieldnames(Column) && x.field != :wall && return getfield(spec.column, x.field)
+    spec isa MovingBedSpec && x.field == :packing_fraction && return spec.packing_fraction
+    input_error("variable", "places", "the geometry of $(x.unit) is a field of its column, $(join(filter(!=(:wall), fieldnames(Column)), ", "))" *
+        (spec isa MovingBedSpec ? ", or its packing_fraction" : ""))
+end
+
+function _set!(p::Process, x::GeometryPlace, v)
+    _get(p, x)
+    fs = p.flowsheet
+    spec = _unit_spec(fs, x.unit)
+    c = spec.column
+    column = c
+    if x.field != :packing_fraction
+        kw = Dict{Symbol, Any}(f => getfield(c, f) for f in fieldnames(Column))
+        kw[x.field] = Float64(v)
+        x.field == :radius && (kw[:outer_radius] = v + (c.outer_radius - c.radius))
+        column = _at(() -> Column(; kw...), "variable at $(_describe(x))")
+    end
+    if spec isa BedSpec
+        spec.column = column
+        model = _at(() -> fixed_bed_model(fs.gas, fs.feed, spec.adsorbent, column; ncells = spec.ncells, thermal = spec.thermal,
+            dispersion_velocity = spec.velocity_used, dispersion = spec.dispersion, permeability = spec.permeability), "variable at $(_describe(x))")
+    else
+        φ = x.field == :packing_fraction ? Float64(v) : spec.packing_fraction
+        spec = MovingBedSpec(spec.adsorbent, column, spec.ncells, spec.thermal, spec.sorbent_mass_flow, φ, spec.heat_exchanger,
+            spec.dispersion, spec.dispersion_velocity, spec.permeability, spec.pore_gas, spec.limiter)
+        model = _at(() -> moving_bed_model(fs.gas, fs.feed, spec.adsorbent, column; sorbent_mass_flow = spec.sorbent_mass_flow,
+            ncells = spec.ncells, heat_exchanger = spec.heat_exchanger, thermal = spec.thermal, packing_fraction = φ,
+            dispersion = spec.dispersion, dispersion_velocity = spec.dispersion_velocity, permeability = spec.permeability,
+            pore_gas = spec.pore_gas, limiter = spec.limiter), "variable at $(_describe(x))")
+        fs.moving_specs[x.unit] = spec
+    end
+    network(fs).units[x.unit] = model
+    _rebuild!(p)
+end
+
+# A place the kind of process does not have
+_get(p::Process, x::Place) = input_error("variable", "places", "a $(nameof(typeof(p))) has no $(_describe(x))")
+_set!(p::Process, x::Place, v) = _get(p, x)
 
 function _get(p::Process, x::ParameterPlace)
     haskey(p.parameters, x.unit) || input_error("variable", "places", "$(x.unit) is not a unit of the flowsheet")
@@ -169,35 +305,22 @@ end
 # Gradients
 # ------------------------------------------------------------------------------
 
-# A sum of objectives, as one adjoint objective
-struct _SumObjective{T}
-    terms::T
+# The fixed point of the process that its gradients are taken at, from the
+# result `ss` of steady_state: the `forces` and `timesteps` of one period of
+# its schedule, the state `state0` at its start, a `jacobian` of the period
+# map to precondition the adjoint, or nothing, the `result` the performance
+# is measured from, the states and time steps its integrals are taken over
+# (`measured`), and the `scale` from the integrals over the period to those
+# measured. For a cyclic process, one cycle at cyclic steady state.
+function _fixed_point(p::CyclicProcess, ss)
+    forces, dt = cycle_schedule(p)
+    result = CyclicResult(p, ss.states, ss.timesteps, 1, ss.state0, ss.converged, ss.history, ss.iterations, ss.jacobian)
+    return (forces = forces, timesteps = dt, state0 = ss.state0, jacobian = ss.jacobian, result = result,
+        measured = (states = ss.states, timesteps = ss.timesteps, forces = _step_forces(result)), scale = 1.0)
 end
-(G::_SumObjective)(model, state, dt, step_info, forces) = sum(g(model, state, dt, step_info, forces) for g in G.terms)
 
-function _performance_objectives(p::Process)
-    fs, o = p.flowsheet, p.options
-    k = o.key_component
-    N = number_of_components(fs.gas)
-    extract = devices_with_role(fs, :extract)
-    feed = devices_with_role(fs, :feed)
-    isempty(extract) && input_error("process", "", "performance needs an extract device")
-    isempty(feed) && input_error("process", "", "performance needs a feed device")
-    energy = Any[]
-    # A heat capacity ratio from the feed changes with the feed temperature only
-    # if the heat capacities do; that dependence is not differentiated
-    γ = pump_heat_capacity_ratio(p)
-    for role in OUTLET_ROLES, d in devices_with_role(fs, role)
-        push!(energy, VacuumPumpObjective(d; discharge_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ))
-    end
-    for role in INLET_ROLES, d in devices_with_role(fs, role)
-        push!(energy, CompressorObjective(d; suction_pressure = o.ambient_pressure, efficiency = o.pump_efficiency, γ = γ))
-    end
-    return (key_extract = _SumObjective(Tuple(StreamObjective(d; component = k) for d in extract)),
-        total_extract = _SumObjective(Tuple(StreamObjective(d; component = i) for d in extract for i in 1:N)),
-        key_feed = _SumObjective(Tuple(StreamObjective(d; component = k) for d in feed)),
-        energy = _SumObjective(Tuple(energy)))
-end
+_fixed_point(p::Process, ss) =
+    input_error("performance_gradient", "", "gradients of a $(nameof(typeof(p))) are not available yet")
 
 # Stage force vectors and durations of the process as compiled now
 function _stage_vectors(p::Process)
@@ -212,184 +335,175 @@ function _stage_vectors(p::Process)
     return (vecs, [st.duration for st in sts])
 end
 
-# Change of every stage's force vector and duration with each variable, by
-# central differences on the compiled cycle
+# What the simulation of the process takes as given: the force vector and
+# duration of every stage, the parameters of every unit, and the quantities
+# its measures depend on besides the integrals
+function _design_inputs(p::Process)
+    vecs, τ = _stage_vectors(p)
+    prm = Dict{Symbol, Dict{Symbol, Any}}(u => Dict{Symbol, Any}(k => copy(v) for (k, v) in d) for (u, d) in p.parameters)
+    return (vecs = vecs, τ = τ, parameters = prm, quantities = performance_quantities(p))
+end
+
+# A step of about 1e-6 of x, a power of two, so that x ± h are exact and a
+# place that a variable sets linearly differences exactly
+_design_step(x) = exp2(round(log2(1e-6 * (x == 0 ? 1.0 : abs(x)))))
+
+# Change of every stage's force vector and duration, of every parameter and of
+# every quantity with each variable, by central differences of what the
+# process takes as given: setting a variable recompiles the cycle, or
+# rebuilds a unit, without simulating, so a new kind of place needs no
+# gradient code. For the built-in steps and parameters the change is linear,
+# and exact. Only parameters that change are kept, in `dP`.
 function _design_jacobian(p::Process, vars)
-    base_v, base_τ = _stage_vectors(p)
+    base = _design_inputs(p)
     out = map(vars) do v
-        all(pl -> pl isa ParameterPlace, v.places) && return nothing
         x0 = p[v.name]
-        h = 1e-6 * (x0 == 0 ? 1.0 : abs(x0))
+        h = _design_step(x0)
         p[v.name] = x0 + h
-        vp, τp = _stage_vectors(p)
+        a = _design_inputs(p)
         p[v.name] = x0 - h
-        vm, τm = _stage_vectors(p)
+        b = _design_inputs(p)
         p[v.name] = x0
-        (length(vp) == length(vm) == length(base_v) && all(length.(vp) .== length.(base_v)) && all(length.(vm) .== length.(base_v))) ||
+        same(x, y) = length(x) == length(y) && all(length.(x) .== length.(y))
+        (same(a.vecs, base.vecs) && same(b.vecs, base.vecs)) ||
             input_error("variable $(v.name)", "", "changing it changes the number of stages of the cycle, so it has no gradient here")
-        (dF = [(a .- b) ./ 2h for (a, b) in zip(vp, vm)], dτ = (τp .- τm) ./ 2h)
+        dP = Dict{Symbol, Dict{Symbol, Any}}()
+        for (u, d) in base.parameters, k in keys(d)
+            size(a.parameters[u][k]) == size(b.parameters[u][k]) == size(d[k]) ||
+                input_error("variable $(v.name)", "", "changing it changes the size of parameter $k of $u, so it has no gradient here")
+            δ = (a.parameters[u][k] .- b.parameters[u][k]) ./ 2h
+            any(!iszero, δ) && (get!(dP, u, Dict{Symbol, Any}())[k] = δ)
+        end
+        (dF = [(x .- y) ./ 2h for (x, y) in zip(a.vecs, b.vecs)], dτ = (a.τ .- b.τ) ./ 2h, dP = dP,
+            dq = map((x, y) -> (x - y) / 2h, a.quantities, b.quantities))
     end
-    _stage_vectors(p)  # leave the process compiled at the base values
+    _design_inputs(p)  # leave the process compiled at the base values
     return out
 end
 
-"""
-    performance_gradient(p; variables = all, steady_state = nothing, rtol = 1e-7,
-        progress = isinteractive()) → NamedTuple
+# Derivative of objective `G`, summed over the `measured` steps of the cycle,
+# with respect to the force vector of each stage, the states held fixed. The
+# adjoints give its dependence through the states; an objective that reads the
+# forces of a step, such as the heat of a jacket, also depends on them
+# directly. Nothing when the steps come without forces.
+function _direct_force_gradients(G, p::Process, measured)
+    step_forces = get(measured, :forces, nothing)
+    isnothing(step_forces) && return nothing
+    states, dt = measured.states, measured.timesteps
+    t = cumsum(dt)
+    s = [objective_state(x, p.parameters) for x in states]
+    info = [Jutul.optimization_step_info(k, t[k], dt[k]; Nstep = length(dt)) for k in eachindex(dt)]
+    # One force set per stage, in the order of the stages
+    return map(unique(objectid, step_forces)) do f
+        X, cfg = Jutul.vectorize_forces(f, p.model)
+        steps = findall(x -> x === f, step_forces)
+        F(X) = (fX = Jutul.devectorize_forces(f, p.model, X, cfg);
+            sum((G(p.model, s[k], dt[k], info[k], fX) for k in steps); init = zero(eltype(X))))
+        Jutul.ForwardDiff.gradient(F, X)
+    end
+end
 
-The [`performance`](@ref) of the process at cyclic steady state and its
-gradient with respect to the design `variables` (names; see
+# A weighted sum of objectives, as one adjoint objective
+struct _WeightedObjective{T}
+    terms::T
+    weights::Vector{Float64}
+end
+(G::_WeightedObjective)(model, state, dt, step_info, forces) =
+    sum(w * g(model, state, dt, step_info, forces) for (w, g) in zip(G.weights, G.terms))
+
+_is_empty_objective(G) = G isa SumObjective && isempty(G.terms)
+
+"""
+    performance_gradient(p; variables = all, measures = all, steady_state = nothing,
+        rtol = 1e-7, progress = isinteractive()) → NamedTuple
+
+The [`performance`](@ref) of the process at the state it settles to (its
+cyclic steady state; see [`steady_state`](@ref)) and the gradient of its
+`measures` (names; by default all of
+[`performance_measures`](@ref), including those added with
+[`add_measure!`](@ref)) with respect to the design `variables` (names; see
 [`add_variable!`](@ref)), by adjoints and the implicit function theorem (see
-[`cyclic_steady_state_gradient`](@ref)). Purity, recovery, specific energy and
-productivity follow from cycle sums by the quotient rule.
+[`cyclic_steady_state_gradient`](@ref)).
+
+Each measure is a function of integrals over the cycle and of quantities such
+as the cycle time (see [`performance_integrals`](@ref)). The adjoints give the
+gradients of the integrals it depends on, and the chain rule to the measure
+follows by automatic differentiation of the measure (see
+[`measure_partials`](@ref)). When the measures depend on more integrals than
+there are measures, each measure takes one adjoint instead, of its
+linearisation in the integrals.
 
 Returns `metrics`, the performance; `gradients`, a NamedTuple per measure of
 NamedTuples per variable, such as `g.gradients.recovery.P_L`; and the
-`steady_state` used. `progress` goes to [`cyclic_steady_state`](@ref). The gas properties of a bed stay as they were when the
+`steady_state` used. `progress` goes to [`steady_state`](@ref). The gas properties of a bed stay as they were when the
 process was built, and so does its axial dispersion unless a variable sets its
 `AxialDispersion` parameter.
 """
-function performance_gradient(p::Process; variables = variable_names(p), steady_state = nothing, rtol = 1e-7,
-        progress = isinteractive(), info_level = -1)
+function performance_gradient(p::Process; variables = variable_names(p), measures = keys(performance_measures(p)),
+        steady_state = nothing, rtol = 1e-7, progress = isinteractive(), info_level = -1)
     names = collect(Symbol, variables)
     vars = [variable(p, n) for n in names]
-    ss = isnothing(steady_state) ? cyclic_steady_state(p; progress = progress, info_level = info_level) : steady_state
-    forces, dt = cycle_schedule(p)
-    objectives = _performance_objectives(p)
-    need_forces = any(v -> any(pl -> !(pl isa ParameterPlace), v.places), vars)
-    targets = _no_targets(p.model)
-    for v in vars, pl in v.places
-        pl isa ParameterPlace && push!(targets[pl.unit], pl.name)
+    isempty(devices_with_role(p.flowsheet, :extract)) && input_error("process", "", "performance needs an extract device")
+    isempty(devices_with_role(p.flowsheet, :feed)) && input_error("process", "", "performance needs a feed device")
+    all_measures = performance_measures(p)
+    for m in measures
+        haskey(all_measures, m) || input_error("performance_gradient", "measures", "no measure $m; the process has $(join(keys(all_measures), ", "))")
     end
-    g = cyclic_steady_state_gradient(p.model, ss.state0, p.parameters, forces, dt, objectives;
-        with_forces = need_forces, jacobian = ss.jacobian, targets = targets, rtol = rtol, info_level = info_level)
-    jac = need_forces ? _design_jacobian(p, vars) : fill(nothing, length(vars))
-    function d_sum(r)
-        map(vars, jac) do v, J
+    fm = NamedTuple{Tuple(Symbol.(measures))}(Tuple(all_measures[m] for m in measures))
+    ss = isnothing(steady_state) ? Interface.steady_state(p; progress = progress, info_level = info_level) : steady_state
+    fp = _fixed_point(p, ss)
+    forces, dt = fp.forces, fp.timesteps
+    metrics = performance(fp.result)
+    # The partial derivatives of each measure with respect to the integrals
+    # and quantities, at the steady state
+    integrals = performance_integrals(p)
+    sums = performance_sums(p, fp.measured.states, fp.measured.timesteps; forces = get(fp.measured, :forces, nothing))
+    ∂ = map(f -> measure_partials(f, sums), fm)
+    # The integrals the measures depend on here; an empty sum is zero
+    needed = [k for k in keys(integrals) if !_is_empty_objective(integrals[k]) && any(d -> d[k] != 0, ∂)]
+    per_integral = length(needed) <= length(fm)
+    objectives = per_integral ? NamedTuple{Tuple(needed)}(Tuple(integrals[k] for k in needed)) :
+        map(d -> _WeightedObjective(Tuple(integrals[k] for k in needed), [d[k] for k in needed]), ∂)
+    # How the settings, durations, parameters and quantities change with each
+    # variable; the adjoints are needed only for those that change
+    jac = _design_jacobian(p, vars)
+    need_forces = any(J -> any(dF -> any(!iszero, dF), J.dF) || any(!iszero, J.dτ), jac)
+    targets = _no_targets(p.model)
+    for J in jac, (u, d) in J.dP, k in keys(d)
+        k in targets[u] || push!(targets[u], k)
+    end
+    g = isempty(objectives) ? NamedTuple() : cyclic_steady_state_gradient(p.model, fp.state0, p.parameters, forces, dt, objectives;
+        with_forces = need_forces, jacobian = fp.jacobian, steps = get(fp, :steps, nothing), targets = targets, rtol = rtol, info_level = info_level)
+    # Derivative of an objective with respect to each variable
+    function d_sum(r, G)
+        direct = need_forces ? _direct_force_gradients(G, p, fp.measured) : nothing
+        map(jac) do J
             total = 0.0
-            if !isnothing(J)
+            if need_forces
                 for (s, dF) in enumerate(J.dF)
                     gv = first(Jutul.vectorize_forces(r.forces[s], p.model))
+                    isnothing(direct) || (gv = gv .+ direct[s])
                     total += sum(gv .* dF)
                 end
                 total += sum(r.durations .* J.dτ)
             end
-            for pl in v.places
-                pl isa ParameterPlace && (total += sum(r.parameters[pl.unit][pl.name]))
+            for (u, d) in J.dP, (k, δ) in d
+                total += sum(r.parameters[u][k] .* δ)
             end
-            total
+            total * fp.scale
         end
     end
-    sums = map(r -> r.objective, g)
-    dsums = map(d_sum, g)
-    dT = [isnothing(J) ? 0.0 : sum(J.dτ) for J in jac]
-    a, b, f, E = sums.key_extract, sums.total_extract, sums.key_feed, sums.energy
-    da, db, df, dE = dsums.key_extract, dsums.total_extract, dsums.key_feed, dsums.energy
-    T = cycle_time(p)
-    V = adsorbent_volume(p)
-    M = p.flowsheet.gas.molar_masses[p.options.key_component]
-    to_kwh_per_t = 1 / 3.6e6 / (M / 1000)
-    metrics = performance(ProcessResult(p, ss.states, ss.timesteps, 1, ss.state0, ss.converged, ss.history, ss.iterations, ss.jacobian))
-    grads = (purity = (da .* b .- a .* db) ./ b^2, recovery = (da .* f .- a .* df) ./ f^2,
-        specific_energy = (dE .* a .- E .* da) ./ a^2 .* to_kwh_per_t,
-        productivity = (da .* T .- a .* dT) ./ (V * T^2))
+    # And of each quantity, such as the cycle time or the adsorbent volume
+    dq = map(k -> [J.dq[k] for J in jac], NamedTuple{keys(performance_quantities(p))}(keys(performance_quantities(p))))
+    dI = per_integral ? NamedTuple{keys(g)}(Tuple(d_sum(g[k], objectives[k]) for k in keys(g))) : nothing
+    grads = map(keys(fm)) do m
+        d = ∂[m]
+        total = per_integral ? sum((d[k] .* dI[k] for k in needed); init = zeros(length(vars))) : d_sum(g[m], objectives[m])
+        for (k, v) in pairs(dq)
+            total = total .+ d[k] .* v
+        end
+        total
+    end
     tup(v) = NamedTuple{Tuple(names)}(Tuple(v))
-    return (metrics = metrics, gradients = map(tup, grads), steady_state = ss)
-end
-
-# ------------------------------------------------------------------------------
-# Optimisation
-# ------------------------------------------------------------------------------
-
-"""
-    optimise!(p; variables = all, maximise = nothing, minimise = nothing,
-        at_least = (;), at_most = (;), linear_constraints = [], scale = (;),
-        weight = 1e3, max_it = 25, log = nothing, print_level = 0) → NamedTuple
-
-Optimise the process at cyclic steady state with gradients (BFGS in the
-box of the variables' bounds, `Jutul.unit_box_bfgs`): maximise or minimise
-one [`performance`](@ref) measure, such as `maximise = :recovery`, subject to
-others held above or below targets, such as `at_least = (purity = 0.9,)`.
-Measure constraints are quadratic penalties with `weight` on the shortfall in
-units of `scale` (per measure, 1 by default), so the result may miss them
-slightly. `linear_constraints` are `(Dict(name => coefficient, ...), bound)`
-pairs, meaning `Σ coefficient·variable ≤ bound`, such as
-`(Dict(:P_L => 1.0, :P_I => -1.0), -0.01bar)` for P_I ≥ P_L + 0.01 bar.
-
-Variables whose bounds are equal stay fixed. Each evaluation finds the cyclic
-steady state from the last one. `log(values, result)` is called after each.
-Returns the best `values` (a NamedTuple), its `metrics`, the number of
-`evaluations` and the `history` of every evaluation, and leaves the process
-set to the best values.
-"""
-function optimise!(p::Process; variables = variable_names(p), maximise = nothing, minimise = nothing,
-        at_least = NamedTuple(), at_most = NamedTuple(), linear_constraints = [], scale = NamedTuple(),
-        weight = 1e3, max_it = 25, log = nothing, print_level = 0)
-    count(!isnothing, (maximise, minimise)) == 1 || input_error("optimise!", "", "give one of maximise or minimise")
-    objective, sgn = isnothing(maximise) ? (minimise, -1.0) : (maximise, 1.0)
-    names = collect(Symbol, variables)
-    vars = [variable(p, n) for n in names]
-    for v in vars
-        isfinite(v.lower) && isfinite(v.upper) || input_error("variable $(v.name)", "bounds", "optimise! needs finite bounds")
-    end
-    free = findall(v -> v.lower < v.upper, vars)
-    isempty(free) && input_error("optimise!", "variables", "no variable is free to change")
-    lo = [v.lower for v in vars]
-    hi = [v.upper for v in vars]
-    for (k, v) in enumerate(vars)
-        k in free || (p[v.name] = v.lower)
-    end
-    x0 = clamp.(variable_values(p, names), lo, hi)
-    # Clamped, as the optimiser can step a round-off outside the unit box
-    to_x(u) = (x = copy(x0); x[free] .= clamp.(lo[free] .+ u .* (hi[free] .- lo[free]), lo[free], hi[free]); x)
-    u0 = (x0[free] .- lo[free]) ./ (hi[free] .- lo[free])
-    reset_step_pattern!(p)
-    sc(k) = Float64(get(scale, k, 1.0))
-    history = Any[]
-    best = Ref{Any}(nothing)
-    function f(u)
-        x = to_x(u)
-        set_variables!(p, names, x)
-        r = performance_gradient(p; variables = names, progress = false)
-        m, g = r.metrics, r.gradients
-        grad(k) = [g[k][n] for n in names]
-        v = sgn * m[objective] / sc(objective)
-        dv = sgn .* grad(objective) ./ sc(objective)
-        for (k, target) in pairs(at_least)
-            short = (target - m[k]) / sc(k)
-            short > 0 && (v -= weight * short^2; dv = dv .+ 2weight * short .* grad(k) ./ sc(k))
-        end
-        for (k, target) in pairs(at_most)
-            over = (m[k] - target) / sc(k)
-            over > 0 && (v -= weight * over^2; dv = dv .- 2weight * over .* grad(k) ./ sc(k))
-        end
-        values = NamedTuple{Tuple(names)}(Tuple(x))
-        push!(history, (values = values, metrics = m, objective = v))
-        if isnothing(best[]) || v > best[].objective
-            best[] = (values = values, metrics = m, objective = v)
-        end
-        isnothing(log) || log(values, r)
-        return (v, dv[free] .* (hi[free] .- lo[free]))
-    end
-    kw = Dict{Symbol, Any}()
-    if !isempty(linear_constraints)
-        A = zeros(length(linear_constraints), length(free))
-        bvec = zeros(length(linear_constraints))
-        for (i, (coeffs, bound)) in enumerate(linear_constraints)
-            rhs = Float64(bound)
-            for (n, a) in pairs(coeffs)
-                j = findfirst(==(Symbol(n)), names)
-                isnothing(j) && input_error("optimise!", "linear_constraints", "$n is not among the variables")
-                rhs -= a * lo[j]
-                jf = findfirst(==(j), free)
-                isnothing(jf) || (A[i, jf] = a * (hi[j] - lo[j]))
-            end
-            bvec[i] = rhs
-        end
-        kw[:lin_ineq] = (A = A, b = bvec)
-    end
-    Jutul.unit_box_bfgs(u0, f; maximize = true, max_it = max_it, grad_tol = 1e-4, obj_change_tol = 1e-5,
-        max_initial_update = 0.05, stepIncreaseTol = 3.0, print = print_level, kw...)
-    set_variables!(p, names, collect(best[].values))
-    return (values = best[].values, metrics = best[].metrics, evaluations = length(history), history = history)
+    return (metrics = metrics, gradients = NamedTuple{keys(fm)}(Tuple(map(tup, grads))), steady_state = ss)
 end

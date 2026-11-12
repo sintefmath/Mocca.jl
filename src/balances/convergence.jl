@@ -9,9 +9,36 @@
 #   divided by the heat capacity of the cell, the temperature error it amounts
 #   to.
 #
+# For the gas mass and energy balances, the holdup includes the gas that flows
+# through the cell over the step, Δt·F, and its heat capacity. The gas flux
+# through a face is computed from the difference of two nearly equal
+# pressures, so it carries a round-off error of about ε·p/Δp of the flow. A
+# cell that holds little gas but passes a large flow, such as a short cell of
+# a bed with a fast feed, would otherwise have a residual that round-off keeps
+# above the tolerance on long steps: |R|·Δt/N grows with Δt/Δx². Measured
+# against the gas passing through, that floor is about ε·p/Δp whatever the
+# step.
+#
 # The device equations have their own, in devices/device.jl.
 
 _cell_gas_moles(state, cell) = Jutul.value(state.TotalMolarConcentration[cell]) * Jutul.value(state.FluidVolume[cell])
+
+# Molar flow of gas [mol/s] through each cell: half the sum of the Darcy flows
+# across its faces, so a cell with the same flow in and out gets that flow
+function _cell_throughflow(model, state)
+    N = model.data_domain[:neighbors]
+    F = zeros(Jutul.number_of_cells(model.domain))
+    T, P, c = state.Transmissibilities, state.Pressure, state.TotalMolarConcentration
+    for face in axes(N, 2)
+        l, r = N[1, face], N[2, face]
+        μ = Jutul.value(_cell_viscosity(state, l) + _cell_viscosity(state, r)) / 2
+        q = abs(Jutul.value(T[face]) * (Jutul.value(P[l]) - Jutul.value(P[r]))) / μ
+        F_face = q * (Jutul.value(c[l]) + Jutul.value(c[r])) / 2
+        F[l] += F_face / 2
+        F[r] += F_face / 2
+    end
+    return F
+end
 
 function _cell_criterion(f, r, n_eq, dt)
     e = zeros(n_eq)
@@ -26,7 +53,8 @@ _component_criterion_names(prefix, model) = map(n -> "$(prefix)_$n", component_n
 function Jutul.convergence_criterion(model::DistributedUnitModel, storage, eq::Jutul.ConservationLaw{:ComponentMasses}, eq_s, r;
         dt = 1.0, update_report = missing)
     state = storage.state
-    e = _cell_criterion(cell -> _cell_gas_moles(state, cell), r, size(r, 1), dt)
+    F = _cell_throughflow(model, state)
+    e = _cell_criterion(cell -> _cell_gas_moles(state, cell) + dt * F[cell], r, size(r, 1), dt)
     return (CNV = (errors = e, names = _component_criterion_names("CNV", model)),)
 end
 
@@ -39,19 +67,21 @@ function Jutul.convergence_criterion(model::SorbentBedModel, storage, eq::Jutul.
     return (CNV = (errors = e, names = _component_criterion_names("CNV_q", model)),)
 end
 
-# Heat capacity [J/K] of a cell: the unit's heat capacity terms and the gas.
-# The energy balance is in temperature form, so its residual is a heat flow
-# whose temperature error comes from the local heat capacities, also when they
+# Heat capacity [J/K] of a cell: the unit's heat capacity terms and the gas,
+# including `moles` of gas, by default the gas the cell holds. The energy
+# balance is in temperature form, so its residual is a heat flow whose
+# temperature error comes from the local heat capacities, also when they
 # change with temperature
-function _cell_heat_capacity(model, state, cell)
-    gas = _cell_gas_moles(state, cell) * Jutul.value(state.C_pg[cell])
+function _cell_heat_capacity(model, state, cell, moles = _cell_gas_moles(state, cell))
+    gas = moles * Jutul.value(state.C_pg[cell])
     return Jutul.value(sum_terms(heat_capacity, heat_capacity_terms(model.system), model, state, cell)) + gas
 end
 
 function Jutul.convergence_criterion(model::DistributedUnitModel, storage, eq::Jutul.ConservationLaw{:ColumnConservedEnergy}, eq_s, r;
         dt = 1.0, update_report = missing)
     state = storage.state
-    e = _cell_criterion(cell -> _cell_heat_capacity(model, state, cell), r, 1, dt)
+    F = _cell_throughflow(model, state)
+    e = _cell_criterion(cell -> _cell_heat_capacity(model, state, cell, _cell_gas_moles(state, cell) + dt * F[cell]), r, 1, dt)
     return (ΔT = (errors = e, names = ["ΔT"]),)
 end
 
@@ -61,4 +91,22 @@ function Jutul.convergence_criterion(model::DistributedUnitModel, storage, eq::J
     wall(cell) = state.WallCrossSectionArea[1] * state.CellDx[cell] * state.WallDensity[1] * state.WallHeatCapacity[1]
     e = _cell_criterion(wall, r, 1, dt)
     return (ΔT = (errors = e, names = ["ΔT_wall"]),)
+end
+
+# The gas energy balance converges no tighter than this temperature error [K].
+# The round-off in the flow between two cells, about ε·p/Δp of the flow (see
+# above), is carried as enthalpy at the absolute temperature, so it puts a floor
+# of about T·ε·p/Δp on the error: 1.3e-8 K for the 1 cm bed of the direct air
+# capture process at 1 bar, with 0.5 Pa between its cells. Newton's method on
+# the cycle and the adjoints simulate at a nonlinear tolerance of 1e-8, where
+# steps that cannot reach the floor are cut, at places that move with the start
+# of the cycle, and the cycle map is no longer smooth.
+const ENERGY_TOLERANCE_FLOOR = 1e-7
+
+# The domain is spelt out: with DistributedUnitModel's `<:Any` for it, Jutul's
+# method for any SimulationModel is taken as the more specific
+function Jutul.set_default_tolerances!(tol_cfg, model::Jutul.SimulationModel{<:Jutul.JutulDomain, <:DistributedUnit}; tol = 1e-3)
+    tol_cfg[:default] = tol
+    haskey(model.equations, :energy_column) && (tol_cfg[:energy_column] = max(tol, ENERGY_TOLERANCE_FLOOR))
+    return tol_cfg
 end

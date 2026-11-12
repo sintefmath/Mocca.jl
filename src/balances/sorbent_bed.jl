@@ -137,3 +137,10 @@ function Framework.setup_unit_state(model::SorbentBedModel; pressure, temperatur
 end
 
 Framework.setup_unit_parameters(model::SorbentBedModel; kwarg...) = setup_process_parameters(model; kwarg...)
+
+# A thermodynamics model, or constant heat capacities per mass that make one
+function _thermodynamics(model, heat_capacities, molar_masses, phase)
+    isnothing(model) || isnothing(heat_capacities) || error("give the $phase thermodynamics or its heat capacities, not both")
+    isnothing(heat_capacities) || return IdealGasConstantCp(; molar_masses = molar_masses, heat_capacities = heat_capacities)
+    return model
+end

@@ -186,6 +186,33 @@ Idle(10.0; bed = :B)
 {"type": "idle", "duration": 10, "bed": "B"}
 ```
 
+## Heating and cooling
+
+Every step on one bed takes a `jacket_temperature` [K]: the temperature of the
+medium outside the bed's wall during the step, such as the hot fluid in a
+heating jacket. The wall exchanges heat with it through the column's
+`outer_heat_transfer` coefficient (see [Model equations](@ref)); in steps
+without it, the wall exchanges heat with the column's `ambient_temperature`.
+This is how a temperature swing is written. The heating and desorption steps
+of the direct air capture process of Stampi-Bombelli et al. (2020) hold the
+bed under vacuum with the jacket at 95 °C, the second with a steam purge:
+
+```julia
+Evacuate(704.0; to = 0.05bar, through = :top, device = :V_vent, jacket_temperature = 368.15, name = "heating")
+Purge(30000.0; flow_rate = 25e-6, jacket_temperature = 368.15, name = "desorption")
+```
+
+```json
+{"type": "evacuate", "duration": 704, "to": "50 mbar", "through": "top", "device": "V_vent", "jacket_temperature": "95 °C", "name": "heating"}
+```
+
+An `Evacuate` whose `to` is the pressure the bed is already at holds the bed
+there. [`jacket_heat`](@ref) gives the heat the jackets supply over a cycle.
+It is part of the `heating` integral of the process, so
+[`performance`](@ref) reports it as `heating` and per kg of the key component
+as `specific_heat_duty`, with gradients like any other measure. The
+[Direct air capture by steam-assisted TVSA](@ref) example runs this process.
+
 ## Several beds
 
 With several beds, each step names its `bed`. Steps run one after the other;

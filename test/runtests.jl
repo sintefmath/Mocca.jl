@@ -42,6 +42,10 @@ end
         include("gradients.jl")
     end
 
+    @testset "Moving beds" begin
+        include("moving_bed.jl")
+    end
+
     @testset "User interface" begin
         include("interface.jl")
     end
@@ -74,8 +78,16 @@ end
         include("transport.jl")
     end
 
+    @testset "Temperature swing and direct air capture" begin
+        include("dac.jl")
+    end
+
     @testset "Integration with Jutul" begin
         include("jutul_integration.jl")
+    end
+
+    if get(ENV, "MOCCA_GRADIENT_CHECKS", "false") == "true"
+        include("gradient_checks.jl")
     end
 
     @testset "Regression Tests" begin

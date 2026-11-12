@@ -65,6 +65,10 @@ The energy counts the vacuum pumps only, as the papers do;
 [`performance`](@ref) also counts the feed compressor. Productivity is per m³
 of 13X. Purities with water count the water in the CO₂ product.
 
+The direct air capture process is measured differently, by its CO₂
+production rate and its energy per kg of CO₂, and is compared with the paper
+in its own section below.
+
 What is known about the differences:
 
 - **Four-step VSA.** Mocca's purity is about 9 points below the paper's at the
@@ -164,3 +168,57 @@ captures the CO₂. Library name `"krishnamurthy_2014_dual_adsorbent_vsa"`.
 
 The [Wet flue gas: dual-adsorbent, two-bed VSA](@ref) example runs it and
 follows the water into the 13X bed.
+
+## Direct air capture, steam-assisted TVSA
+
+[Stampi-Bombelli et al. (2020)](https://doi.org/10.1007/s10450-020-00249-w):
+CO₂ from humid air on an amine sorbent (APDES-NFC), by temperature–vacuum
+swing adsorption with a steam purge. A heating jacket around the bed is at
+95 °C during heating and desorption. Library name
+`"stampi_bombelli_2020_stvsa"`; make it with `dac_tvsa_process()`, which
+also takes `steam_flow = 0` for the paper's cycle without steam.
+
+```@raw html
+<figure class="mocca-schematic mocca-process">
+<div class="mocca-process-figs"><div><svg viewBox="0 0 460 310" role="img" aria-label="Flowsheet: one bed in a heating jacket, with air and steam inlets at the bottom and the air outlet, the vent and the CO₂ product line at the top"><defs><marker id="fs-ah-dac" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fs-head" d="M0,0 L10,5 L0,10 z"/></marker></defs><rect x="199" y="101" width="62" height="138" rx="9" style="fill:none;stroke:var(--mc-step-heat);stroke-width:2;stroke-dasharray:5 3"/><rect class="fs-bed" x="208" y="110" width="44" height="120" rx="6"/><text class="fs-name" x="192" y="166.0" text-anchor="end">APDES-NFC</text><text class="fs-text" x="192" y="182.0" text-anchor="end" style="fill:var(--mc-step-heat)">jacket, 95 °C</text><path class="fs-pipe" d="M230.0 110 V20"/><path class="fs-pipe" d="M230.0 20 H330" marker-end="url(#fs-ah-dac)"/><path class="fs-valve" d="M278 13 L292 27 L292 13 L278 27 Z"/><text class="fs-dev" x="285" y="9" text-anchor="middle">V_product</text><text class="fs-text" x="336" y="24" text-anchor="start">air, 1 bar</text><path class="fs-pipe" d="M230.0 52 H330" marker-end="url(#fs-ah-dac)"/><path class="fs-valve" d="M278 45 L292 59 L292 45 L278 59 Z"/><text class="fs-dev" x="285" y="41" text-anchor="middle">V_vent</text><text class="fs-text" x="336" y="56" text-anchor="start">air, vacuum pump</text><path class="fs-pipe" d="M230.0 84 H330" marker-end="url(#fs-ah-dac)"/><path class="fs-valve" d="M278 77 L292 91 L292 77 L278 91 Z"/><text class="fs-dev" x="285" y="73" text-anchor="middle">V_extract</text><text class="fs-text" x="336" y="88" text-anchor="start">CO₂ product, vacuum pump</text><path class="fs-pipe" d="M230.0 230 V292"/><path class="fs-pipe" d="M30 260 H226.0" marker-end="url(#fs-ah-dac)"/><path class="fs-valve" d="M148 253 L162 267 L162 253 L148 267 Z"/><text class="fs-dev" x="155" y="249" text-anchor="middle">V_feed</text><text class="fs-text" x="30" y="249" text-anchor="start">air, 400 ppm CO₂</text><path class="fs-pipe" d="M30 292 H226.0" marker-end="url(#fs-ah-dac)"/><path class="fs-valve" d="M148 285 L162 299 L162 285 L148 299 Z"/><text class="fs-dev" x="155" y="281" text-anchor="middle">V_steam</text><text class="fs-text" x="30" y="281" text-anchor="start">steam, 50 mbar</text></svg></div><div><svg viewBox="0 0 440 90" role="img" aria-label="Cycle: pressurisation 30 s, adsorption 13772 s, blowdown 30 s, heating 704 s, desorption 30000 s"><text class="fs-dev" x="44" y="22" text-anchor="end">Bed</text><rect class="fs-seg " x="52.5" y="10" width="1.0" height="16" style="fill:var(--mc-step-pressurise)"><title>pressurisation, 30 s</title></rect><rect class="fs-seg " x="52.8" y="10" width="115.7" height="16" style="fill:var(--mc-step-adsorb)"><title>adsorption, 13772 s</title></rect><rect class="fs-seg " x="169.5" y="10" width="1.0" height="16" style="fill:var(--mc-step-blowdown)"><title>blowdown, 30 s</title></rect><rect class="fs-seg " x="169.7" y="10" width="5.0" height="16" style="fill:var(--mc-step-heat)"><title>heating, 704 s</title></rect><rect class="fs-seg " x="175.7" y="10" width="253.3" height="16" style="fill:var(--mc-step-evacuate)"><title>desorption, 30000 s</title></rect><text class="fs-dev" x="52.0" y="46" text-anchor="middle">0</text><text class="fs-dev" x="136.8" y="46" text-anchor="middle">10000</text><text class="fs-dev" x="221.5" y="46" text-anchor="middle">20000</text><text class="fs-dev" x="306.3" y="46" text-anchor="middle">30000</text><text class="fs-dev" x="391.1" y="46" text-anchor="middle">40000</text><text class="fs-dev" x="430" y="60" text-anchor="end">time in the cycle [s]</text><rect x="8" y="70" width="12" height="8" rx="1" style="fill:var(--mc-step-adsorb)"/><text class="fs-dev" x="24" y="78">adsorption</text><rect x="102.0" y="70" width="12" height="8" rx="1" style="fill:var(--mc-step-blowdown)"/><text class="fs-dev" x="118.0" y="78">blowdown</text><rect x="184.0" y="70" width="12" height="8" rx="1" style="fill:var(--mc-step-heat)"/><text class="fs-dev" x="200.0" y="78">heating</text><rect x="260.0" y="70" width="12" height="8" rx="1" style="fill:var(--mc-step-evacuate)"/><text class="fs-dev" x="276.0" y="78">desorption</text></svg></div></div>
+<figcaption>All gas leaves the top of the bed: air during adsorption, the remaining air to the vacuum pump through the vent during blowdown and heating, and the CO₂ with the steam through the product line during desorption. The jacket heats the bed during heating and desorption. The 30 s pressurisation is too short to show.</figcaption>
+</figure>
+```
+
+| Setting | Value |
+|---|---|
+| Feed | air with 400 ppm CO₂ at 20 °C and 50% relative humidity, 1 bar, 50 cm³/s |
+| Column | 1 cm long, 8 cm inner diameter, in a jacket |
+| Pressures | 1 bar adsorption, 50 mbar blowdown, heating and desorption |
+| Steps | pressurisation 30 s, adsorption 13772 s, blowdown 30 s, heating 704 s with the jacket at 95 °C, desorption 30000 s with the jacket at 95 °C and steam at 25 cm³/s |
+
+| | Production | Dry purity | Electrical | Thermal |
+|---|---|---|---|---|
+| Paper, over its desorption times | 1.2 to 2.55×10⁻⁵ kg/h | > 99.6% | 0.25 to 2 MJ/kg | 35 to 100 MJ/kg |
+| Mocca, at the base case | 2.19×10⁻⁵ kg/h | 99.96% | 0.41 MJ/kg | 218 MJ/kg |
+| Paper, peak with and without steam | 2.55 and 2.32×10⁻⁵ kg/h | | | 35 and 10.6 MJ/kg |
+| Mocca, peak with and without steam | 3.21 and 2.80×10⁻⁵ kg/h | | | 95 and 9.1 MJ/kg |
+
+What is known about the differences:
+
+- The bed holds more CO₂ than in the paper, 2.15 mol/kg at the top at the end
+  of adsorption against 1.8, and produces about a quarter more. The paper
+  lowered the capacities of its isotherms to match breakthrough experiments,
+  by an amount it does not give.
+- The heat for the steam, 25 cm³/s at 50 mbar and 95 °C, is several times what
+  the paper's thermal energies allow for; its steam flow may be measured at
+  other conditions, which it does not give. The heat from the jacket alone, in
+  the cycle without steam, matches the paper's.
+- Mocca pressurises the bed with air for 30 s before adsorption, where the
+  paper opens it to 1 bar at once.
+- The paper gives no permeability; Blake–Kozeny for its particles gives a
+  pressure drop of 0.05 mbar, below its 1 mbar.
+
+Each cycle nearly saturates and nearly empties the bed, so three plain cycles
+bring the change over a cycle to 10⁻⁶ and Newton's method finishes in one or
+two iterations, about half a minute in all. The
+[Direct air capture by steam-assisted TVSA](@ref) example runs it, follows the
+top of the bed through the cycle and compares the cycles with and without
+steam over the desorption time, and
+[Optimising direct air capture](@ref) finds the most productive desorption
+time and the steam flow that takes the least heat.

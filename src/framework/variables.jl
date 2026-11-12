@@ -40,21 +40,22 @@ Jutul.minimum_value(t::Temperature) = t.min
 Jutul.absolute_increment_limit(t::Temperature) = t.max_abs
 Jutul.relative_increment_limit(t::Temperature) = t.max_rel
 
+"Smallest gas mole fraction, unless the isotherm asks for less (see `minimum_mole_fraction`)"
+const MIN_GAS_MOLEFRACTION = 1e-12
+
 struct GasMoleFractions <: Jutul.FractionVariables
     dz_max::Float64
-    GasMoleFractions(; dz_max=0.2) = new(dz_max)
+    minimum::Float64
+    GasMoleFractions(; dz_max=0.2, minimum = MIN_GAS_MOLEFRACTION) = new(dz_max, minimum)
 end
 
 Jutul.values_per_entity(model::MoccaModel, ::GasMoleFractions) = number_of_components(model.system)
 
-const MIN_GAS_MOLEFRACTION = 1e-12
+Jutul.minimum_value(y::GasMoleFractions) = y.minimum
 
-function Jutul.minimum_value(::GasMoleFractions)
-    return MIN_GAS_MOLEFRACTION
-end
-
-function Jutul.maximum_value(::GasMoleFractions)
-    return 1.0 - MIN_GAS_MOLEFRACTION
-end
+# Below one by the default minimum, also when the minimum is smaller: a
+# fraction of exactly one would leave the others at zero, where some models
+# divide zero by zero (the macropore linear driving force, for one)
+Jutul.maximum_value(y::GasMoleFractions) = 1.0 - max(y.minimum, MIN_GAS_MOLEFRACTION)
 
 Jutul.absolute_increment_limit(z::GasMoleFractions) = z.dz_max

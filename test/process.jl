@@ -43,6 +43,35 @@ import Jutul.DictOptimization: DictParameters, free_optimization_parameter!, par
     @test Mocca.vacuum_pump_energy(states, ts, :V_feed; window = w2, discharge_pressure = 1.0) == 0
 end
 
+@testset "Blower work on links" begin
+    R = Mocca.GAS_CONSTANT
+    k = (1.4 - 1) / 1.4
+    link(F, P_in, P_out) = Dict(:L => Dict(:MolarFlow => [F], :InletPressure => [P_in], :OutletPressure => [P_out],
+        :InletTemperature => [300.0], :OutletTemperature => [310.0]))
+    G = Mocca.BlowerObjective(:L; efficiency = 0.8)
+    # Gas raised from the inlet to the outlet, from the inlet temperature
+    @test G(nothing, link(2.0, 1e5, 1.2e5), 3.0, nothing, nothing) ≈ 3.0 * 2.0 * R * 300.0 / k * (1.2^k - 1) / 0.8
+    # Flowing back, raised from the outlet to the inlet, from the outlet temperature
+    @test G(nothing, link(-2.0, 1.2e5, 1e5), 3.0, nothing, nothing) ≈ 3.0 * 2.0 * R * 310.0 / k * (1.2^k - 1) / 0.8
+    # Let down in pressure either way, as through a valve: no work
+    @test G(nothing, link(2.0, 1.2e5, 1e5), 3.0, nothing, nothing) == 0
+    @test G(nothing, link(-2.0, 1e5, 1.2e5), 3.0, nothing, nothing) == 0
+    @test Mocca.blower_energy([link(2.0, 1e5, 1.2e5), link(2.0, 1.2e5, 1e5)], [3.0, 1.0], :L; efficiency = 0.8) ≈
+        G(nothing, link(2.0, 1e5, 1.2e5), 3.0, nothing, nothing)
+
+    # The equalisation of a two-bed VSA passes gas through a valve, down in
+    # pressure, so the energy is that of the pumps and compressors as before
+    p = two_bed_vsa_process(ncells = 6)
+    r = simulate(p)
+    @test sum(abs(s[:V_eq][:MolarFlow][1]) * dt for (s, dt) in zip(r.states, r.timesteps)) > 0
+    perf = performance(r)
+    @test perf.blower_energy == 0
+    o = p.options
+    E = sum(Mocca.vacuum_pump_energy(r.states, r.timesteps, d; discharge_pressure = o.ambient_pressure) for d in (:V_vacuum_A, :V_vacuum_B)) +
+        sum(Mocca.compressor_energy(r.states, r.timesteps, d; suction_pressure = o.ambient_pressure) for d in (:V_feed_A, :V_feed_B))
+    @test perf.energy ≈ E rtol = 1e-12
+end
+
 @testset "Cyclic steady state" begin
     p = haghpanah_vsa(; ncells = 10, max_dt = 5.0)
     model, prm = p.model, p.parameters
@@ -60,7 +89,8 @@ end
     @test contains(lines[1], "cycle   1") && contains(lines[1], "change ")
     @test contains(lines[end], "$(res.cycles) cycles") && contains(lines[end], "< 1.0e-03") && contains(lines[end], "  converged")
     @test sum(res.timesteps) ≈ 100.0
-    @test Mocca.cycle_change(model, res.state0, Mocca.restart_state(model, res.states[end])) ≈ res.history[end]
+    @test Mocca.cycle_change(model, res.state0, Mocca.restart_state(model, res.states[end]);
+        nonlinear_tolerance = Mocca.Operation.DEFAULT_NONLINEAR_TOLERANCE) ≈ res.history[end]
 
     # Successive substitution is much slower to get there
     plain = Mocca.simulate_to_cyclic_steady_state(model, state0, prm, forces, dt; tol = 1e-3, max_cycles = res.cycles, acceleration = :none)
@@ -230,6 +260,59 @@ end
     s1 = deepcopy(s0)
     s1[:y][1, :] .+= 1e-12
     @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-12 / Mocca.MOLE_FRACTION_SCALE_FLOOR
+end
+
+@testset "Cycle change beyond what the steps resolve" begin
+    bed = haghpanah_vsa(; ncells = 4).flowsheet[:Bed]
+    state(y, q) = Mocca.setup_process_state(bed; Pressure = 1e5, Temperature = 298.15, WallTemperature = 298.15,
+        y = y, AdsorbedConcentration = q)
+    ntol = 1e-8
+    change(s0, s1) = Mocca.cycle_change(bed, s0, s1; nonlinear_tolerance = ntol)
+    # A trace last moves by minus the change of the others: measured against
+    # its floor, the change of round-off size of a Newton step is far above
+    # any tolerance, but it is well within what the steps resolve
+    s0 = state([1 - 1e-10, 1e-10], fill(1.0, 2, 4))
+    s1 = deepcopy(s0)
+    s1[:y][1, :] .+= 1e-12
+    s1[:y][2, :] .-= 1e-12
+    @test Mocca.cycle_change(bed, s0, s1) ≈ 1e-12 / Mocca.MOLE_FRACTION_SCALE_FLOOR
+    @test change(s0, s1) == 0
+    # Beyond the resolution, the excess counts against the scale, so that a
+    # change c ≤ tol is |Δx| ≤ tol·scale + atol
+    s1 = deepcopy(s0)
+    s1[:y][1, :] .+= 3e-8
+    s1[:y][2, :] .-= 3e-8
+    @test change(s0, s1) ≈ 2e-8 / Mocca.MOLE_FRACTION_SCALE_FLOOR
+    # Loadings resolve to ntol of the cell's total loading
+    s0 = state([0.5, 0.5], [fill(2.0, 1, 4); fill(1.0, 1, 4)])
+    s1 = deepcopy(s0)
+    s1[:AdsorbedConcentration][2, :] .+= 2e-8
+    @test change(s0, s1) == 0
+    s1[:AdsorbedConcentration][2, :] .+= 3e-8
+    @test change(s0, s1) ≈ 2e-8 / Mocca.Operation._variable_scale(bed, :AdsorbedConcentration, s0[:AdsorbedConcentration])[2]
+    # Pressure to ntol of itself, temperatures to ntol in kelvin
+    s1 = deepcopy(s0)
+    s1[:Pressure] .+= 5e-4
+    @test change(s0, s1) == 0
+    s1[:Pressure] .+= 1.5e-3
+    @test change(s0, s1) ≈ 1e-3 / 1e5
+    s1 = deepcopy(s0)
+    s1[:Temperature] .+= 5e-9
+    @test change(s0, s1) == 0
+    s1[:WallTemperature] .+= 3e-8
+    @test change(s0, s1) ≈ 2e-8 / 298.15 rtol = 1e-5
+
+    # Newton's method weighs each unknown as the test does: an entry passes
+    # at `tol` when its change is at most `tol` times its weight
+    tol = 1e-9
+    vmap, = Jutul.variable_mapper(bed, :primary)
+    dofs = Mocca.Operation._holdup_dofs(bed, vmap)
+    d = Mocca.Operation._dof_scale(bed, s0, vmap, dofs; tol = tol, ntol = ntol)
+    P = vmap[:Pressure].offset_x .+ (1:4)
+    @test d[P] ≈ fill(1e5 + ntol * 1e5 / tol, 4)
+    # The mole fractions are N − 1 unknowns, each weighed as its component
+    Y = vmap[:y].offset_x .+ (1:vmap[:y].n_x)
+    @test length(Y) == 4 && d[Y] ≈ fill(0.5 + ntol / tol, 4)
 end
 
 @testset "Flowsheet adjoint gradients" begin

@@ -84,13 +84,6 @@ function FixedBed(;
     )
 end
 
-# A thermodynamics model, or constant heat capacities per mass that make one
-function _thermodynamics(model, heat_capacities, molar_masses, phase)
-    isnothing(model) || isnothing(heat_capacities) || error("give the $phase thermodynamics or its heat capacities, not both")
-    isnothing(heat_capacities) || return IdealGasConstantCp(; molar_masses = molar_masses, heat_capacities = heat_capacities)
-    return model
-end
-
 # Terms the shared conservation laws pick up for a fixed bed
 Framework.mass_source_terms(::FixedBed) = (SorptionUptake(),)
 function Framework.heat_capacity_terms(sys::FixedBed)

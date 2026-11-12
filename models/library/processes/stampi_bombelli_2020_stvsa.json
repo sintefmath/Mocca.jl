@@ -1,0 +1,215 @@
+{
+  "format": "mocca-process",
+  "version": 1,
+  "name": "Stampi-Bombelli et al. (2020), steam-assisted TVSA for direct air capture",
+  "gas": {
+    "components": [
+      "CO2",
+      "H2O",
+      "N2"
+    ],
+    "molar_masses": {
+      "CO2": 0.04401,
+      "H2O": 0.018015,
+      "N2": 0.0280134
+    },
+    "heat_capacities": {
+      "CO2": 846.0,
+      "H2O": 1864.0,
+      "N2": 1040.0
+    },
+    "diffusivity": 1.6e-5
+  },
+  "feed": {
+    "composition": {
+      "CO2": 0.0004,
+      "H2O": 0.0115,
+      "N2": 0.9881
+    },
+    "temperature": 293.15,
+    "pressure": 100000.0,
+    "light_product": {
+      "CO2": 1.0e-10,
+      "H2O": 0.011504601839585835,
+      "N2": 0.9884953980604141
+    }
+  },
+  "adsorbents": {
+    "APDES-NFC": {
+      "format": "mocca-adsorbent",
+      "version": 1,
+      "name": "APDES-NFC",
+      "reference": "Stampi-Bombelli, van der Spek and Mazzotti, Adsorption 26 (2020) 1183, doi:10.1007/s10450-020-00249-w: amine-functionalised nanofibrillated cellulose, isotherms of Table 2, properties and kinetics of Table 1. The density is that of the material (1590 kg/m³); a bed porosity of 1 - 55.4/1590 = 0.965 gives the paper's bed density of 55.4 kg/m³ and its total void fraction. Adsorbed-phase heat capacities are the paper's molar ones per kg of each component.",
+      "density": 1590.0,
+      "heat_capacity": 2070.0,
+      "particle_diameter": 0.0075,
+      "particle_porosity": 0.9616,
+      "tortuosity": 3.0,
+      "adsorbed_heat_capacity": {
+        "H2O": 4057.7,
+        "CO2": 964.8
+      },
+      "isotherm": {
+        "type": "toth_gab",
+        "component": "CO2",
+        "water": "H2O",
+        "basis": "mass",
+        "ns0": 2.38,
+        "b0": 707.4,
+        "t0": 0.4148,
+        "alpha": -1.606,
+        "chi": 0.0,
+        "dH0": -57047.0,
+        "reference_temperature": 296.0,
+        "gamma": 0.0061,
+        "beta": 28.907,
+        "cm": 36.48,
+        "cG": 0.1489,
+        "K": 0.5751,
+        "heats": {
+          "CO2": -57000.0,
+          "H2O": -49000.0
+        }
+      },
+      "mass_transfer": {
+        "type": "lumped_linear_driving_force",
+        "rates": {
+          "CO2": 0.0002,
+          "H2O": 0.002
+        },
+        "default": 1.0
+      }
+    }
+  },
+  "columns": {
+    "column_1": {
+      "length": 0.01,
+      "radius": 0.04,
+      "outer_radius": 0.041,
+      "porosity": 0.9651572327044026,
+      "axial_conductivity": 0.0,
+      "wall": {
+        "density": 8000.0,
+        "heat_capacity": 500.0,
+        "conductivity": 0.0
+      },
+      "inner_heat_transfer": 3.0,
+      "outer_heat_transfer": 26.0,
+      "ambient_temperature": 293.15
+    }
+  },
+  "units": [
+    {
+      "name": "Bed",
+      "type": "fixed_bed",
+      "adsorbent": "APDES-NFC",
+      "column": "column_1",
+      "ncells": 10,
+      "thermal": "with_wall",
+      "dispersion_velocity": "adsorption",
+      "dispersion": 0.0,
+      "permeability": 3.5175962067049233e-10
+    }
+  ],
+  "devices": [
+    {
+      "name": "V_feed",
+      "role": "feed",
+      "at": [
+        "Bed",
+        "bottom"
+      ]
+    },
+    {
+      "name": "V_steam",
+      "role": "light_inlet",
+      "at": [
+        "Bed",
+        "bottom"
+      ],
+      "boundary": {
+        "pressure": 5000.0,
+        "temperature": 368.15,
+        "composition": {
+          "CO2": 1.0e-10,
+          "H2O": 0.9999999998,
+          "N2": 1.0e-10
+        }
+      }
+    },
+    {
+      "name": "V_product",
+      "role": "product",
+      "at": [
+        "Bed",
+        "top"
+      ]
+    },
+    {
+      "name": "V_vent",
+      "role": "waste",
+      "at": [
+        "Bed",
+        "top"
+      ]
+    },
+    {
+      "name": "V_extract",
+      "role": "extract",
+      "at": [
+        "Bed",
+        "top"
+      ]
+    }
+  ],
+  "cycle": {
+    "steps": [
+      {
+        "type": "pressurise",
+        "duration": 30.0,
+        "source": "feed"
+      },
+      {
+        "type": "adsorb",
+        "duration": 13772.0,
+        "flow_rate": 5.0e-5
+      },
+      {
+        "type": "blowdown",
+        "duration": 30.0,
+        "to": 5000.0,
+        "through": "top",
+        "device": "V_vent"
+      },
+      {
+        "type": "evacuate",
+        "duration": 704.0,
+        "to": 5000.0,
+        "through": "top",
+        "device": "V_vent",
+        "jacket_temperature": 368.15,
+        "name": "heating"
+      },
+      {
+        "type": "purge",
+        "duration": 30000.0,
+        "flow_rate": 2.5e-5,
+        "jacket_temperature": 368.15,
+        "name": "desorption"
+      }
+    ]
+  },
+  "time_stepping": {
+    "max_dt": 100.0,
+    "first_dt": 0.01,
+    "keep_step_pattern": "auto"
+  },
+  "options": {
+    "key_component": "CO2",
+    "ambient_pressure": 100000.0,
+    "pump_efficiency": 0.72,
+    "heat_capacity_ratio": 1.4,
+    "ramp_rate": 0.5,
+    "ambient_temperature": 293.15
+  }
+}

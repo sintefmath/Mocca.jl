@@ -77,7 +77,8 @@ end
     @test_throws MoccaInputError dual_site_langmuir("CO2" => (qsb = 1.0, b0 = 1e-6, ΔUb = -1.0, qs = 2.0))
     @test_throws MoccaInputError Adsorbent(; isotherm = perkg, density = 1000.0, heat_capacity = 900.0, particle_diameter = 1e-3, particle_porosity = 1.5)
     @test_throws MoccaInputError Column(; length = 1.0, radius = 0.1, porosity = 0.0)
-    @test library_adsorbents() == ["silica_gel_krishnamurthy_2014", "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
+    @test library_adsorbents() == ["activated_carbon_mondino_2022", "apdes_nfc_stampi_bombelli_2020", "silica_gel_krishnamurthy_2014",
+        "zeolite_13x_haghpanah_2013", "zeolite_13x_krishnamurthy_2014"]
     # Writing and reading an adsorbent gives it back
     path = save_adsorbent(joinpath(mktempdir(), "a.json"), a)
     b = load_adsorbent(path)
@@ -231,8 +232,17 @@ end
     fa, = M.cycle_schedule(p)
     fb, = M.cycle_schedule(q)
     @test force_difference(fa, p.model, fb, q.model) == 0
-    @test library_processes() == ["haghpanah_2013_four_stage_vsa", "krishnamurthy_2014_dual_adsorbent_vsa", "krishnamurthy_2014_lpp_vsa"]
+    @test library_processes() == ["haghpanah_2013_four_stage_vsa", "krishnamurthy_2014_dual_adsorbent_vsa", "krishnamurthy_2014_lpp_vsa",
+        "mondino_2022_mbtsa", "stampi_bombelli_2020_stvsa"]
+    @test read_process("mondino_2022_mbtsa") isa SteadyProcess
     @test read_process("haghpanah_2013_four_stage_vsa") isa Process
+    # Process is the abstract type of every process; Process(fs, cycle) builds
+    # a cyclic one, whose results are cyclic results
+    @test p isa CyclicProcess && isabstracttype(Process) && isabstracttype(ProcessResult)
+    @test Process(p.flowsheet, p.cycle) isa CyclicProcess
+    @test simulate(Process(p.flowsheet, Cycle([Adsorb(1.0; velocity = 0.5)]))) isa CyclicResult
+    @test CyclicResult <: ProcessResult
+    @test startswith(sprint(show, MIME"text/plain"(), p), "Cyclic process")
     # A hand-written file with units in strings
     txt = """
     {"gas": {"components": ["CO2", "N2"]},
@@ -454,6 +464,17 @@ end
     add_variable!(p, :P_L, ("evacuation", :to); bounds = (0.05bar, 0.3bar))
     add_variable!(p, :t_ads, ("adsorption", :duration); bounds = (10.0, 30.0))
     add_variable!(p, :P_H, (:feed, :pressure); bounds = (1.05bar, 1.5bar))
+    # The column length: the bed is rebuilt on as many cells, and the volumes,
+    # areas, transmissibilities and valve conductances follow
+    add_variable!(p, :L, (:geometry, :Bed, :length))
+    # Measures of the user's own, from an integral of their own and from the
+    # built-in integrals and quantities, with no derivative code
+    add_integral!(p, :n2_extract, Mocca.StreamObjective(:V_vacuum; component = 2))
+    add_measure!(p, :nitrogen_fraction, s -> s.n2_extract / s.total_extract)
+    add_measure!(p, :co2_rate, s -> s.key_extract / s.duration)
+    @test_throws MoccaInputError add_measure!(p, :purity, s -> 0.0)
+    @test_throws MoccaInputError add_integral!(p, :duration, Mocca.StreamObjective(:V_vacuum))
+    @test keys(performance_measures(p)) == (:purity, :recovery, :specific_energy, :productivity, :nitrogen_fraction, :co2_rate)
     io = IOBuffer()
     g = performance_gradient(p; progress = io)
     @test g.steady_state.converged
@@ -469,21 +490,179 @@ end
     k = cyclic_steady_state(p; tol = 1e-11, krylov = true, progress = false)
     @test k.converged
     @test performance(k).recovery ≈ g.metrics.recovery rtol = 1e-8
-    for n in (:P_L, :t_ads, :P_H)
+    for n in (:P_L, :t_ads, :P_H, :L)
         x0 = p[n]
         h = 1e-4 * x0
         p[n] = x0 + h; up = value()
         p[n] = x0 - h; down = value()
         p[n] = x0
-        for k in (:purity, :recovery, :specific_energy, :productivity)
+        for k in (:purity, :recovery, :specific_energy, :productivity, :nitrogen_fraction, :co2_rate)
             @test g.gradients[k][n] ≈ (up[k] - down[k]) / 2h rtol = 1e-4
         end
     end
+    # In a two-component gas the nitrogen fraction of the extract is one less
+    # its purity
+    @test g.metrics.nitrogen_fraction ≈ 1 - g.metrics.purity rtol = 1e-12
+    @test g.metrics.co2_rate ≈ g.metrics.extract[1] / g.metrics.cycle_time rtol = 1e-12
+    for n in (:P_L, :t_ads, :P_H)
+        @test g.gradients.nitrogen_fraction[n] ≈ -g.gradients.purity[n] rtol = 1e-6
+    end
+    # One measure from two integrals takes one adjoint of its linearisation,
+    # with the same result
+    gp = performance_gradient(p; measures = [:purity], steady_state = g.steady_state, progress = false)
+    @test keys(gp.gradients) == (:purity,)
+    for n in (:P_L, :t_ads, :P_H)
+        @test gp.gradients.purity[n] ≈ g.gradients.purity[n] rtol = 1e-6
+    end
+    @test_throws MoccaInputError performance_gradient(p; measures = [:cost], steady_state = g.steady_state)
     r = optimise!(p; variables = [:P_L, :t_ads], maximise = :recovery, at_least = (purity = 0.5,), max_it = 2)
+    @test p[:L] == 1.0
     @test r.evaluations >= 2
     @test 0.05bar <= r.values.P_L <= 0.3bar && 10.0 <= r.values.t_ads <= 30.0
     @test p[:P_L] == r.values.P_L
     @test r.metrics.recovery >= first(r.history).metrics.recovery - 1e-9
+    # The purity target is easy, so the design found meets it
+    @test r.feasible && r.metrics.purity >= 0.5 - 1e-4 && haskey(r.multipliers, :purity)
+    @test all(h -> h.settled, r.history)
+    # A target that binds: the augmented Lagrangian meets it
+    purity_now = r.metrics.purity
+    target = purity_now + 0.01
+    rp = optimise!(p; variables = [:P_L, :t_ads], maximise = :recovery, at_least = (purity = target,), max_it = 3, constraints = :penalty)
+    @test rp.multipliers.purity == 0
+    rl = optimise!(p; variables = [:P_L, :t_ads], maximise = :recovery, at_least = (purity = target,), max_it = 3)
+    @test rl.metrics.purity >= target - 1e-4 && rl.feasible
+    @test rl.multipliers.purity > 0
+    # Without gradients: a compass search
+    rc = optimise!(p; variables = [:P_L, :t_ads], maximise = :recovery, at_least = (purity = 0.5,), method = :pattern, max_it = 6)
+    @test rc.evaluations <= 6 && rc.metrics.recovery >= first(rc.history).metrics.recovery
+    @test_throws MoccaInputError optimise!(p; variables = [:P_L], maximise = :recovery, method = :newton)
+    @test_throws MoccaInputError optimise!(p; variables = [:P_L], maximise = :recovery, constraints = :barrier)
+    # A Pareto front of two points, each from the last
+    front = pareto_front!(p; variables = [:P_L, :t_ads], maximise = :recovery, sweep = :purity => [0.55, 0.6], max_it = 2)
+    @test length(front) == 2 && all(pt -> pt.metrics.purity >= pt.target - 1e-3, front)
+    @test front[2].metrics.recovery <= front[1].metrics.recovery + 1e-3
+    # A look around the box, which leaves the process as it was
+    x = M.variable_values(p, [:P_L, :t_ads])
+    pts = explore(p; variables = [:P_L, :t_ads], samples = 3)
+    @test length(pts) == 3 && M.variable_values(p, [:P_L, :t_ads]) == x
+    @test pts[1].values.P_L ≈ 0.05bar + 0.5 * 0.25bar && pts[1].values.t_ads ≈ 10.0 + 20.0 / 3
+    @test pts[1].settled && pts[2].settled
+    # The third evacuates to 0.2375 bar, above the blowdown pressure: a design
+    # that cannot be built, flagged rather than stopping the search
+    @test pts[3].values.P_L ≈ 0.2375bar && !pts[3].settled && isnothing(pts[3].metrics)
+end
+
+@testset "Gradient checks" begin
+    s(a, d) = M.Interface._check_status(a, d, 1e-12, 1e-3)[2]
+    @test s(1.0, [1.0001, 1.0]) == :pass
+    # The differences agree with each other but not with the gradient
+    @test s(2.0, [1.0, 1.0001]) == :fail
+    # They disagree as much with each other, as at a kink
+    @test s(2.0, [1.0, 3.5]) == :inconclusive
+    p = four_stage_vsa_process(ncells = 6, durations = (10.0, 15.0, 20.0, 25.0), timestepping = TimeStepping(max_dt = 1.0, first_dt = 0.05))
+    add_variable!(p, :P_L, ("evacuation", :to))
+    io = IOBuffer()
+    r = check_gradients(p; measures = [:recovery, :specific_energy], io = io)
+    @test r.passed && all(row -> row.status == :pass, r.rows) && length(r.rows) == 2
+    out = String(take!(io))
+    @test contains(out, "Gradient checks of four-stage VSA") && contains(out, "2 passed, 0 inconclusive, 0 failed")
+    @test p[:P_L] == 0.1bar
+end
+
+@testset "Compass search and Halton points" begin
+    I = M.Interface
+    # The maximum of a concave quadratic in the unit box, at a corner of the
+    # steps' lattice, with a constraint that cuts the box
+    r = I._compass_search(u -> -(u[1] - 0.25)^2 - (u[2] - 0.75)^2, [0.5, 0.5], u -> u[1] + u[2] <= 1.0 + 1e-12; max_evaluations = 200)
+    @test r.u ≈ [0.25, 0.75] atol = 1e-3
+    # A point where the function fails does not improve
+    r = I._compass_search(u -> u[1] > 0.6 ? NaN : u[1], [0.5], u -> true)
+    @test r.u[1] <= 0.6
+    @test I._halton.(1:4, 2) == [0.5, 0.25, 0.75, 0.125]
+    @test I._halton.(1:3, 3) ≈ [1 / 3, 2 / 3, 1 / 9]
+end
+
+@testset "Geometry and scaled places" begin
+    p = four_stage_vsa_process(ncells = 6)
+    V = sum(p.parameters[:Bed][:FluidVolume])
+    T = copy(p.parameters[:Bed][:Transmissibilities])
+    add_variable!(p, :L, (:geometry, :Bed, :length))
+    add_variable!(p, :R, GeometryPlace(:Bed, :radius))
+    add_variable!(p, :ε, (:geometry, :Bed, :porosity))
+    p[:L] = 2.0
+    @test p.flowsheet.specs[:Bed].column.length == 2.0 && p.flowsheet.specs[:Bed].ncells == 6
+    @test sum(p.parameters[:Bed][:FluidVolume]) ≈ 2V
+    @test p.parameters[:Bed][:Transmissibilities] ≈ T ./ 2
+    @test length(M.initial_state(p)[:Bed][:Pressure]) == 6
+    # A new radius keeps the wall's thickness
+    c = p.flowsheet.specs[:Bed].column
+    p[:R] = 0.2
+    @test p.flowsheet.specs[:Bed].column.outer_radius - 0.2 ≈ c.outer_radius - c.radius
+    @test_throws MoccaInputError p[:ε] = 1.5
+    @test_throws MoccaInputError add_variable!(p, :bad, (:geometry, :Bed, :wall))
+    @test_throws MoccaInputError add_variable!(p, :bad, (:geometry, :V_feed, :length))
+    # A place in other units than the variable
+    add_variable!(p, :P_L_mbar, ScaledPlace(StepPlace("evacuation", :to), 100.0))
+    @test p[:P_L_mbar] ≈ M.Interface._get(p, StepPlace("evacuation", :to)) / 100
+    p[:P_L_mbar] = 150.0
+    @test M.Interface._get(p, StepPlace("evacuation", :to)) == 15000.0
+    # Written to a file and read back, with their places
+    q = read_process(write_process(joinpath(mktempdir(), "geometry.json"), p))
+    @test all(((a, b),) -> a.name == b.name && a.places == b.places, zip(q.variables, p.variables))
+    @test q[:L] == 2.0 && q[:R] == 0.2 && q[:P_L_mbar] == 150.0
+end
+
+@testset "Convergence does not depend on the order of the gas components" begin
+    # The wet flue gas with water before nitrogen converges with the default
+    # Newton's method, as in the usual order, where a trace last held it at a
+    # change of 10⁻⁶ before. The solver cuts different steps for the two
+    # orders, which Newton's method then keeps, so the steady states differ by
+    # the error of the steps: about 10⁻⁴ in the recovery here. With steps
+    # neither order cuts (max_dt = 0.25, first_dt = 0.01 on 10 cells) the
+    # dual-adsorbent VSA agrees to 10⁻⁹.
+    usual = M.krishnamurthy_2014_gas()
+    order = ["CO2", "H2O", "N2"]
+    perm = [findfirst(==(n), usual.names) for n in order]
+    gas = Gas(order; molar_masses = usual.molar_masses[perm], heat_capacities = usual.heat_capacities[perm],
+        viscosity = usual.viscosity, density = usual.density, diffusivity = usual.diffusivity[perm])
+    for make in (lpp_vsa_process, dual_adsorbent_vsa_process)
+        io = IOBuffer()
+        a = cyclic_steady_state(make(ncells = 6); progress = io)
+        b = cyclic_steady_state(make(ncells = 6, gas = gas); progress = false)
+        @test a.converged && b.converged
+        pa, pb = performance(a), performance(b)
+        @test pb.purity ≈ pa.purity rtol = 1e-3
+        @test pb.recovery ≈ pa.recovery rtol = 1e-3
+        @test pb.specific_energy ≈ pa.specific_energy rtol = 1e-3
+        @test pb.extract ≈ pa.extract[perm] rtol = 1e-3
+        for u in M.beds(a.process.flowsheet)
+            @test b.state0[u][:Pressure] ≈ a.state0[u][:Pressure] rtol = 1e-3
+            @test b.state0[u][:Temperature] ≈ a.state0[u][:Temperature] rtol = 1e-3
+            @test maximum(abs, b.state0[u][:y] .- a.state0[u][:y][perm, :]) < 1e-3
+            @test b.state0[u][:AdsorbedConcentration] ≈ a.state0[u][:AdsorbedConcentration][perm, :] rtol = 1e-3
+        end
+        # Every component's inventory closes over the cycle, and the closure
+        # is printed at the end
+        @test all(c -> abs(c) < 1e-5, a.closure)
+        @test b.closure ≈ a.closure[perm] atol = 1e-5
+        out = String(take!(io))
+        @test contains(out, "Inventory change over the last cycle, per mole fed: CO2 ")
+    end
+
+    # A trace as the last component, which only ever moves by minus the
+    # change of the others: dry flue gas on a 13X that also takes up water,
+    # with water at 10⁻¹⁰ in the feed. Measured against a floor, the round-off
+    # of Newton's steps held the change at 10⁻⁶. The same with water in the
+    # middle.
+    trace(order) = Gas(order; molar_masses = (CO2 = 44.01e-3, N2 = 28e-3), heat_capacities = (CO2 = 697.5687, N2 = 1096.4),
+        viscosity = 1.72e-5, density = 1.22638310956, diffusivity = 1.6e-5)
+    ads = load_adsorbent("zeolite_13x_krishnamurthy_2014")
+    a = cyclic_steady_state(four_stage_vsa_process(ncells = 10, adsorbent = ads, gas = trace(["CO2", "N2", "H2O"])); progress = false)
+    b = cyclic_steady_state(four_stage_vsa_process(ncells = 10, adsorbent = ads, gas = trace(["CO2", "H2O", "N2"])); progress = false)
+    @test a.converged && b.converged
+    @test maximum(a.state0[:Bed][:y][3, :]) < 1e-8
+    @test performance(b).purity ≈ performance(a).purity rtol = 1e-6
+    @test performance(b).recovery ≈ performance(a).recovery rtol = 1e-6
 end
 
 @testset "A fine grid starts from the steady state of a coarser one" begin

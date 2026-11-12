@@ -1,0 +1,45 @@
+{
+  "format": "mocca-adsorbent",
+  "version": 1,
+  "name": "APDES-NFC",
+  "reference": "Stampi-Bombelli, van der Spek and Mazzotti, Adsorption 26 (2020) 1183, doi:10.1007/s10450-020-00249-w: amine-functionalised nanofibrillated cellulose, isotherms of Table 2, properties and kinetics of Table 1. The density is that of the material (1590 kg/m³); a bed porosity of 1 - 55.4/1590 = 0.965 gives the paper's bed density of 55.4 kg/m³ and its total void fraction. Adsorbed-phase heat capacities are the paper's molar ones per kg of each component.",
+  "density": 1590.0,
+  "heat_capacity": 2070.0,
+  "particle_diameter": 0.0075,
+  "particle_porosity": 0.9616,
+  "tortuosity": 3.0,
+  "adsorbed_heat_capacity": {
+    "CO2": 964.8,
+    "H2O": 4057.7
+  },
+  "isotherm": {
+    "type": "toth_gab",
+    "component": "CO2",
+    "water": "H2O",
+    "basis": "mass",
+    "ns0": 2.38,
+    "b0": 707.4,
+    "t0": 0.4148,
+    "alpha": -1.606,
+    "chi": 0.0,
+    "dH0": -57047.0,
+    "reference_temperature": 296.0,
+    "gamma": 0.0061,
+    "beta": 28.907,
+    "cm": 36.48,
+    "cG": 0.1489,
+    "K": 0.5751,
+    "heats": {
+      "CO2": -57000.0,
+      "H2O": -49000.0
+    }
+  },
+  "mass_transfer": {
+    "type": "lumped_linear_driving_force",
+    "rates": {
+      "CO2": 0.0002,
+      "H2O": 0.002
+    },
+    "default": 1.0
+  }
+}

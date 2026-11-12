@@ -1,4 +1,5 @@
-# Packed-bed correlations for the parameters of a fixed bed.
+# Packed-bed correlations for the permeability and axial dispersion of a bed
+# of sorbent, fixed or moving.
 
 function compute_permeability(porosity, d_p)
     return 4 / 150 * ((porosity / (1 - porosity))^2) * (d_p / 2)^2 * porosity

@@ -213,6 +213,50 @@ function device_flow(law::VolumetricFlow, state, time)
     return law.rate * port_pressure(state, 2) / (GAS_CONSTANT * port_temperature(state, 1))
 end
 
+"""
+    FixedMolarFlow(rate)
+
+Flow controller delivering `rate` [mol/s] from inlet to outlet, whatever the
+pressures at its ports. Use it for a feed or a purge given as a molar flow.
+"""
+struct FixedMolarFlow{T<:Real} <: AbstractDeviceLaw
+    rate::T
+end
+
+device_flow(law::FixedMolarFlow, state, time) = law.rate
+
+"""
+    BackPressureController(setpoint, conductance)
+
+A blower or compressor that holds the pressure at its inlet near `setpoint`
+[Pa]: it draws gas through at `q = conductance·(P_in − setpoint)` [m³/s],
+whatever the pressure at its outlet. Use it to return gas from a unit to one at
+higher pressure, such as the recycle streams of a moving bed process. The
+larger the conductance [m³/(s·Pa)], the closer the inlet stays to the setpoint.
+If the inlet falls below the setpoint, the flow reverses. The molar flow uses
+the upstream concentration, as in [`LinearValve`](@ref).
+"""
+struct BackPressureController{T<:Real} <: AbstractDeviceLaw
+    setpoint::T
+    conductance::T
+end
+BackPressureController(setpoint, conductance) = BackPressureController(promote(setpoint, conductance)...)
+
+function device_flow(law::BackPressureController, state, time)
+    ΔP = port_pressure(state, 1) - law.setpoint
+    up = ΔP >= 0 ? 1 : 2
+    c_up = port_pressure(state, up) / (GAS_CONSTANT * port_temperature(state, up))
+    return law.conductance * ΔP * c_up
+end
+
+# As for a valve, the flow with the whole upstream pressure as the drop, which
+# does not vanish at the setpoint
+function law_flow_scale(law::BackPressureController, state, time)
+    up = port_pressure(state, 1) >= law.setpoint ? 1 : 2
+    P = port_pressure(state, up)
+    return law.conductance * P * P / (GAS_CONSTANT * port_temperature(state, up))
+end
+
 function Jutul.apply_forces_to_equation!(acc, storage, model::FlowDeviceModel, eq::DeviceLawEquation, eq_s, law::AbstractDeviceLaw, time)
     isnothing(acc) && return  # parameter sensitivities, see below
     state = storage.state
@@ -299,7 +343,9 @@ end
 # Jutul.solve_adjoint_forces differentiates with respect to the numbers that
 # make up the forces of each stage:
 #
-#   law      LinearValve: conductance, opening; VolumetricFlow: rate; Closed: none
+#   law      LinearValve: conductance, opening; VolumetricFlow and
+#            FixedMolarFlow: rate; BackPressureController: setpoint,
+#            conductance; Closed: none
 #   inlet,   pressure (a number, or start, stop and λ of an ExponentialRamp),
 #   outlet   temperature, and each mole fraction
 #
@@ -316,17 +362,23 @@ _profile_from(r::ExponentialRamp, X) = ExponentialRamp(X[1], X[2], X[3]; t0 = r.
 _force_values(::Closed) = Float64[]
 _force_values(law::LinearValve) = [law.conductance, law.opening]
 _force_values(law::VolumetricFlow) = [law.rate]
+_force_values(law::FixedMolarFlow) = [law.rate]
+_force_values(law::BackPressureController) = [law.setpoint, law.conductance]
 _force_values(f::PortSetpoint) = vcat(_profile_values(f.condition.pressure), f.condition.temperature, f.condition.composition)
 
 _force_names(::Closed) = Symbol[]
 _force_names(::LinearValve) = [:conductance, :opening]
 _force_names(::VolumetricFlow) = [:rate]
+_force_names(::FixedMolarFlow) = [:rate]
+_force_names(::BackPressureController) = [:setpoint, :conductance]
 _force_names(f::PortSetpoint) = vcat(_profile_names(f.condition.pressure), :temperature,
     [Symbol("y_$i") for i in eachindex(f.condition.composition)])
 
 _force_from(::Closed, X) = Closed()
 _force_from(::LinearValve, X) = LinearValve(X[1], X[2])
 _force_from(::VolumetricFlow, X) = VolumetricFlow(X[1])
+_force_from(::FixedMolarFlow, X) = FixedMolarFlow(X[1])
+_force_from(::BackPressureController, X) = BackPressureController(X[1], X[2])
 function _force_from(f::PortSetpoint{K}, X) where K
     c = f.condition
     n = length(_profile_values(c.pressure))

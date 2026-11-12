@@ -13,8 +13,9 @@ library_adsorbents()
 adsorbent = load_adsorbent("zeolite_13x_haghpanah_2013")
 ```
 
-Each has a dual-site Langmuir isotherm (see [Model equations](@ref)) and the
-particle properties that set the mass transfer rate. The figures show the
+The zeolites and the silica gel have dual-site Langmuir isotherms (see
+[Model equations](@ref)) and the particle properties that set the mass
+transfer rate. The figures show the
 pure-component isotherms in mol/kg at three temperatures, computed with
 [`isotherm_table`](@ref); the tables give the parameters as they are in the
 file, with capacities in mol per m³ of adsorbent particles.
@@ -109,9 +110,53 @@ push!(rows, "", "Density $(num(ads.density)) kg/m³, particle diameter $(num(1e3
 Markdown.parse(join(rows, "\n"))
 ```
 
+## APDES-NFC (Stampi-Bombelli et al. 2020)
+
+An amine-functionalised nanofibrillated cellulose for direct air capture,
+the adsorbent of the S-TVSA process. CO₂ is held on a Toth isotherm whose
+affinity and capacity grow with the water loading, and water on a GAB
+isotherm in the relative humidity (see [Model equations](@ref)); the mass
+transfer coefficients were fitted to breakthrough curves. The figure shows the
+pure-component isotherms; at the 0.4 mbar of CO₂ in air the sorbent is close to
+its capacity at 20 °C, and with 50% humidity it holds about 4% more. Library
+name `"apdes_nfc_stampi_bombelli_2020"`.
+
+```@example adsorbents
+ads = Mocca.load_adsorbent("apdes_nfc_stampi_bombelli_2020") # hide
+gas = Mocca.stampi_bombelli_2020_gas() # hide
+T = [293.15, 323.15, 368.15] # hide
+fig = Figure(size = (700, 280)) # hide
+for (j, (name, pmax)) in enumerate((("CO2", 2e3), ("H2O", 2e4))) # hide
+    p = range(0, pmax, length = 201) # hide
+    ax = Axis(fig[1, j], title = name, xlabel = "partial pressure [kPa]", ylabel = j == 1 ? "loading [mol/kg]" : "") # hide
+    q = Mocca.isotherm_table(ads, gas, name; pressures = p, temperatures = T) # hide
+    for k in eachindex(T) # hide
+        ok = name == "CO2" ? trues(length(p)) : p .< 0.9 .* Mocca.water_vapour_pressure(T[k]) # hide
+        lines!(ax, p[ok] ./ 1e3, q[ok, k], label = "$(round(Int, T[k] - 273.15)) °C") # hide
+    end # hide
+    j == 1 && Legend(fig[1, 3], ax, framevisible = false) # hide
+end # hide
+fig # hide
+```
+
+| Toth, CO₂ | | GAB, H₂O | |
+|---|---|---|---|
+| ``n_{s0}`` | 2.38 mol/kg | ``c_m`` | 36.48 mol/kg |
+| ``b_0`` | 707.4 1/Pa (70.74×10⁴ 1/kPa) | ``c_G`` | 0.1489 |
+| ``t_0``, ``\alpha`` | 0.4148, −1.606 | ``K`` | 0.5751 |
+| ``\Delta H_0``, ``\chi`` | −57.047 kJ/mol, 0 | ``\Delta H`` | −49 kJ/mol |
+| ``\gamma``, ``\beta`` | 0.0061, 28.907 kg/mol | ``k`` | 2×10⁻³ 1/s |
+| ``T_0`` | 296 K | | |
+| ``\Delta H`` | −57 kJ/mol | | |
+| ``k`` | 2×10⁻⁴ 1/s | | |
+
+Density 1590 kg/m³ (the material; the bed holds 55.4 kg/m³ at a porosity of
+0.965), particle diameter 7.5 mm, heat capacity 2070 J/(kg·K).
+
 ## Your own adsorbent
 
-Write the isotherm with [`dual_site_langmuir`](@ref) or [`langmuir`](@ref),
+Write the isotherm with [`dual_site_langmuir`](@ref), [`langmuir`](@ref) or
+[`toth_gab`](@ref),
 make an [`Adsorbent`](@ref) and save it with [`save_adsorbent`](@ref) to use it
 again; the [Building a process from its parts](@ref) example does this, and
 [Process files](@ref) shows the file format. Check it against the source with

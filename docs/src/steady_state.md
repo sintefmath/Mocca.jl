@@ -16,8 +16,8 @@ result.converged, result.iterations
 
 The cycle maps the state of the beds at its start, ``x``, to the state at its
 end, ``\Phi(x)``, and the steady state solves ``x = \Phi(x)``. The change over
-a cycle is the largest relative change of any variable of any bed between
-``x`` and ``\Phi(x)`` (see [`cycle_change`](@ref)). The page
+a cycle measures how far ``\Phi(x)`` is from ``x``, as described under
+[How convergence is judged](@ref) below. The page
 [How a VSA cycle works](@ref) shows the approach to the steady state of one
 process.
 
@@ -25,13 +25,71 @@ process.
 
 | `method` | How | Converged when |
 |---|---|---|
-| `:newton` (default) | A few plain cycles, then Newton's method on ``x - \Phi(x)`` | change per cycle below `tol` = 10⁻⁹ |
-| `:anderson` | Repeated cycles with Anderson acceleration | change per cycle below `tol` = 10⁻⁶ |
+| `:newton` (default) | A few plain cycles, then Newton's method on ``x - \Phi(x)``, every cycle with steps converged to 10⁻⁸ | change per cycle below `tol` = 10⁻⁹ |
+| `:anderson` | Repeated cycles with Anderson acceleration, steps converged to 10⁻⁶ | change per cycle below `tol` = 10⁻⁶ |
 | `:mass_balance` | Repeated cycles | key component in and out agree within 0.5% for 5 cycles in a row, after at least 50 (Haghpanah et al. 2013; Krishnamurthy et al. 2014) |
 
 `:newton` and `:anderson` require every variable to settle, including slowly
 accumulating components such as water. A mass balance on one component does
 not, and can stop while the water is still far from steady.
+
+## How convergence is judged
+
+Each variable of each bed, at each cell, has settled when its change over a
+cycle is within the tolerance relative to its scale plus what the time steps
+resolve, as the mixed absolute and relative tolerances of an ODE solver:
+
+```math
+|\Phi(x)_i - x_i| \le \mathrm{tol} \cdot s_i + a_i
+```
+
+The scale ``s_i`` is the largest magnitude of the variable over the bed at the
+start of the cycle: per component for mole fractions and loadings, so that a
+minor component is measured against its own level, and over the whole bed for
+pressures and temperatures. The resolution ``a_i`` comes from the nonlinear
+tolerance of the steps, `nonlinear_tolerance`. Each step converges the mass
+balance of a cell to that fraction of the cell's holdup, and its energy
+balance to that error in kelvin, so a step resolves
+
+| Variable | Resolution ``a_i`` |
+|---|---|
+| mole fraction | the nonlinear tolerance |
+| loading | the nonlinear tolerance times the cell's total loading |
+| pressure | the nonlinear tolerance times the pressure |
+| temperature | the tolerance of its energy balance, in K: the nonlinear tolerance, but at least 10⁻⁷ K for the gas |
+
+A change within that is the noise of the steps, and asking for less would ask
+for more than the simulation gives. The change reported for a cycle, in the
+progress and in the result's `history`, is the largest
+``\max(|\Phi(x)_i - x_i| - a_i, 0) / s_i``: the cycle passes when it is below
+`tol`, and it is zero once nothing changes by more than the steps resolve.
+Far from the steady state it is the largest relative change.
+
+Every component's mole fraction is checked. The simulation solves for all
+but the last, which follows from the others, so the last changes by minus
+the sum of their changes; with the resolution in the test, that does not
+hold Newton's method back when the last component is a trace, and the
+result does not depend on the order of the components. Newton's method
+weighs its residual the same way, so that it reduces what the test measures.
+
+All the cycles of a solve are simulated at the same nonlinear tolerance, so
+that each phase works with the same cycle map: with `:newton`, the plain
+cycles and any Anderson acceleration before Newton's method run at Newton's
+10⁻⁸, which is also that of the adjoints for gradients. Pass
+`nonlinear_tolerance` to change it, for example to converge more tightly.
+
+The result also has the inventory closure of the last cycle, `closure`: for
+each component, the change of the moles the beds hold, in the gas and on the
+sorbent, over the cycle, as a fraction of the moles of it fed through the
+inlet devices. It is printed at the end of the progress, here for the wet
+flue gas LPP VSA:
+
+```
+Inventory change over the last cycle, per mole fed: CO2 -8.68e-10, N2 1.59e-16, H2O 3.89e-10
+```
+
+It does not depend on the order of the components either, and it shows a
+component still accumulating, but it does not decide convergence.
 
 ## How Newton's method gets there
 
@@ -78,6 +136,7 @@ grid's steady state, the fine grid is started from its initial state.
 | `handover` | 3 | Plain cycles before Newton's method; a value below 1 is a change for Anderson acceleration to reach instead |
 | `krylov` | `:auto` | GMRES or the full Jacobian for each Newton step |
 | `coarse_cells` | 40 | Grid sequencing above this many cells; `nothing` turns it off |
+| `nonlinear_tolerance` | 10⁻⁸ (`:newton`), 10⁻⁶ (`:anderson`) | Tolerance of the steps of every cycle, and so the resolution in the test |
 | `progress` | on in the REPL | Print each cycle as it runs; an `IO` to print to |
 
 The full list, and the lower-level solvers, are in the docstrings of
